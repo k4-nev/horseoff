@@ -1,0 +1,108 @@
+<div class="ch-wrap">
+  <div class="ch-sidebar" id="chSidebar">
+    <div class="ch-sidebar-head">
+      <div class="ch-sidebar-title">Каналы</div>
+      <button class="ch-head-add" id="chCreateSpaceBtn" onclick="Channels.openCreateSpace()" title="Создать группу">+</button>
+    </div>
+    <div class="ch-sidebar-empty" id="chSidebarEmpty"></div>
+    <div class="ch-sidebar-list" id="chSidebarList"></div>
+  </div>
+  <div class="ch-chat" id="chChat">
+    <div class="ch-chat-head" id="chChatHead" style="display:none">
+      <button class="ch-back-btn" onclick="Channels.closeChat()"><span class="ico ico-18 ico-back"></span></button>
+      <span class="ch-chat-channel"># <span id="chChatName">—</span></span>
+      <div class="ch-chat-actions">
+        <button class="ch-action-btn" onclick="Channels.toggleMembers()" title="Участники"><span class="ico ico-16 ico-users"></span></button>
+      </div>
+    </div>
+    <div class="ch-pin-bar" id="chPinBar" style="display:none"></div>
+    <div class="ch-pins-panel" id="chPinsPanel" style="display:none"></div>
+    <div class="ch-messages" id="chMessages">
+      <div class="ch-empty-chat" id="chEmptyChat">
+        <span class="ico ico-24 ico-channels" style="opacity:0.15"></span>
+        <p>Выберите канал для общения</p>
+      </div>
+    </div>
+    <div class="ch-typing" id="chTyping" style="display:none"></div>
+    <div class="ch-reply-bar" id="chReplyBar" style="display:none">
+      <div class="ch-reply-info"><span class="ch-reply-name" id="chReplyName"></span><span class="ch-reply-text" id="chReplyText"></span></div>
+      <button class="ch-reply-close" onclick="Channels.cancelReply()"><span class="ico ico-14 ico-close"></span></button>
+    </div>
+    <div class="ch-record-bar" id="chRecordBar" style="display:none">
+      <div class="ch-rec-dot"></div>
+      <span class="ch-rec-time" id="chRecTime">0:00</span>
+      <div style="flex:1"></div>
+      <button class="ch-rec-cancel" onclick="Channels.cancelVoice()">Отмена</button>
+      <button class="ch-rec-send" onclick="Channels.stopVoice()"><span class="ico ico-18 ico-send" style="background-color:var(--accent)"></span></button>
+    </div>
+    <div class="ch-upload-preview" id="chUploadPreview" style="display:none">
+      <div class="ch-upload-items" id="chUploadItems"></div>
+    </div>
+    <div class="ch-emoji-picker" id="chEmojiPicker" style="display:none"></div>
+    <div class="ch-input-area" id="chInputArea" style="display:none">
+      <button class="ch-attach-btn" onclick="Channels.pickFile()"><span class="ico ico-18 ico-attach" style="background-color:#999"></span></button>
+      <button class="ch-emoji-btn" onclick="Channels.toggleEmoji()"><span class="ico ico-18 ico-emoji" style="background-color:#999"></span></button>
+      <textarea class="ch-input" id="chInput" placeholder="Написать сообщение..." rows="1" maxlength="4000" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();Channels.send()}" oninput="Channels.onTyping();Channels.autoResize(this);Channels.updateSendBtn();Channels._checkMention()"></textarea>
+      <button class="ch-send-btn" id="chSendBtn" onclick="Channels.onSendClick()"><span class="ico ico-18 ico-mic" style="background-color:#999"></span></button>
+    </div>
+  </div>
+  <div class="ch-members" id="chMembers">
+    <div class="ch-members-head"><span>Участники</span><button class="ch-action-btn" onclick="Channels.toggleMembers()"><span class="ico ico-16 ico-close"></span></button></div>
+    <div class="ch-members-list" id="chMembersList"></div>
+    <button class="ch-add-member-btn" id="chAddMemberBtn" onclick="Channels.openAddMembers()"><span class="ico ico-14 ico-users"></span> Добавить</button>
+  </div>
+  <!-- Media Viewer -->
+  <div class="ch-media-viewer" id="chMediaViewer" style="display:none" onclick="if(event.target===this)Channels.closeViewer()">
+    <button class="ch-viewer-close" onclick="Channels.closeViewer()"><span class="ico ico-24 ico-close"></span></button>
+    <div class="ch-viewer-content" id="chViewerContent"></div>
+  </div>
+
+
+
+
+
+  <!-- Context Menu -->
+  <div class="ch-ctx" id="chCtx" style="display:none">
+    <div class="ch-ctx-item" data-action="reply"><span class="ico ico-14 ico-reply"></span> Ответить</div>
+    <div class="ch-ctx-item" data-action="copy"><span class="ico ico-14 ico-copy"></span> Копировать</div>
+    <div class="ch-ctx-item" data-action="forward"><span class="ico ico-14 ico-forward"></span> Переслать</div>
+    <div class="ch-ctx-item" data-action="edit" id="chCtxEdit" style="display:none"><span class="ico ico-14 ico-pencil"></span> Редактировать</div>
+    <div class="ch-ctx-item ch-ctx-danger" data-action="delete" id="chCtxDelete" style="display:none"><span class="ico ico-14 ico-trash"></span> Удалить</div>
+  </div>
+
+
+</div>
+
+<!-- Create Group Modal -->
+<div class="modal-overlay" id="chCreateSpaceModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title" id="chSpaceModalTitle">Создать группу</div><button class="modal-close" onclick="Shell.closeModal('chCreateSpaceModal')"><span class="ico ico-18 ico-close"></span></button></div>
+  <input type="hidden" id="chSpaceEditId"/>
+  <div class="form-group"><label class="form-label">Название</label><input class="form-input" id="chSpaceNameInput" placeholder="Моя группа" maxlength="40"/></div>
+  <div class="form-group"><label class="form-label">Фото (необязательно)</label><div class="ch-photo-row"><div class="ch-space-photo-pick" id="chSpacePhotoPreview" onclick="Channels.pickSpacePhoto()"><span class="ico ico-18 ico-attach" style="opacity:0.4"></span></div><button class="btn btn-secondary" onclick="Channels.removeSpacePhoto()" style="font-size:11px;padding:4px 10px">Удалить</button></div></div>
+  <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCreateSpaceModal')">Отмена</button><button class="btn btn-primary" id="chSpaceSaveBtn" onclick="Channels.saveSpace()">Создать</button></div>
+</div></div>
+
+<!-- Create/Edit Channel Modal -->
+<div class="modal-overlay" id="chCreateChanModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title" id="chChanModalTitle">Создать канал</div><button class="modal-close" onclick="Shell.closeModal('chCreateChanModal')"><span class="ico ico-18 ico-close"></span></button></div>
+  <input type="hidden" id="chCreateChanSpace"/>
+  <input type="hidden" id="chChanEditId"/>
+  <div class="form-group"><label class="form-label">Название</label><input class="form-input" id="chChanNameInput" placeholder="общий" maxlength="30"/></div>
+  <div class="form-group"><label class="form-label">Иконка</label><div class="ch-icon-picker" id="chIconPicker"></div></div>
+  <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCreateChanModal')">Отмена</button><button class="btn btn-primary" id="chChanSaveBtn" onclick="Channels.saveChannel()">Создать</button></div>
+</div></div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="chDeleteModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title" id="chDeleteTitle">Удалить?</div><button class="modal-close" onclick="Shell.closeModal('chDeleteModal')"><span class="ico ico-18 ico-close"></span></button></div>
+  <div style="color:var(--text-dim);font-size:13px;margin-bottom:12px" id="chDeleteText"></div>
+  <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chDeleteModal')">Отмена</button><button class="btn btn-danger" onclick="Channels.confirmDelete()">Удалить</button></div>
+</div></div>
+
+<!-- Add Members Modal -->
+<div class="modal-overlay" id="chAddMembersModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title">Добавить участников</div><button class="modal-close" onclick="Shell.closeModal('chAddMembersModal')"><span class="ico ico-18 ico-close"></span></button></div>
+  <input class="form-input" id="chMemberSearch" placeholder="Поиск..." oninput="Channels.filterMemberPicker(this.value)" style="margin-bottom:10px"/>
+  <div class="ch-member-picker" id="chMemberPicker"></div>
+  <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chAddMembersModal')">Отмена</button><button class="btn btn-primary" onclick="Channels.addSelectedMembers()">Добавить</button></div>
+</div></div>

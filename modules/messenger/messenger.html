@@ -1,0 +1,124 @@
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<div class="msg-wrap">
+  <!-- CONTACTS (dark) -->
+  <div class="msg-contacts" id="msgContacts">
+    <div class="msg-contacts-head">
+      <div class="msg-contacts-title">Сообщения</div>
+      <div class="msg-search-wrap">
+          <svg class="msg-search-icon" width="14" height="14" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="msg-search" id="msgSearch" placeholder="Поиск..." oninput="Messenger.filterContacts(this.value)" autocomplete="off"/>
+        </div>
+    </div>
+    <div class="msg-contact-list" id="msgContactList">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- CHAT (light) -->
+  <div class="msg-chat" id="msgChat">
+    <div class="msg-chat-empty" id="msgChatEmpty">
+      <svg width="56" height="56" viewBox="0 0 32 32" fill="none" stroke="#ccc" stroke-width="1"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <p style="color:#aaa;font-size:14px;margin:0">Выберите контакт</p>
+    </div>
+    <!-- Header — separate from chat-active so it stays fixed on iOS -->
+    <div class="msg-chat-header-wrap">
+      <div class="msg-chat-header" id="msgChatHeader" style="display:none">
+        <button class="msg-back-btn" onclick="Messenger.closeChat()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="msg-chat-name" id="msgChatName" style="flex:1">—</div>
+        <div class="msg-chat-typing" id="msgChatTyping"></div>
+        <div class="msg-chat-search-wrap" id="msgSearchWrap">
+          <input class="msg-search-input" id="msgSearchInput" placeholder="Поиск..." oninput="Messenger.onSearch(this.value)" autocomplete="off"/>
+          <span class="msg-search-count" id="msgSearchCount"></span>
+        </div>
+        <button class="msg-header-btn" id="msgSearchBtn" onclick="Messenger.toggleSearch()">
+          <span class="ico ico-16 ico-search"></span>
+        </button>
+        <button class="msg-mob-dots" onclick="Messenger.toggleProfileMobile()">
+          <span class="ico ico-18 ico-dots"></span>
+        </button>
+      </div>
+      <div class="msg-pin-bar" id="msgPinBar" style="display:none" onclick="Messenger.scrollToPinned()">
+        <div class="msg-pin-line"></div>
+        <div class="msg-pin-content"><span class="msg-pin-label">Закреплённое сообщение</span><span class="msg-pin-text" id="msgPinText"></span></div>
+        <button class="msg-pin-close" onclick="event.stopPropagation();Messenger.unpinMsg()">&times;</button>
+      </div>
+    </div>
+    <div class="msg-chat-active" id="msgChatActive" style="display:none">
+      <div class="msg-messages" id="msgMessages"></div>
+      <div class="msg-edit-bar" id="msgEditBar" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+        <span>Редактирование</span>
+        <button class="msg-edit-cancel" onclick="Messenger.cancelEdit()">✕</button>
+      </div>
+      <div class="msg-input-area">
+        <div class="msg-emoji-picker" id="msgEmojiPicker" style="display:none"></div>
+        <div class="msg-attach-preview" id="msgAttachPreview" style="display:none"></div>
+        <div class="msg-action-bar-wrap" id="msgActionBar" style="display:none"></div>
+        <button class="msg-emoji-btn" onclick="Messenger.toggleEmoji()">
+          <span class="ico ico-20 ico-emoji"></span>
+        </button>
+        <button class="msg-attach-btn" onclick="Messenger.pickFiles()" title="Прикрепить">
+          <span class="ico ico-18 ico-attach"></span>
+        </button>
+        <input type="file" id="msgFileInput" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt" style="display:none" onchange="Messenger.onFilesSelected(this)"/>
+        <textarea class="msg-input" id="msgInput" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();Messenger.onSendClick()}" placeholder="Сообщение..." maxlength="4000" rows="1" oninput="Messenger.onTyping();Messenger.autoResize(this);Messenger._updateSendBtnColor()" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="true" data-form-type="other" data-lpignore="true" name="messenger-chat-input-xxxx"></textarea>
+        <div class="msg-record-inline" id="msgRecordInline" style="display:none">
+          <button class="msg-record-trash" onclick="Messenger.cancelRecord()">
+            <svg width="16" height="16" viewBox="19 16 55 60" fill="currentColor"><path d="M67.305,36.442v-8.055c0-.939-.762-1.701-1.7-1.701H54.342v-5.524c0-.938-.761-1.7-1.699-1.7h-12.75c-.939,0-1.701.762-1.701,1.7v5.524H26.93c-.939,0-1.7.762-1.7,1.701v8.055c0,.938.761,1.699,1.7,1.699h.488v34.021c0,.938.761,1.7,1.699,1.7h29.481c3.595,0,6.52-2.924,6.52-6.518V38.142h.486C66.543,38.142,67.305,37.381,67.305,36.442z M41.592,22.862h9.35v3.824h-9.35V22.862z M61.719,67.345c0,1.719-1.4,3.117-3.12,3.117h-27.78v-32.32l30.9.002V67.345z M63.904,34.742H28.629v-4.655h11.264h12.75h11.262V34.742z"/><rect height="19.975" width="3.4" x="36.066" y="44.962"/><rect height="19.975" width="3.4" x="44.566" y="44.962"/><rect height="19.975" width="3.4" x="53.066" y="44.962"/></svg>
+          </button>
+          <span class="msg-record-dot" id="msgRecordDot"></span>
+          
+          <span class="msg-record-time" id="msgRecordTime">0:00</span>
+        </div>
+        <button class="msg-send-btn mic-idle ico ico-mic" id="msgSendBtn" onclick="Messenger.onSendClick()"
+          >
+          
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE PANEL (dark, right) -->
+  <div class="msg-profile" id="msgProfile">
+    <div class="msg-profile-inner" id="msgProfileInner">
+      <div class="msg-profile-empty-state" id="msgProfileEmptyState">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1" style="opacity:0.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="msg-profile-content" id="msgProfileContent" style="display:none">
+        <div class="msg-profile-close-btn" onclick="Messenger.toggleProfileMobile()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+        <div class="msg-profile-ava" id="msgProfileAva"></div>
+        <div class="msg-profile-name" id="msgProfileName">—</div>
+        <div class="msg-profile-username" id="msgProfileUsername">—</div>
+        <div class="msg-profile-info">
+          <div class="msg-profile-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Роль: <b id="msgProfileRole">—</b></span>
+          </div>
+        </div>
+        <!-- Attachments in profile panel -->
+        <div class="msg-profile-attach">
+          <div class="msg-profile-attach-tabs">
+            <button class="msg-profile-tab active" data-tab="image" onclick="Messenger.switchAttachTab('image')">Медиа</button>
+            <button class="msg-profile-tab" data-tab="audio" onclick="Messenger.switchAttachTab('audio')">Аудио</button>
+            <button class="msg-profile-tab" data-tab="file" onclick="Messenger.switchAttachTab('file')">Файлы</button>
+          </div>
+          <div class="msg-profile-attach-grid" id="msgProfileAttachGrid"></div>
+        </div>
+        <button class="msg-clear-chat-btn" onclick="Messenger.clearChat()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Очистить чат
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Gallery Viewer -->
+<div class="msg-gallery-overlay" id="msgGallery" onclick="if(event.target===this)Messenger.closeGallery()">
+  <button class="msg-gallery-close" onclick="Messenger.closeGallery()">&times;</button>
+  <img class="msg-gallery-img" id="msgGalleryImg"/>
+</div>

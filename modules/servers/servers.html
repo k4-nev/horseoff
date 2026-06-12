@@ -1,0 +1,112 @@
+<div class="srv-wrap">
+<div class="srv-header">
+<h2>Серверы</h2>
+<div class="srv-actions">
+<button class="btn btn-primary srv-add-btn" onclick="Servers.openCreate()">Создать сервер</button>
+<button class="btn btn-secondary srv-add-btn" onclick="Servers.openAdd()">Добавить сервер</button>
+<button class="btn btn-secondary" id="srvRefreshBtn" onclick="Servers.loadData()">Обновить</button>
+<button class="btn btn-secondary srv-settings-btn" onclick="Servers.openSettings()"><span class="ico ico-16 ico-settings"></span></button>
+<span class="srv-clock" id="srvClock">--:--:--</span>
+</div>
+</div>
+<div class="srv-summary" id="srvSummary">
+<span>Серверов: <b id="sTotal">--</b></span>
+<span class="srv-div"></span>
+<span>Онлайн: <b id="sOnline" class="green">--</b></span>
+<span class="srv-div"></span>
+<span>Оффлайн: <b id="sOffline" class="red">--</b></span>
+<span class="srv-div"></span>
+<span>Ср. CPU: <b id="sCpu">--</b></span>
+<div class="srv-pills"><button class="srv-pill host active" data-role="host" onclick="Servers.togglePill(this)">HOST</button><button class="srv-pill proxy active" data-role="proxy" onclick="Servers.togglePill(this)">Proxy</button><button class="srv-pill client active" data-role="client" onclick="Servers.togglePill(this)">Client</button></div>
+</div>
+<div class="srv-table-head" id="srvTableHead" style="display:none">
+<div></div><div>Role</div><div>Сервер</div><div>IP</div>
+<div style="text-align:center">CPU</div><div style="text-align:center">RAM</div>
+<div style="text-align:center">Скорость</div><div style="text-align:center">HTTP</div>
+<div style="text-align:center">SOCKS5</div><div style="text-align:center">3proxy</div>
+<div style="text-align:center">Дней</div><div></div>
+</div>
+<div id="srvList"><div class="loading"><div class="spinner"></div>Запускаю программу...</div></div>
+<div class="srv-footer"><span class="app-version">v2.205.5</span> · Created by k4nev with the support of mysika</div>
+</div>
+
+<!-- Create Server Modal (full provision) -->
+<div class="modal-overlay" id="srvCreateModal"><div class="modal modal-wide">
+<div class="modal-header"><div class="modal-title">Создать сервер</div><button class="modal-close" onclick="Shell.closeModal('srvCreateModal')"><span class="ico ico-18 ico-close"></span></button></div>
+<div class="form-group"><label class="form-label">Название</label><input class="form-input" id="sc-name" placeholder="Proxy-01"/></div>
+<div class="form-group"><label class="form-label">IP-адрес</label><input class="form-input" id="sc-ip" placeholder="123.45.67.89"/></div>
+<div class="form-row"><div class="form-group"><label class="form-label">SSH порт</label><input class="form-input" id="sc-ssh-port" type="number" value="22"/></div><div class="form-group"><label class="form-label">SSH пользователь</label><input class="form-input" id="sc-ssh-user" value="root"/></div></div>
+<div class="form-group"><label class="form-label">SSH пароль</label><div class="input-eye"><input class="form-input" id="sc-ssh-pass" type="password" placeholder="••••••"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
+<div class="form-row"><div class="form-group"><label class="form-label">HTTP порт</label><input class="form-input" id="sc-http-port" type="number" value="10000"/></div><div class="form-group"><label class="form-label">SOCKS5 порт</label><input class="form-input" id="sc-socks-port" type="number" value="10000"/></div></div>
+<div class="form-row"><div class="form-group"><label class="form-label">Proxy логин</label><input class="form-input" id="sc-proxy-user" placeholder="proxyuser"/></div><div class="form-group"><label class="form-label">Proxy пароль</label><div class="input-eye"><input class="form-input" id="sc-proxy-pass" type="password" placeholder="••••••"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div></div>
+<div class="form-row"><div class="form-group"><label class="form-label">DNS</label><select class="form-select" id="sc-dns"><option value="google">Google (8.8.8.8)</option><option value="yandex">Яндекс (77.88.8.8)</option></select></div><div class="form-group"><label class="form-label">Роль сервера</label><select class="form-select" id="sc-role"><option value="proxy">Proxy</option></select></div></div>
+<div class="form-group"><label class="form-label">Провайдер VDS</label><select class="form-select" id="sc-vds"><option value="">n/a</option><option value="ruvds">ruvds</option></select></div>
+<div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('srvCreateModal')">Отмена</button><button class="btn btn-primary" onclick="Servers.createServer()">Создать</button></div>
+</div></div>
+
+<!-- Add Server Modal (SSH key) -->
+<div class="modal-overlay" id="srvAddModal2"><div class="modal">
+<div class="modal-header"><div class="modal-title">Добавить сервер</div><button class="modal-close" onclick="Shell.closeModal('srvAddModal2')"><span class="ico ico-18 ico-close"></span></button></div>
+<div class="form-group"><label class="form-label">Название</label><input class="form-input" id="sa-name" placeholder="Proxy-01"/></div>
+<div class="form-group"><label class="form-label">IP-адрес</label><input class="form-input" id="sa-ip" placeholder="123.45.67.89"/></div>
+<div class="form-row"><div class="form-group"><label class="form-label">SSH порт</label><input class="form-input" id="sa-ssh-port" type="number" value="22"/></div><div class="form-group"><label class="form-label">SSH пользователь</label><input class="form-input" id="sa-ssh-user" value="root"/></div></div>
+<div class="form-group"><label class="form-label">SSH пароль (для копирования ключа)</label><div class="input-eye"><input class="form-input" id="sa-ssh-pass" type="password" placeholder="Необязательно"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div><div class="form-hint">Если SSH-ключ уже настроен — оставьте пустым</div></div>
+<div class="form-group"><label class="form-label">Роль</label><select class="form-select" id="sa-role" onchange="Servers.onAddRoleChange()"><option value="proxy">Proxy</option><option value="client">Client</option></select></div>
+<div id="sa-ports-group">
+<div class="form-row"><div class="form-group"><label class="form-label">HTTP порт</label><input class="form-input" id="sa-http-port" type="number" value="10000"/></div><div class="form-group"><label class="form-label">SOCKS5 порт</label><input class="form-input" id="sa-socks-port" type="number" value="10000"/></div></div>
+</div>
+<div class="form-group" id="sa-vds-group" style="display:none"><label class="form-label">Провайдер VDS</label><select class="form-select" id="sa-vds"><option value="">n/a</option><option value="ruvds">ruvds</option></select></div>
+<div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('srvAddModal2')">Отмена</button><button class="btn btn-primary" onclick="Servers.addServer()">Добавить</button></div>
+</div></div>
+
+<!-- Edit Server Modal -->
+<div class="modal-overlay" id="srvAddModal"><div class="modal">
+<div class="modal-header"><div class="modal-title" id="srvAddTitle">Редактировать сервер</div><button class="modal-close" onclick="Shell.closeModal('srvAddModal')"><span class="ico ico-18 ico-close"></span></button></div>
+<input type="hidden" id="srvEditIp"/>
+<div class="form-group"><label class="form-label">Название</label><input class="form-input" id="sf-name" placeholder="Proxy-01"/></div>
+<div class="form-group"><label class="form-label">IP-адрес</label><input class="form-input" id="sf-ip" placeholder="123.45.67.89"/></div>
+<div class="form-row"><div class="form-group"><label class="form-label">SSH порт</label><input class="form-input" id="sf-ssh-port" type="number" value="22"/></div><div class="form-group"><label class="form-label">SSH пользователь</label><input class="form-input" id="sf-ssh-user" value="root"/></div></div>
+<div id="sf-ports-group">
+<div class="form-row"><div class="form-group"><label class="form-label">HTTP порт</label><input class="form-input" id="sf-http-port" type="number" value="10000"/></div><div class="form-group"><label class="form-label">SOCKS5 порт</label><input class="form-input" id="sf-socks-port" type="number" value="10000"/></div></div>
+</div>
+<div class="form-group"><label class="form-label">Роль</label><select class="form-select" id="sf-role" onchange="Servers.onEditRoleChange()"><option value="">Не выбрано</option><option value="proxy">Proxy</option><option value="host">HOST</option><option value="client">Client</option></select></div>
+<div class="form-group" id="sf-vds-group" style="display:none"><label class="form-label">Провайдер VDS</label><select class="form-select" id="sf-vds"><option value="">n/a</option><option value="ruvds">ruvds</option></select></div>
+<div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('srvAddModal')">Отмена</button><button class="btn btn-primary" id="srvSaveBtn" onclick="Servers.saveServer()">Сохранить</button></div>
+</div></div>
+
+<!-- Delete Modal -->
+<div class="modal-overlay" id="srvDelModal"><div class="modal">
+<div class="modal-header"><div class="modal-title">Удалить сервер?</div><button class="modal-close" onclick="Shell.closeModal('srvDelModal')"><span class="ico ico-18 ico-close"></span></button></div>
+<div style="color:var(--text-dim);font-size:14px;margin-bottom:8px">Сервер будет удалён из мониторинга.</div>
+<div class="form-input" id="srvDelInfo" style="margin-bottom:12px">--</div>
+<div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('srvDelModal')">Отмена</button><button class="btn btn-danger" onclick="Servers.confirmDelete()">Удалить</button></div>
+</div></div>
+
+<!-- Provision Progress Modal -->
+<div class="modal-overlay" id="srvProgressModal"><div class="modal">
+<div class="modal-header"><div class="modal-title">Настройка сервера</div><button class="modal-close" id="srvProgressClose" onclick="Shell.closeModal('srvProgressModal')" style="display:none"><span class="ico ico-18 ico-close"></span></button></div>
+<div id="srvProgressSteps"></div>
+<div id="srvProgressError" style="display:none;color:var(--danger);font-size:13px;margin-top:10px;padding:8px 12px;background:var(--danger-glow);border-radius:6px"></div>
+</div></div>
+
+<!-- Result Modal -->
+<div class="modal-overlay" id="srvResultModal"><div class="modal">
+<div class="modal-header"><div class="modal-title">Сервер готов</div><button class="modal-close" onclick="Shell.closeModal('srvResultModal')"><span class="ico ico-18 ico-close"></span></button></div>
+<div style="color:var(--text-dim);font-size:13px;margin-bottom:12px">Прокси настроены и работают:</div>
+<div class="srv-result-row" onclick="Servers.copyResult(this)"><div class="srv-result-label">HTTP</div><div class="srv-result-value" id="srvResHttpVal">—</div></div>
+<div class="srv-result-row" onclick="Servers.copyResult(this)"><div class="srv-result-label">SOCKS5</div><div class="srv-result-value" id="srvResSocksVal">—</div></div>
+<div style="font-size:11px;color:var(--text-dim);margin-top:8px">Нажмите на строку для копирования</div>
+</div></div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="srvSettingsModal"><div class="modal">
+<div class="modal-header"><div class="modal-title">Настройки</div><button class="modal-close" onclick="Shell.closeModal('srvSettingsModal')"><span class="ico ico-18 ico-close"></span></button></div>
+<div class="form-label" style="margin-bottom:10px">Интервал обновления</div>
+<div style="display:flex;gap:8px;margin-bottom:16px" id="srvIntervalGroup"></div>
+<div class="form-divider"></div>
+<div class="form-label" style="margin-bottom:10px">API VDS</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:JetBrains Mono,monospace;font-size:13px;font-weight:600;color:var(--accent);min-width:50px">ruvds</span><input class="form-input" id="srvApiKey" placeholder="API key..." style="flex:1;min-width:120px"/><button class="btn btn-secondary" onclick="Servers.saveApiKey()" style="padding:6px 12px;font-size:12px">Сохранить</button><span id="srvApiStatus"></span></div>
+<div class="form-divider"></div>
+<div style="font-size:13px;color:var(--text-dim);line-height:1.6">Horseoff — легковесная панель мониторинга серверов 3proxy.</div>
+<div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--accent);margin-top:8px"><span class="app-version">v2.205.5</span> · Created by k4nev with the support of mysika</div>
+</div></div>
