@@ -2,23 +2,41 @@
 <div class="srv-header">
 <h2>Серверы</h2>
 <div class="srv-actions">
-<button class="btn btn-primary srv-add-btn" onclick="Servers.openCreate()">Создать сервер</button>
-<button class="btn btn-secondary srv-add-btn" onclick="Servers.openAdd()">Добавить сервер</button>
-<button class="btn btn-secondary" id="srvRefreshBtn" onclick="Servers.loadData()">Обновить</button>
-<button class="btn btn-secondary srv-settings-btn" onclick="Servers.openSettings()"><span class="ico ico-16 ico-settings"></span></button>
+<div class="srv-add-group">
+  <button class="btn btn-primary srv-add-btn" onclick="Servers.openCreate()"><span class="ico ico-14 ico-plus"></span>Создать</button>
+  <button class="btn btn-secondary srv-add-btn" onclick="Servers.openAdd()">Добавить</button>
+</div>
+<button class="btn btn-icon-only" id="srvRefreshBtn" onclick="Servers.loadData()" title="Обновить"><span class="ico ico-16 ico-refresh"></span></button>
+<button class="btn btn-icon-only srv-settings-btn" onclick="Servers.openSettings()" title="Настройки"><span class="ico ico-16 ico-settings"></span></button>
 <span class="srv-clock" id="srvClock">--:--:--</span>
 </div>
 </div>
+
 <div class="srv-summary" id="srvSummary">
-<span>Серверов: <b id="sTotal">--</b></span>
-<span class="srv-div"></span>
-<span>Онлайн: <b id="sOnline" class="green">--</b></span>
-<span class="srv-div"></span>
-<span>Оффлайн: <b id="sOffline" class="red">--</b></span>
-<span class="srv-div"></span>
-<span>Ср. CPU: <b id="sCpu">--</b></span>
+<div class="srv-metric-cards">
+  <div class="srv-metric-card">
+    <span class="srv-metric-label">Серверов</span>
+    <b class="srv-metric-value" id="sTotal">--</b>
+  </div>
+  <div class="srv-metric-sep"></div>
+  <div class="srv-metric-card">
+    <span class="srv-metric-label">Онлайн</span>
+    <b class="srv-metric-value green" id="sOnline">--</b>
+  </div>
+  <div class="srv-metric-sep"></div>
+  <div class="srv-metric-card">
+    <span class="srv-metric-label">Оффлайн</span>
+    <b class="srv-metric-value red" id="sOffline">--</b>
+  </div>
+  <div class="srv-metric-sep"></div>
+  <div class="srv-metric-card">
+    <span class="srv-metric-label">Ср. CPU</span>
+    <b class="srv-metric-value" id="sCpu">--</b>
+  </div>
+</div>
 <div class="srv-pills"><button class="srv-pill host active" data-role="host" onclick="Servers.togglePill(this)">HOST</button><button class="srv-pill proxy active" data-role="proxy" onclick="Servers.togglePill(this)">Proxy</button><button class="srv-pill client active" data-role="client" onclick="Servers.togglePill(this)">Client</button></div>
 </div>
+
 <div class="srv-table-head" id="srvTableHead" style="display:none">
 <div></div><div>Role</div><div>Сервер</div><div>IP</div>
 <div style="text-align:center">CPU</div><div style="text-align:center">RAM</div>
@@ -27,7 +45,7 @@
 <div style="text-align:center">Дней</div><div></div>
 </div>
 <div id="srvList"><div class="loading"><div class="spinner"></div>Запускаю программу...</div></div>
-<div class="srv-footer"><span class="app-version">v2.205.5</span> · Created by k4nev with the support of mysika</div>
+<div class="srv-footer"><span class="app-version">v2.208</span> · Created by k4nev with the support of mysika</div>
 </div>
 
 <!-- Create Server Modal (full provision) -->
@@ -108,5 +126,5 @@
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:JetBrains Mono,monospace;font-size:13px;font-weight:600;color:var(--accent);min-width:50px">ruvds</span><input class="form-input" id="srvApiKey" placeholder="API key..." style="flex:1;min-width:120px"/><button class="btn btn-secondary" onclick="Servers.saveApiKey()" style="padding:6px 12px;font-size:12px">Сохранить</button><span id="srvApiStatus"></span></div>
 <div class="form-divider"></div>
 <div style="font-size:13px;color:var(--text-dim);line-height:1.6">Horseoff — легковесная панель мониторинга серверов 3proxy.</div>
-<div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--accent);margin-top:8px"><span class="app-version">v2.205.5</span> · Created by k4nev with the support of mysika</div>
+<div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--accent);margin-top:8px"><span class="app-version">v2.208</span> · Created by k4nev with the support of mysika</div>
 </div></div>
