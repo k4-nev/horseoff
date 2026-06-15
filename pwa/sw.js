@@ -1,13 +1,21 @@
-const CACHE = 'horseoff-v2';
+const VERSION = 'horseoff-v2.209';
+const CACHE = VERSION;
 
 self.addEventListener('install', e => { self.skipWaiting(); });
-self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
 
 self.addEventListener('fetch', e => {
   var url = new URL(e.request.url);
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws')) return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, {cache: 'no-cache'}).then(r => {
       if (r.ok && e.request.method === 'GET') {
         var clone = r.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));

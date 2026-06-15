@@ -4,6 +4,7 @@ const Servers = {
   deleteTarget: null,
   editMode: false,
   firstLoad: true,
+  _history: {},
 
   init() {
     this.startClock();
@@ -15,14 +16,13 @@ const Servers = {
     }
     setTimeout(() => { this.firstLoad = false; }, 5000);
     this.buildIntervalGroup();
-    // Request server data via WS
+    this._showSkeleton();
     this._waitAndRequest();
   },
 
   _waitAndRequest() {
     if (Shell.wsReady) {
       Shell.wsSend({type:'servers_request'});
-      // Fallback: if WS doesn't deliver in 3s, use HTTP
       var self = this;
       this._wsFallback = setTimeout(function() {
         if (self.firstLoad) {
@@ -48,9 +48,6 @@ const Servers = {
     }
   },
 
-  // Settings arrive via WS on connect (onSettingsUpdate)
-
-  // Sort: host > proxy > client
   _sortOrder: {host:0, proxy:1, client:2},
 
   sortServers(data) {
@@ -66,7 +63,6 @@ const Servers = {
     btn.classList.toggle('active');
     var role = btn.getAttribute('data-role');
     var isActive = btn.classList.contains('active');
-    // Sync both desktop and mobile pill sets
     document.querySelectorAll('.srv-pill[data-role="' + role + '"]').forEach(function(p) {
       p.classList.toggle('active', isActive);
     });
@@ -112,14 +108,12 @@ const Servers = {
     if (role === 'proxy') {
       return '<div class="srv-table-head"><div></div><div>Role</div><div>Сервер</div><div>IP</div>'
         + '<div style="text-align:center">CPU</div><div style="text-align:center">RAM</div>'
-        + '<div style="text-align:center">Скорость</div><div style="text-align:center">HTTP</div>'
-        + '<div style="text-align:center">SOCKS5</div><div style="text-align:center">3proxy</div>'
+        + '<div style="text-align:center">Скорость</div><div style="text-align:center">Прокси</div>'
         + '<div style="text-align:center">Дней</div><div></div></div>';
     } else {
-      // host, client
       return '<div class="srv-table-head"><div></div><div>Role</div><div>Сервер</div><div>IP</div>'
         + '<div style="text-align:center">CPU</div><div style="text-align:center">RAM</div>'
-        + '<div style="text-align:center">Скорость</div><div style="text-align:center;grid-column:span 3">Память</div>'
+        + '<div style="text-align:center">Скорость</div><div style="text-align:center">Диск</div>'
         + '<div style="text-align:center">Дней</div><div></div></div>';
     }
   },
@@ -130,8 +124,6 @@ const Servers = {
     var tick = () => { if (document.getElementById('srvClock')) el.textContent = new Date().toLocaleTimeString('ru-RU'); };
     tick(); setInterval(tick, 1000);
   },
-
-  // Auto-refresh removed — server pushes updates via WS
 
   buildIntervalGroup() {
     var el = document.getElementById('srvIntervalGroup');
@@ -171,12 +163,56 @@ const Servers = {
     });
   },
 
-  // DATA — all via WS
   async loadData() {
     var btn = document.getElementById('srvRefreshBtn');
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
     Shell.wsSend({type:'servers_request'});
-    setTimeout(function(){ if (btn) btn.disabled = false; }, 1000);
+    setTimeout(function(){ if (btn) { btn.disabled = false; btn.classList.remove('spinning'); } }, 1000);
+  },
+
+  // ===== SPARKLINE =====
+  _addHistory(ip, cpu, ram) {
+    if (!this._history[ip]) this._history[ip] = {cpu:[], ram:[]};
+    if (cpu != null) this._history[ip].cpu.push(cpu);
+    if (ram != null) this._history[ip].ram.push(ram);
+    if (this._history[ip].cpu.length > 20) this._history[ip].cpu.shift();
+    if (this._history[ip].ram.length > 20) this._history[ip].ram.shift();
+  },
+
+  _sparkline(values, color) {
+    if (!values || values.length < 2) return '';
+    var w = 48, h = 14, n = values.length;
+    var max = Math.max.apply(null, values.concat([1]));
+    var pts = values.map(function(v, i) {
+      var x = Math.round(i / (n - 1) * w);
+      var y = Math.round(h - Math.max(1, (v / max) * h));
+      return x + ',' + y;
+    }).join(' ');
+    return '<svg width="' + w + '" height="' + h + '" style="display:block;margin:3px auto 0;opacity:0.7"><polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  },
+
+  // ===== SKELETON =====
+  _showSkeleton() {
+    var list = document.getElementById('srvList');
+    if (!list) return;
+    var skels = '';
+    for (var i = 0; i < 4; i++) {
+      skels += '<div class="srv-skel"><div class="skel-dot"></div><div class="skel-tag"></div>'
+        + '<div class="skel-name"><div class="skel-line w60"></div><div class="skel-line w40 skel-sub"></div></div>'
+        + '<div class="skel-line w80"></div><div class="skel-line w50"></div><div class="skel-line w50"></div>'
+        + '<div class="skel-line w60"></div><div class="skel-line w70"></div>'
+        + '<div class="skel-line w30"></div><div class="skel-line w20"></div></div>';
+    }
+    list.innerHTML = skels;
+  },
+
+  // ===== FLASH on update =====
+  _flashLiveIndicator() {
+    var el = document.getElementById('srvLiveIndicator');
+    if (!el) return;
+    el.classList.remove('srv-live-flash');
+    void el.offsetWidth;
+    el.classList.add('srv-live-flash');
   },
 
   _applyData(data) {
@@ -186,18 +222,34 @@ const Servers = {
     var off = data.length - on;
     var ca = data.filter(s => s.online !== false && s.cpu != null);
     var avg = ca.length > 0 ? Math.round(ca.reduce((a,s) => a + s.cpu, 0) / ca.length) : '--';
+
+    // Animate metric cards on change
+    ['sTotal','sOnline','sOffline','sCpu'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.classList.remove('srv-data-updated'); void el.offsetWidth; el.classList.add('srv-data-updated'); }
+    });
+
     document.getElementById('sTotal').textContent = data.length;
     document.getElementById('sOnline').textContent = on;
     document.getElementById('sOffline').textContent = off;
     document.getElementById('sCpu').textContent = avg + (avg !== '--' ? '%' : '');
+
+    this._flashLiveIndicator();
+
     var list = document.getElementById('srvList');
     if (data.length === 0 && this.firstLoad) {
-      list.innerHTML = '<div class="loading"><div class="spinner"></div>Запускаю программу...</div>';
+      this._showSkeleton();
     } else if (data.length === 0) {
       list.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--text-dim)"><div style="font-size:40px;margin-bottom:12px;opacity:0.5">📡</div><h3 style="font-size:18px;color:var(--text);margin-bottom:6px">Нет серверов</h3><p>Добавьте первый сервер</p></div>';
     } else {
       this.firstLoad = false;
       data = this.sortServers(data);
+      // Add history for sparklines
+      var self = this;
+      data.forEach(function(s) {
+        var rp = (s.ram_used && s.ram_total) ? Math.round(s.ram_used / s.ram_total * 100) : null;
+        self._addHistory(s.ip, s.cpu != null ? s.cpu : null, rp);
+      });
       var html = '';
       var lastRole = null;
       data.forEach(function(s) {
@@ -215,7 +267,6 @@ const Servers = {
   barLevel(p) { if (p < 60) return 'low'; if (p < 85) return 'mid'; return 'high'; },
 
   _findRowIp(rowEl) {
-    // Find IP from row's data attribute
     return rowEl.getAttribute('data-srvip') || null;
   },
 
@@ -240,13 +291,17 @@ const Servers = {
     var dl = s.days_left;
     var eid = s.ip.replace(/\./g, '-');
     var isUser = Shell.user && Shell.user.role === 'common';
+    var hist = this._history[s.ip] || {cpu:[], ram:[]};
 
+    // Days column
     var daysCol = '<div></div>';
     if (isClient && dl != null) {
-      var dc = 'green'; if (dl < 10) dc = 'yellow'; if (dl < 4) dc = 'red';
-      daysCol = '<div style="text-align:center"><span class="days-tag ' + dc + '">' + dl + 'д</span></div>';
+      var dc = dl < 4 ? 'red' : dl < 10 ? 'yellow' : 'green';
+      var daysCls = dl < 4 ? 'days-critical' : dl < 10 ? 'days-warning' : 'days-ok';
+      daysCol = '<div style="text-align:center"><span class="days-tag ' + dc + ' ' + (dl < 4 ? 'days-blink' : '') + '">' + dl + 'д</span></div>';
     }
 
+    // Expand (VDS info)
     var expandHtml = '';
     if (isClient) {
       var vi = s.vds_info;
@@ -258,39 +313,60 @@ const Servers = {
           + '<div class="srv-expand-item"><span class="srv-expand-label">Диск</span><span class="srv-expand-value">' + (vi.drive || '--') + ' GB</span></div>'
           + '<div class="srv-expand-item"><span class="srv-expand-label">Оплачен до</span><span class="srv-expand-value">' + (vi.paid_till || '--') + '</span></div>'
           + '<div class="srv-expand-item"><span class="srv-expand-label">Дней осталось</span><span class="srv-expand-value">' + (vi.days_left != null ? vi.days_left + 'd' : '--') + '</span></div>'
-          + '<div class="srv-expand-item"><span class="srv-expand-label">Стоимость</span><span class="srv-expand-value" style="color:var(--accent);font-weight:700;font-size:15px">' + (vi.cost_rub != null ? vi.cost_rub + ' \u20BD' : '--') + '</span></div>'
+          + '<div class="srv-expand-item"><span class="srv-expand-label">Стоимость</span><span class="srv-expand-value" style="color:var(--accent);font-weight:700;font-size:15px">' + (vi.cost_rub != null ? vi.cost_rub + ' ₽' : '--') + '</span></div>'
           + '</div></div>';
       } else {
         expandHtml = '<div class="srv-expand" id="expand-' + eid + '"><div class="no-api-hint">API-ключ не установлен. Настройки → API VDS.</div></div>';
       }
     }
 
-    // Cache for context menu
     this.cacheServerData(s);
-
     var isHost = s.role === 'host';
 
-    // Desktop row
-    var h = '<div class="srv-row ' + sc + (isClient ? ' expandable' : '') + '" data-srvip="' + s.ip + '" data-role="' + (s.role||'') + '" oncontextmenu="Servers.showServerCtx(event,\'' + s.ip + '\')"' + (isClient ? ' onclick="Servers.toggleExpand(\'' + eid + '\')"' : '') + '>';
+    // CPU cell with sparkline
+    var cpuSparkline = hist.cpu.length >= 2 ? this._sparkline(hist.cpu, cpu !== '--' && cpu >= 85 ? 'var(--danger)' : cpu >= 60 ? 'var(--warning)' : 'var(--accent)') : '';
+    var cpuCell = '<div class="row-metric ' + (cpu !== '--' && cpu >= 85 ? 'metric-high' : cpu !== '--' && cpu >= 60 ? 'metric-mid' : '') + '">'
+      + cpu + (cpu !== '--' ? '<span class="unit">%</span>' : '')
+      + (on && cpu !== '--' ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(cpu) + '" style="width:' + cpu + '%"></div></div>' : '')
+      + cpuSparkline + '</div>';
+
+    // RAM cell with sparkline
+    var ramSparkline = hist.ram.length >= 2 ? this._sparkline(hist.ram, rp != null && rp >= 85 ? 'var(--danger)' : rp != null && rp >= 60 ? 'var(--warning)' : '#9b59ff') : '';
+    var ramCell = '<div class="row-metric ' + (rp != null && rp >= 85 ? 'metric-high' : rp != null && rp >= 60 ? 'metric-mid' : '') + '">'
+      + (rp != null ? rp : '--') + (rp != null ? '<span class="unit">%</span>' : '')
+      + (rp != null ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(rp) + '" style="width:' + rp + '%"></div></div>' : '')
+      + ramSparkline + '</div>';
+
+    // Merged proxy / disk column
+    var midCol;
+    if (isProxy) {
+      var httpCls = hu ? 'prx-dot-on' : 'prx-dot-off';
+      var socksCls = su ? 'prx-dot-on' : 'prx-dot-off';
+      var svcCls = pr ? 'prx-svc-on' : 'prx-svc-off';
+      midCol = '<div style="text-align:center"><div class="prx-row">'
+        + '<span class="prx-dot ' + httpCls + '" title="HTTP"></span>'
+        + '<span class="prx-dot ' + socksCls + '" title="SOCKS5"></span>'
+        + '<span class="prx-svc ' + svcCls + '">SVC</span>'
+        + '</div><div class="prx-labels"><span>HTTP</span><span>SOCKS</span><span>3px</span></div></div>';
+    } else {
+      var du = s.disk_used != null ? s.disk_used : null;
+      var dt = s.disk_total != null ? s.disk_total : null;
+      var dp = (du != null && dt != null && dt > 0) ? Math.round(du / dt * 100) : null;
+      var diskLabel = du != null && dt != null ? du + '<span class="unit">/</span>' + dt + '<span class="unit">GB</span>' : '--';
+      midCol = '<div class="row-metric">' + diskLabel + (dp != null ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(dp) + '" style="width:' + dp + '%"></div></div>' : '') + '</div>';
+    }
+
+    // Row
+    var rowCls = 'srv-row ' + sc + (isClient ? ' expandable' : '') + (on ? '' : ' row-offline');
+    var h = '<div class="' + rowCls + '" data-srvip="' + s.ip + '" data-role="' + (s.role||'') + '" oncontextmenu="Servers.showServerCtx(event,\'' + s.ip + '\')"' + (isClient ? ' onclick="Servers.toggleExpand(\'' + eid + '\')"' : '') + '>';
     h += '<span class="status-dot ' + sc + '"></span>';
     h += '<div>' + this.roleTag(s.role || '') + '</div>';
     h += '<div class="row-name">' + s.name + '<span class="row-name-sub">' + up + '</span></div>';
     h += '<div class="row-ip">' + s.ip + '</div>';
-    h += '<div class="row-metric">' + cpu + (cpu !== '--' ? '<span class="unit">%</span>' : '') + (on && cpu !== '--' ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(cpu) + '" style="width:' + cpu + '%"></div></div>' : '') + '</div>';
-    h += '<div class="row-metric">' + (rp != null ? rp : '--') + (rp != null ? '<span class="unit">%</span>' : '') + (rp != null ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(rp) + '" style="width:' + rp + '%"></div></div>' : '') + '</div>';
+    h += cpuCell;
+    h += ramCell;
     h += '<div class="row-metric">' + sp + (sp !== '--' ? '<span class="unit">Mb</span>' : '') + '</div>';
-    if (isProxy) {
-      h += '<div style="text-align:center"><span class="proxy-tag ' + (hu ? 'up' : 'down') + '"><span class="tag-dot"></span>' + (hu ? 'UP' : 'DOWN') + '</span></div>';
-      h += '<div style="text-align:center"><span class="proxy-tag ' + (su ? 'up' : 'down') + '"><span class="tag-dot"></span>' + (su ? 'UP' : 'DOWN') + '</span></div>';
-      h += '<div style="text-align:center"><span class="service-tag ' + (pr ? 'running' : 'stopped') + '">' + (pr ? 'RUN' : 'STOP') + '</span></div>';
-    } else {
-      // Host / Client — show disk with progress bar
-      var du = s.disk_used != null ? s.disk_used : null;
-      var dt = s.disk_total != null ? s.disk_total : null;
-      var dp = (du != null && dt != null && dt > 0) ? Math.round(du / dt * 100) : null;
-      var diskLabel = du != null && dt != null ? du + ' <span class="unit">из</span> ' + dt + '<span class="unit"> GB</span>' : '--';
-      h += '<div class="row-metric" style="grid-column:span 3">' + diskLabel + (dp != null ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(dp) + '" style="width:' + dp + '%"></div></div>' : '') + '</div>';
-    }
+    h += midCol;
     h += daysCol;
 
     if (!isUser && !isHost) {
@@ -302,7 +378,7 @@ const Servers = {
       h += '<div></div>';
     }
 
-    // Mobile info
+    // Mobile
     var mobBtns = '';
     if (!isUser && !isHost) {
       mobBtns = '<div class="mob-actions" onclick="event.stopPropagation()">'
@@ -314,7 +390,7 @@ const Servers = {
     h += '<div class="mob-top" style="display:none"><div class="mob-top-left"><span class="status-dot ' + sc + '"></span>' + this.roleTag(s.role || '') + '<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:#6a6a80;margin-left:8px">' + s.ip + '</span></div>' + mobBtns + '</div>';
     h += '<div class="mob-ip" style="display:none"></div>';
     h += '<div class="mob-info" style="display:none">';
-    h += '<div class="mi"><span class="mi-l">CPU</span><span class="mi-v">' + cpu + (cpu !== '--' ? '%' : '') + '</span></div>';
+    h += '<div class="mi"><span class="mi-l">CPU</span><span class="mi-v ' + (cpu !== '--' && cpu >= 85 ? 'metric-high' : cpu !== '--' && cpu >= 60 ? 'metric-mid' : '') + '">' + cpu + (cpu !== '--' ? '%' : '') + '</span></div>';
     h += '<div class="mi"><span class="mi-l">RAM</span><span class="mi-v">' + (rp != null ? rp + '%' : '--') + '</span></div>';
     h += '<div class="mi"><span class="mi-l">Speed</span><span class="mi-v">' + sp + (sp !== '--' ? ' Mb' : '') + '</span></div>';
     if (isProxy) {
@@ -324,11 +400,10 @@ const Servers = {
     } else {
       var du2 = s.disk_used != null ? s.disk_used : null;
       var dt2 = s.disk_total != null ? s.disk_total : null;
-      var dp2 = (du2 != null && dt2 != null && dt2 > 0) ? Math.round(du2 / dt2 * 100) : null;
       h += '<div class="mi"><span class="mi-l">Диск</span><span class="mi-v">' + (du2 != null ? du2+'/'+dt2+' GB' : '--') + '</span></div>';
     }
     if (isClient && dl != null) {
-      var dc2 = 'green'; if (dl < 10) dc2 = 'yellow'; if (dl < 4) dc2 = 'red';
+      var dc2 = dl < 4 ? 'red' : dl < 10 ? 'yellow' : 'green';
       h += '<div class="mi"><span class="mi-l">Дней</span><span class="mi-v"><span class="days-tag ' + dc2 + '">' + dl + 'д</span></span></div>';
     }
     h += '</div>';
@@ -341,7 +416,7 @@ const Servers = {
     if (el) el.classList.toggle('open');
   },
 
-  // ===== CREATE SERVER (full provision) =====
+  // ===== CREATE SERVER =====
   openCreate() {
     ['sc-name','sc-ip','sc-ssh-pass','sc-proxy-user','sc-proxy-pass'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('sc-ssh-port').value = '22';
@@ -385,7 +460,7 @@ const Servers = {
     }
   },
 
-  // ===== ADD SERVER (SSH key copy) =====
+  // ===== ADD SERVER =====
   openAdd() {
     ['sa-name','sa-ip','sa-ssh-pass'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('sa-ssh-port').value = '22';
@@ -427,7 +502,7 @@ const Servers = {
     }
   },
 
-  // ===== PROGRESS POLLING =====
+  // ===== PROGRESS =====
   _provPollTimer: null,
 
   showProgress(ip) {
@@ -452,9 +527,7 @@ const Servers = {
         } else {
           setTimeout(function(){
             Shell.closeModal('srvProgressModal');
-            if (d.result && d.result.http_proxy) {
-              self.showResult(d.result);
-            }
+            if (d.result && d.result.http_proxy) self.showResult(d.result);
             self.loadData();
           }, 800);
         }
@@ -495,13 +568,12 @@ const Servers = {
     setTimeout(function(){ el.style.borderColor = ''; }, 1000);
   },
 
-  // EDIT (keep old modal for editing existing servers)
+  // ===== EDIT =====
   async openEdit(ip) {
     var servers = await Shell.api('/api/mod/servers/list');
     if (!servers) return;
     var s = servers.find(x => x.ip === ip);
     if (!s) return;
-    // Host cannot be edited
     if (s.role === 'host') { Shell.toast('Host сервер нельзя редактировать'); return; }
     this.editMode = true;
     document.getElementById('srvEditIp').value = s.ip;
@@ -534,8 +606,7 @@ const Servers = {
     };
     var url, method;
     if (this.editMode) {
-      var oip = document.getElementById('srvEditIp').value;
-      url = '/api/mod/servers/update/' + oip;
+      url = '/api/mod/servers/update/' + document.getElementById('srvEditIp').value;
       method = 'PUT';
     } else {
       url = '/api/mod/servers/add';
@@ -551,7 +622,7 @@ const Servers = {
     }
   },
 
-  // DELETE
+  // ===== DELETE =====
   openDelete(ip, name) {
     this.deleteTarget = ip;
     document.getElementById('srvDelInfo').textContent = name + ' — ' + ip;
@@ -571,7 +642,7 @@ const Servers = {
     }
   },
 
-  // SETTINGS
+  // ===== SETTINGS =====
   openSettings() {
     this.loadApiKeyStatus();
     document.getElementById('srvSettingsModal').classList.add('active');
@@ -584,12 +655,10 @@ const Servers = {
     var inp = document.getElementById('srvApiKey');
     if (!st || !inp) return;
     if (d.has_key && d.has_key.ruvds) {
-      st.textContent = '✓';
-      st.style.color = 'var(--accent)';
+      st.textContent = '✓'; st.style.color = 'var(--accent)';
       inp.value = d.keys.ruvds || '';
     } else {
-      st.textContent = '✗';
-      st.style.color = 'var(--danger)';
+      st.textContent = '✗'; st.style.color = 'var(--danger)';
       inp.value = '';
     }
   },
@@ -605,7 +674,7 @@ const Servers = {
     }
   },
 
-  // ===== SERVER STATUS TEXT =====
+  // ===== SERVER STATUS / CONTEXT MENU =====
   _cachedServers: {},
 
   cacheServerData(s) {
@@ -619,32 +688,22 @@ const Servers = {
     var rp = (s.ram_used && s.ram_total) ? Math.round(s.ram_used / s.ram_total * 100) + '%' : '—';
     var sp = s.speed_mbps != null ? s.speed_mbps + ' Mb/s' : '—';
     var role = s.role ? s.role.toUpperCase() : '—';
-
-    var text = '📡 ' + s.name + ' [' + role + ']\n'
-      + '━━━━━━━━━━━━━━\n'
+    var text = '📡 ' + s.name + ' [' + role + ']\n━━━━━━━━━━━━━━\n'
       + status + '  ·  ' + s.ip + '\n'
       + '⚡ CPU: ' + cpu + '  ·  RAM: ' + rp + '\n'
       + '🌐 Speed: ' + sp;
-
     if (s.role === 'proxy') {
       var http = (s.http_proxy !== false && on) ? '✅' : '❌';
       var socks = (s.socks_proxy !== false && on) ? '✅' : '❌';
       var proxy = (s.proxy_running === true && on) ? '✅ RUN' : '❌ STOP';
-      text += '\nHTTP: ' + http + '  ·  SOCKS5: ' + socks;
-      text += '\n3proxy: ' + proxy;
+      text += '\nHTTP: ' + http + '  ·  SOCKS5: ' + socks + '\n3proxy: ' + proxy;
     }
-
-    if (s.disk_used != null && s.disk_total != null) {
-      text += '\n💾 Диск: ' + s.disk_used + '/' + s.disk_total + ' GB';
-    }
-
+    if (s.disk_used != null && s.disk_total != null) text += '\n💾 Диск: ' + s.disk_used + '/' + s.disk_total + ' GB';
     if (s.uptime && on) text += '\n⏱ Uptime: ' + s.uptime;
     if (s.days_left != null) text += '\n📅 Дней: ' + s.days_left;
-
     return text;
   },
 
-  // ===== CONTEXT MENU =====
   _srvCtx: null,
 
   showServerCtx(e, ip) {
@@ -652,24 +711,19 @@ const Servers = {
     this.closeServerCtx();
     var s = this._cachedServers[ip];
     if (!s) return;
-
     var menu = document.createElement('div');
     menu.className = 'srv-ctx-menu';
     menu.innerHTML = '<div class="srv-ctx-action" onclick="Servers.forwardToMessenger(\'' + ip + '\');Servers.closeServerCtx()">'
-      + '<span class="ico ico-14 ico-forward"></span> Переслать'
-      + '</div>'
+      + '<span class="ico ico-14 ico-forward"></span> Переслать</div>'
       + '<div class="srv-ctx-action" onclick="Servers.copyServerStatus(\'' + ip + '\');Servers.closeServerCtx()">'
-      + '<span class="ico ico-14 ico-copy"></span> Копировать'
-      + '</div>';
-
+      + '<span class="ico ico-14 ico-copy"></span> Копировать</div>';
     document.body.appendChild(menu);
     var x = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 200);
     var y = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 200);
     if (x + 200 > window.innerWidth) x = window.innerWidth - 208;
     if (y + 100 > window.innerHeight) y = y - 100;
     if (x < 8) x = 8; if (y < 8) y = 8;
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
     this._srvCtx = menu;
   },
 
@@ -686,37 +740,28 @@ const Servers = {
     Shell.toast('Скопировано');
   },
 
-  _forwardIp: null,
-
   forwardToMessenger(ip) {
     var s = this._cachedServers[ip];
     if (!s) { Shell.toast('Сервер не найден', 'error'); return; }
     var text = this.buildStatusText(s);
-    if (window.Messenger) {
-      Messenger.startForwardStatus(text);
-    }
+    if (window.Messenger) Messenger.startForwardStatus(text);
   }
 };
 
-// Close server ctx on click anywhere
 document.addEventListener('click', function() { Servers.closeServerCtx(); });
-
-// Init when loaded
 window.Servers = Servers;
 Servers.init();
 
-// Long-press for mobile (iOS + Android)
+// Long-press mobile
 (function() {
   var timer = null, startX = 0, startY = 0, moved = false;
   var list = document.getElementById('srvList');
   if (!list) return;
-
   list.addEventListener('touchstart', function(e) {
     var row = e.target.closest('.srv-row');
     if (!row) return;
     moved = false;
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     timer = setTimeout(function() {
       if (moved) return;
       if (navigator.vibrate) navigator.vibrate(30);
@@ -727,13 +772,11 @@ Servers.init();
       }
     }, 500);
   }, {passive:true});
-
   list.addEventListener('touchmove', function(e) {
     if (!timer) return;
     var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) { moved = true; clearTimeout(timer); timer = null; }
   }, {passive:true});
-
   list.addEventListener('touchend', function() { clearTimeout(timer); timer = null; }, {passive:true});
   list.addEventListener('touchcancel', function() { clearTimeout(timer); timer = null; }, {passive:true});
 })();
