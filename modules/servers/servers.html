@@ -3,10 +3,10 @@
 <h2>Серверы</h2>
 <div class="srv-actions">
 <div class="srv-add-group">
-  <button class="btn btn-primary srv-add-btn" onclick="Servers.openCreate()"><span class="ico ico-14 ico-plus"></span>Создать</button>
-  <button class="btn btn-secondary srv-add-btn" onclick="Servers.openAdd()">Добавить</button>
+  <button class="btn btn-primary srv-add-btn" onclick="Servers.openCreate()" title="Provisioning нового сервера">Создать</button>
+  <button class="btn btn-secondary srv-add-btn" onclick="Servers.openAdd()" title="Добавить существующий сервер по SSH">Добавить</button>
 </div>
-<button class="btn btn-icon-only" id="srvRefreshBtn" onclick="Servers.loadData()" title="Обновить"><span class="ico ico-16 ico-refresh"></span></button>
+<button class="btn btn-icon-only" id="srvRefreshBtn" onclick="Servers.loadData()" title="Обновить данные"><span class="ico ico-16 ico-refresh"></span></button>
 <button class="btn btn-icon-only srv-settings-btn" onclick="Servers.openSettings()" title="Настройки"><span class="ico ico-16 ico-settings"></span></button>
 <span class="srv-clock" id="srvClock">--:--:--</span>
 </div>

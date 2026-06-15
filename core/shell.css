@@ -195,6 +195,8 @@ body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-
 .ico-channels{-webkit-mask-image:url(/svg/channels.svg);mask-image:url(/svg/channels.svg)}
 .ico-chevron-down{-webkit-mask-image:url(/svg/chevron-down.svg);mask-image:url(/svg/chevron-down.svg)}
 .ico-chevron-right{-webkit-mask-image:url(/svg/chevron-right.svg);mask-image:url(/svg/chevron-right.svg)}
+.ico-plus{-webkit-mask-image:url(/svg/plus.svg);mask-image:url(/svg/plus.svg)}
+.ico-refresh{-webkit-mask-image:url(/svg/refresh.svg);mask-image:url(/svg/refresh.svg)}
 
 .srv-hidden{display:none !important}
 
