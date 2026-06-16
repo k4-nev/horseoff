@@ -333,7 +333,7 @@ const Channels = {
         + '</div>'
         + '<div class="ch-msg-quick">'
         + '<div class="ch-msg-quick-emojis">'
-        + ['👍','❤️','😂','😮','😢'].map(function(e){return '<button class="ch-msg-qemoji" onclick="event.stopPropagation();Channels.toggleReact(\x27'+m.id+'\x27,\x27'+e+'\x27)">'+e+'</button>';}).join('')
+        + ['👍','❤️','😂','😮','😢'].map(function(e){return '<button class="ch-msg-qemoji" onclick="event.stopPropagation();Channels.addReaction(\x27'+m.id+'\x27,\x27'+e+'\x27)">'+e+'</button>';}).join('')
         + '</div>'
         + '<button class="ch-msg-qbtn" onclick="event.stopPropagation();Channels.setReply(Channels.messages.find(function(x){return x.id===\x27'+m.id+'\x27}))" title="Ответить"><span class="ico ico-14 ico-reply"></span></button>'
         + '<button class="ch-msg-qbtn" onclick="event.stopPropagation();Channels.forwardToMessenger(Channels.messages.find(function(x){return x.id===\x27'+m.id+'\x27}))" title="Переслать"><span class="ico ico-14 ico-forward"></span></button>'

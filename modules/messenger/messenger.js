@@ -1106,7 +1106,7 @@ const Messenger = {
     else {
       wrap.classList.add('open');
       var name = document.getElementById('msgChatName');
-      if (name) name.classList.add('search-open');
+      if (name) { name.style.flex = '0 0 0px'; name.style.overflow = 'hidden'; name.style.opacity = '0'; }
       var inp = document.getElementById('msgSearchInput');
       if (inp) { inp.focus(); inp.select(); }
     }
@@ -1116,7 +1116,7 @@ const Messenger = {
     var wrap = document.getElementById('msgSearchWrap');
     if (wrap) wrap.classList.remove('open');
     var name = document.getElementById('msgChatName');
-    if (name) name.classList.remove('search-open');
+    if (name) { name.style.flex = ''; name.style.overflow = ''; name.style.opacity = ''; }
     var input = document.getElementById('msgSearchInput');
     if (input) input.value = '';
     var cnt = document.getElementById('msgSearchCount');

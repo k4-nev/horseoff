@@ -7,8 +7,9 @@
 .adm-icon-btn:hover{color:var(--accent);background:rgba(0,212,170,0.1)}
 .adm-icon-btn.del:hover{color:var(--danger);background:rgba(255,68,102,0.1)}
 .adm-icon-btn.add{color:var(--accent)}
-.adm-search{margin:8px 10px;padding:7px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;font-family:'JetBrains Mono',monospace}
-.adm-search:focus{border-color:var(--accent)}
+.adm-search{margin:8px 10px;padding:8px 14px;font-size:12px;background:var(--surface2);border:1px solid transparent;border-radius:20px;color:var(--text);outline:none;font-family:'Inter',sans-serif;width:calc(100% - 20px);transition:background 0.15s,box-shadow 0.15s}
+.adm-search:focus{background:var(--surface);box-shadow:0 2px 10px rgba(0,0,0,0.08)}
+.adm-search::placeholder{color:var(--text-dim);opacity:0.55}
 .adm-user-list{flex:1;overflow-y:auto}
 .adm-user{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:background 0.15s}
 .adm-user:hover{background:var(--surface2)}
