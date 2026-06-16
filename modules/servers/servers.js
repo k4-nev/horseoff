@@ -240,6 +240,14 @@ const Servers = {
 
     this._flashLiveIndicator();
 
+    // Update role counts in segmented filter
+    var roleCounts = {host:0, proxy:0, client:0};
+    data.forEach(function(s){ if (roleCounts[s.role] !== undefined) roleCounts[s.role]++; });
+    ['host','proxy','client'].forEach(function(r) {
+      var el = document.getElementById('segCount-' + r);
+      if (el) el.textContent = roleCounts[r];
+    });
+
     var list = document.getElementById('srvList');
     if (data.length === 0 && this.firstLoad) {
       this._showSkeleton();
@@ -327,10 +335,9 @@ const Servers = {
     this.cacheServerData(s);
     var isHost = s.role === 'host';
 
-    // CPU cell — number + sparkline (no bar)
+    // CPU cell — sparkline only (no number)
     var cpuLvl = (cpu !== '--' && cpu >= 85) ? 'high' : (cpu !== '--' && cpu >= 60) ? 'mid' : 'low';
     var cpuCell = '<div class="row-metric cpu-cell ' + (cpuLvl === 'high' ? 'metric-high' : cpuLvl === 'mid' ? 'metric-mid' : '') + '">'
-      + '<span class="metric-num">' + cpu + (cpu !== '--' ? '<span class="unit">%</span>' : '') + '</span>'
       + (on && cpu !== '--' ? this._sparkline(hist.cpu, 'spark-' + cpuLvl) : '<div class="spark-empty"></div>')
       + '</div>';
 
