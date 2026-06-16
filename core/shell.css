@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   /* Semantic */
@@ -21,7 +21,7 @@
 /* ─── LIGHT THEME ─── */
 body.theme-light{
   --bg:#f2f4f8;--surface:#ffffff;--surface2:#eaecf2;--border:#d4d8e4;
-  --text:#111827;--text-dim:#6b7280;
+  --text:#252a35;--text-dim:#737a88;
   --msg-hover:rgba(0,0,0,0.04);
   --scrollbar:rgba(0,0,0,0.12);
   --accent-glow:rgba(0,212,170,0.1);
@@ -33,7 +33,7 @@ body.theme-light .sidebar-module:hover,body.theme-light .sidebar-module.active{c
 body.theme-light .content::-webkit-scrollbar-thumb{background:var(--scrollbar)}
 body.theme-light .content{scrollbar-color:var(--scrollbar) transparent}
 
-body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-height:100vh;overflow:hidden;transition:background 0.25s,color 0.25s}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;overflow:hidden;transition:background 0.25s,color 0.25s;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 
 /* LOGIN */
 .login-screen{display:flex;justify-content:center;align-items:center;min-height:100vh;position:relative;z-index:1}
@@ -45,7 +45,7 @@ body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-
 .login-logo h2{font-size:22px;font-weight:700}
 .login-subtitle{text-align:center;color:var(--text-dim);font-size:13px;margin-bottom:28px}
 .login-form .form-group{margin-bottom:18px}
-.login-btn{width:100%;background:var(--accent);border:none;border-radius:9px;padding:13px;color:#000;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
+.login-btn{width:100%;background:var(--accent);border:none;border-radius:9px;padding:13px;color:#000;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
 .login-btn:hover{background:var(--accent-dark)}
 .login-error{color:var(--danger);font-size:13px;text-align:center;margin-top:14px;display:none}
 .login-footer{text-align:center;margin-top:24px;color:var(--text-dim);font-size:10px;font-family:'JetBrains Mono',monospace;line-height:1.8}
@@ -63,7 +63,7 @@ body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-
 .form-divider{border-top:1px solid var(--border);margin:16px 0}
 
 /* BUTTONS */
-.btn{border:1px solid var(--border);color:var(--text);padding:9px 18px;border-radius:9px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;transition:all 0.2s;display:flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
+.btn{border:1px solid var(--border);color:var(--text);padding:9px 18px;border-radius:9px;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;transition:all 0.2s;display:flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
 .btn-secondary{background:var(--surface2)}
 .btn-secondary:hover{border-color:var(--accent);background:var(--accent-glow)}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700}
@@ -231,6 +231,6 @@ body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-
 
 /* ─── THEME SWITCH ─── */
 .theme-seg{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
-.theme-seg-btn{font-family:'Outfit',sans-serif;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.18s;border:none;background:transparent;color:var(--text-dim);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.theme-seg-btn{font-family:'Inter',sans-serif;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.18s;border:none;background:transparent;color:var(--text-dim);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .theme-seg-btn.active{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,0.15);color:var(--text);font-weight:600}
 .theme-seg-btn:hover:not(.active){color:var(--text)}

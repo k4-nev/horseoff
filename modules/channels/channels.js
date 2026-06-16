@@ -183,6 +183,7 @@ const Channels = {
       this.messages = Array.isArray(d) ? d : [];
       this._lastRead = 0;
     }
+    this._animMode = 'all';
     this.renderMessages();
     // Mark as read — update local data + DOM + server
     Shell.api('/api/mod/channels/read?channel_id=' + this.currentChannel);
@@ -199,22 +200,32 @@ const Channels = {
     var el = document.getElementById('chMessages');
     if (!el) return;
     if (!this.messages.length) {
-      el.innerHTML = '<div class="ch-empty-chat"><span class="ico ico-32 ico-channels" style="opacity:0.12"></span><p>Начните общение</p><p style="font-size:11px;color:#ccc">Напишите первое сообщение в этом канале</p></div>';
+      el.innerHTML = '<div class="ch-empty-chat"><span class="ico ico-32 ico-channels" style="opacity:0.12"></span><p>Начните общение</p><p style="font-size:11px;color:var(--text-dim);opacity:0.7">Напишите первое сообщение в этом канале</p></div>';
       return;
     }
     var self = this;
     var sepInserted = false;
-    el.innerHTML = this.messages.map(function(m) {
-      var sep = '';
+    var animMode = this._animMode || 'all'; this._animMode = 'none';
+    var popId = this._animReactMsgId; this._animReactMsgId = null;
+    var lastIdx = this.messages.length - 1;
+    el.innerHTML = this.messages.map(function(m, idx) {
+      var prev = idx > 0 ? self.messages[idx-1] : null;
+      var sep = '', sepHere = false;
       if (!sepInserted && self._lastRead > 0 && m.time > self._lastRead && m.from !== self.currentUserId) {
         sep = '<div class="ch-new-sep" id="chNewSep"><span>новые сообщения</span></div>';
-        sepInserted = true;
+        sepInserted = true; sepHere = true;
       }
+      // Discord-style grouping: same author within 2 min, no reply, no separator
+      var grouped = prev && prev.from === m.from && (m.time - prev.time) < 120 && !m.reply_to && !sepHere;
       var ava = m.avatar ? '<img src="data:image/jpeg;base64,'+m.avatar+'"/>' : (m.from_name||'?').charAt(0).toUpperCase();
       var role = m.role || 'common';
       var t = self._fmtTime(m.time);
       var isMe = m.from === self.currentUserId;
-      return sep + '<div class="ch-msg" data-msgid="'+m.id+'">'
+      var animCls = (animMode === 'all' || (animMode === 'last' && idx === lastIdx)) ? ' ch-msg-in' : '';
+      var popCls = (popId && m.id === popId) ? ' ch-react-pop' : '';
+      var gtime = grouped ? '<span class="ch-msg-gtime">'+t+'</span>' : '';
+      return sep + '<div class="ch-msg'+(grouped?' grouped':'')+animCls+popCls+'" data-msgid="'+m.id+'">'
+        + gtime
         + '<div class="ch-msg-ava">'+ava+'</div>'
         + '<div class="ch-msg-body">'
         + '<div class="ch-msg-header"><span class="ch-msg-author'+(isMe?' me':'')+'">'+self._esc(m.from_name||m.from)+'</span>'
@@ -247,6 +258,7 @@ const Channels = {
           if (!msgs.length) { self3._hasMore = false; return; }
           var prevH = el.scrollHeight;
           self3.messages = msgs.concat(self3.messages);
+          self3._animMode = 'none';
           self3.renderMessages();
           el.scrollTop = el.scrollHeight - prevH;
         });
@@ -357,6 +369,8 @@ const Channels = {
       for (var i = 0; i < this.messages.length; i++) {
         if (this.messages[i].id === data.msg_id) { this.messages[i].reactions = data.reactions; break; }
       }
+      this._animMode = 'none';
+      this._animReactMsgId = data.msg_id;
       this.renderMessages();
       return;
     }
@@ -379,6 +393,7 @@ const Channels = {
         for (var i = 0; i < this.messages.length; i++) {
           if (this.messages[i].id === data.msg_id) { this.messages[i].text = data.text; break; }
         }
+        this._animMode = 'none';
         this.renderMessages();
       }
       return;
@@ -386,6 +401,7 @@ const Channels = {
     if (data.type === 'ch_deleted') {
       if (data.channel_id === this.currentChannel) {
         this.messages = this.messages.filter(function(m){return m.id !== data.msg_id});
+        this._animMode = 'none';
         this.renderMessages();
       }
       return;
@@ -400,6 +416,7 @@ const Channels = {
       }
       if (data.channel_id === this.currentChannel) {
         this.messages.push(data.msg);
+        this._animMode = 'last';
         this.renderMessages();
         Shell.api('/api/mod/channels/read?channel_id=' + this.currentChannel);
       } else {
@@ -1044,13 +1061,20 @@ const Channels = {
     // Hide edit bar if shown
     var eb = document.getElementById('chEditBar');
     if (eb) eb.style.display = 'none';
+    this._toggleComposerBar();
     if (window.innerWidth > 768) document.getElementById('chInput').focus();
   },
 
   cancelReply() {
     this._replyTo = null;
     document.getElementById('chReplyBar').style.display = 'none';
+    this._toggleComposerBar();
     this.updateSendBtn();
+  },
+
+  _toggleComposerBar() {
+    var area = document.getElementById('chInputArea');
+    if (area) area.classList.toggle('has-bar', !!(this._replyTo || this._editMsg));
   },
 
   // ─── Edit ───
@@ -1069,10 +1093,11 @@ const Channels = {
       bar = document.createElement('div');
       bar.id = 'chEditBar';
       bar.className = 'ch-edit-bar';
-      bar.innerHTML = '<span class="ch-edit-label">Редактирование</span><button class="ch-edit-close" onclick="Channels.cancelEdit()"><span class="ico ico-14 ico-close"></span></button>';
+      bar.innerHTML = '<span class="ch-bar-icon ico ico-16 ico-pencil"></span><span class="ch-edit-label">Редактирование сообщения</span><button class="ch-edit-close" onclick="Channels.cancelEdit()"><span class="ico ico-14 ico-close"></span></button>';
       area.parentNode.insertBefore(bar, area);
     }
     bar.style.display = 'flex';
+    this._toggleComposerBar();
   },
 
   cancelEdit() {
@@ -1080,6 +1105,7 @@ const Channels = {
     document.getElementById('chInput').value = '';
     var bar = document.getElementById('chEditBar');
     if (bar) bar.style.display = 'none';
+    this._toggleComposerBar();
     this.updateSendBtn();
   },
 
@@ -1094,9 +1120,12 @@ const Channels = {
     var btn = document.getElementById('chSendBtn');
     if (!btn) return;
     var hasContent = (input && input.value.trim().length > 0) || this._pendingFiles.length > 0 || this._replyTo || this._editMsg;
-    btn.innerHTML = hasContent
-      ? '<span class="ico ico-18 ico-send" style="background-color:var(--accent)"></span>'
-      : '<span class="ico ico-18 ico-mic" style="background-color:#999"></span>';
+    var mode = hasContent ? 'send' : 'mic';
+    if (mode === this._sendMode) return; // no change — avoid re-render/jank on each keystroke
+    this._sendMode = mode;
+    btn.innerHTML = mode === 'send'
+      ? '<span class="ico ico-18 ico-send ico-swap-anim" style="background-color:var(--accent)"></span>'
+      : '<span class="ico ico-18 ico-mic ico-swap-anim" style="background-color:var(--text-dim)"></span>';
   },
 
   onSendClick() {
