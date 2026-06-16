@@ -42,8 +42,8 @@
 .srv-pills-mobile{display:none;gap:5px}
 
 /* Table — 10 columns (merged proxy) */
-.srv-table-head{display:grid;grid-template-columns:8px 55px 1fr 130px 72px 72px 76px 100px 64px 52px;gap:8px;padding:6px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);border-bottom:1px solid var(--border);margin-bottom:6px;background:var(--bg)}
-.srv-row{display:grid;grid-template-columns:8px 55px 1fr 130px 72px 72px 76px 100px 64px 52px;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:3px;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s;font-size:13px}
+.srv-table-head{display:grid;grid-template-columns:8px 55px 1fr 124px 72px 72px 76px 108px 64px 52px;gap:8px;padding:6px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);border-bottom:1px solid var(--border);margin-bottom:6px;background:var(--bg)}
+.srv-row{display:grid;grid-template-columns:8px 55px 1fr 124px 72px 72px 76px 108px 64px 52px;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:3px;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s;font-size:13px}
 .srv-row:hover{border-color:var(--accent);box-shadow:0 2px 16px var(--accent-glow);transform:translateY(-1px)}
 .srv-row.offline{border-color:rgba(255,68,102,0.18);background:rgba(255,68,102,0.03)}
 .srv-row.expandable{cursor:pointer}
@@ -152,16 +152,24 @@
 .metric-high{color:var(--danger)!important}
 .metric-mid{color:var(--warning)!important}
 
-/* Merged proxy column */
-.prx-row{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:2px}
-.prx-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
-.prx-dot-on{background:var(--accent);box-shadow:0 0 5px var(--accent)}
-.prx-dot-off{background:var(--danger);box-shadow:0 0 5px var(--danger)}
-.prx-svc{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px}
-.prx-svc-on{background:rgba(0,212,170,0.12);color:var(--accent);border:1px solid rgba(0,212,170,0.3)}
-.prx-svc-off{background:rgba(255,68,102,0.1);color:var(--danger);border:1px solid rgba(255,68,102,0.25)}
-.prx-labels{display:flex;justify-content:center;gap:8px;font-size:9px;color:var(--text-dim);letter-spacing:0.3px}
-.prx-labels span{width:32px;text-align:center}
+/* CPU cell — number above sparkline */
+.cpu-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.metric-num{font-family:'JetBrains Mono',monospace;font-weight:600;line-height:1.1}
+
+/* Sparkline */
+.spark{display:block;width:100%;max-width:62px}
+.spark-empty{height:16px}
+.spark-line{fill:none;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round}
+.spark-area{opacity:0.14}
+.spark-low .spark-line{stroke:var(--accent)}.spark-low .spark-area{fill:var(--accent)}
+.spark-mid .spark-line{stroke:var(--warning)}.spark-mid .spark-area{fill:var(--warning)}
+.spark-high .spark-line{stroke:var(--danger)}.spark-high .spark-area{fill:var(--danger)}
+
+/* Merged proxy column — labeled chips */
+.prx-row{display:flex;align-items:center;justify-content:center;gap:3px}
+.prx-chip{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.2px;padding:2px 4px;border-radius:4px;border:1px solid transparent}
+.prx-chip.up{background:rgba(0,212,170,0.1);color:var(--accent);border-color:rgba(0,212,170,0.25)}
+.prx-chip.down{background:rgba(255,68,102,0.1);color:var(--danger);border-color:rgba(255,68,102,0.25)}
 
 /* Days blink on critical */
 @keyframes daysBlink{0%,100%{opacity:1}50%{opacity:0.4}}
@@ -178,7 +186,7 @@
 /* Skeleton loader */
 @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
 .skel-line,.skel-dot,.skel-tag,.skel-name{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:800px 100%;animation:shimmer 1.4s infinite;border-radius:4px}
-.srv-skel{display:grid;grid-template-columns:8px 55px 1fr 130px 72px 72px 76px 100px 64px 52px;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:3px}
+.srv-skel{display:grid;grid-template-columns:8px 55px 1fr 124px 72px 72px 76px 108px 64px 52px;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:3px}
 .skel-dot{width:7px;height:7px;border-radius:50%}
 .skel-tag{width:44px;height:18px}
 .skel-name{display:flex;flex-direction:column;gap:4px}

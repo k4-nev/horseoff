@@ -179,16 +179,20 @@ const Servers = {
     if (this._history[ip].ram.length > 20) this._history[ip].ram.shift();
   },
 
-  _sparkline(values, color) {
-    if (!values || values.length < 2) return '';
-    var w = 48, h = 14, n = values.length;
-    var max = Math.max.apply(null, values.concat([1]));
+  _sparkline(values, cls) {
+    var w = 62, h = 16, n = values.length;
+    if (n < 2) return '<div class="spark-empty"></div>';
     var pts = values.map(function(v, i) {
-      var x = Math.round(i / (n - 1) * w);
-      var y = Math.round(h - Math.max(1, (v / max) * h));
-      return x + ',' + y;
-    }).join(' ');
-    return '<svg width="' + w + '" height="' + h + '" style="display:block;margin:3px auto 0;opacity:0.7"><polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+      var x = (i / (n - 1)) * w;
+      var y = (h - 1) - Math.max(0, Math.min(1, v / 100)) * (h - 2);
+      return [x, y];
+    });
+    var line = pts.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+    var area = '0,' + h + ' ' + line + ' ' + w + ',' + h;
+    return '<svg class="spark ' + cls + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">'
+      + '<polygon class="spark-area" points="' + area + '"/>'
+      + '<polyline class="spark-line" points="' + line + '"/>'
+      + '</svg>';
   },
 
   // ===== SKELETON =====
@@ -323,31 +327,27 @@ const Servers = {
     this.cacheServerData(s);
     var isHost = s.role === 'host';
 
-    // CPU cell with sparkline
-    var cpuSparkline = hist.cpu.length >= 2 ? this._sparkline(hist.cpu, cpu !== '--' && cpu >= 85 ? 'var(--danger)' : cpu >= 60 ? 'var(--warning)' : 'var(--accent)') : '';
-    var cpuCell = '<div class="row-metric ' + (cpu !== '--' && cpu >= 85 ? 'metric-high' : cpu !== '--' && cpu >= 60 ? 'metric-mid' : '') + '">'
-      + cpu + (cpu !== '--' ? '<span class="unit">%</span>' : '')
-      + (on && cpu !== '--' ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(cpu) + '" style="width:' + cpu + '%"></div></div>' : '')
-      + cpuSparkline + '</div>';
+    // CPU cell — number + sparkline (no bar)
+    var cpuLvl = (cpu !== '--' && cpu >= 85) ? 'high' : (cpu !== '--' && cpu >= 60) ? 'mid' : 'low';
+    var cpuCell = '<div class="row-metric cpu-cell ' + (cpuLvl === 'high' ? 'metric-high' : cpuLvl === 'mid' ? 'metric-mid' : '') + '">'
+      + '<span class="metric-num">' + cpu + (cpu !== '--' ? '<span class="unit">%</span>' : '') + '</span>'
+      + (on && cpu !== '--' ? this._sparkline(hist.cpu, 'spark-' + cpuLvl) : '<div class="spark-empty"></div>')
+      + '</div>';
 
-    // RAM cell with sparkline
-    var ramSparkline = hist.ram.length >= 2 ? this._sparkline(hist.ram, rp != null && rp >= 85 ? 'var(--danger)' : rp != null && rp >= 60 ? 'var(--warning)' : '#9b59ff') : '';
+    // RAM cell — number + bar (no sparkline)
     var ramCell = '<div class="row-metric ' + (rp != null && rp >= 85 ? 'metric-high' : rp != null && rp >= 60 ? 'metric-mid' : '') + '">'
       + (rp != null ? rp : '--') + (rp != null ? '<span class="unit">%</span>' : '')
       + (rp != null ? '<div class="inline-bar"><div class="inline-bar-fill ' + this.barLevel(rp) + '" style="width:' + rp + '%"></div></div>' : '')
-      + ramSparkline + '</div>';
+      + '</div>';
 
     // Merged proxy / disk column
     var midCol;
     if (isProxy) {
-      var httpCls = hu ? 'prx-dot-on' : 'prx-dot-off';
-      var socksCls = su ? 'prx-dot-on' : 'prx-dot-off';
-      var svcCls = pr ? 'prx-svc-on' : 'prx-svc-off';
-      midCol = '<div style="text-align:center"><div class="prx-row">'
-        + '<span class="prx-dot ' + httpCls + '" title="HTTP"></span>'
-        + '<span class="prx-dot ' + socksCls + '" title="SOCKS5"></span>'
-        + '<span class="prx-svc ' + svcCls + '">SVC</span>'
-        + '</div><div class="prx-labels"><span>HTTP</span><span>SOCKS</span><span>3px</span></div></div>';
+      midCol = '<div class="prx-row">'
+        + '<span class="prx-chip ' + (hu ? 'up' : 'down') + '">HTTP</span>'
+        + '<span class="prx-chip ' + (su ? 'up' : 'down') + '">SOCKS</span>'
+        + '<span class="prx-chip ' + (pr ? 'up' : 'down') + '">3PX</span>'
+        + '</div>';
     } else {
       var du = s.disk_used != null ? s.disk_used : null;
       var dt = s.disk_total != null ? s.disk_total : null;
