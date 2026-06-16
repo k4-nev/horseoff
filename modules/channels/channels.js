@@ -163,12 +163,16 @@ const Channels = {
   },
 
   _showSkeleton() {
-    var el = document.getElementById('chMessages');
-    if (el) el.innerHTML = '<div class="ch-skeleton">'
-      + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w40"></div><div class="ch-skel-line w80"></div></div></div>'
-      + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w60"></div><div class="ch-skel-line w40"></div></div></div>'
-      + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w80"></div><div class="ch-skel-line w60"></div></div></div>'
-      + '</div>';
+    var self = this;
+    clearTimeout(this._skelTimer);
+    this._skelTimer = setTimeout(function() {
+      var el = document.getElementById('chMessages');
+      if (el && !el.querySelector('.ch-msg')) el.innerHTML = '<div class="ch-skeleton">'
+        + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w40"></div><div class="ch-skel-line w80"></div></div></div>'
+        + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w60"></div><div class="ch-skel-line w40"></div></div></div>'
+        + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w80"></div><div class="ch-skel-line w60"></div></div></div>'
+        + '</div>';
+    }, 300);
   },
 
   async loadMessages() {
@@ -176,6 +180,7 @@ const Channels = {
     this._msgOffset = 0; this._loadingMore = false; this._hasMore = true;
     this._showSkeleton();
     var d = await Shell.api('/api/mod/channels/messages?channel_id=' + this.currentChannel);
+    clearTimeout(this._skelTimer);
     if (d && d.messages) {
       this.messages = d.messages;
       this._lastRead = d.last_read || 0;

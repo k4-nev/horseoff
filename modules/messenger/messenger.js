@@ -288,14 +288,18 @@ const Messenger = {
     this._msgOffset = 0;
     this._loadingMore = false;
     this._hasMore = true;
-    // Show skeleton
     var mel = document.getElementById('msgMessages');
-    if (mel) mel.innerHTML = '<div class="msg-skeleton">'
-      + '<div class="msg-skel-row"><div class="msg-skel-bubble w40"></div></div>'
-      + '<div class="msg-skel-row right"><div class="msg-skel-bubble w60"></div></div>'
-      + '<div class="msg-skel-row"><div class="msg-skel-bubble w50"></div></div>'
-      + '<div class="msg-skel-row right"><div class="msg-skel-bubble w40"></div></div>'
-      + '</div>';
+    if (mel) mel.innerHTML = '';
+    clearTimeout(this._skelTimer);
+    this._skelTimer = setTimeout(function() {
+      var el = document.getElementById('msgMessages');
+      if (el && !el.querySelector('.msg-row')) el.innerHTML = '<div class="msg-skeleton">'
+        + '<div class="msg-skel-row"><div class="msg-skel-bubble w40"></div></div>'
+        + '<div class="msg-skel-row right"><div class="msg-skel-bubble w60"></div></div>'
+        + '<div class="msg-skel-row"><div class="msg-skel-bubble w50"></div></div>'
+        + '<div class="msg-skel-row right"><div class="msg-skel-bubble w40"></div></div>'
+        + '</div>';
+    }, 300);
     Shell.wsSend({type:'history', to: userId, offset: 0});
     Shell.wsSend({type:'read', chat: this.getChatKey(this.currentUserId, userId), to: userId});
   },
