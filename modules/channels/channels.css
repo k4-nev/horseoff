@@ -323,3 +323,33 @@
 .ch-emoji-item:active{transform:scale(0.8)}
 .ch-emoji-btn{background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;border-radius:8px;transition:all 0.1s}
 .ch-emoji-btn:active{transform:scale(0.88)}
+
+/* ─── ANIMATED SEARCH ─── */
+.ch-search-wrap{display:flex;align-items:center;width:0;max-width:0;opacity:0;overflow:hidden;pointer-events:none;transition:width 0.28s cubic-bezier(0.4,0,0.2,1),max-width 0.28s cubic-bezier(0.4,0,0.2,1),opacity 0.2s ease;margin-right:-4px}
+.ch-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px}
+.ch-search-inner{display:flex;align-items:center;gap:1px;background:var(--surface2);border-radius:20px;border:1px solid var(--border);padding:2px 4px 2px 12px;width:100%;transition:border-color 0.15s,box-shadow 0.15s}
+.ch-search-inner:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.ch-search-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;padding:5px 0;min-width:0}
+.ch-search-input::placeholder{color:var(--text-dim);opacity:0.6}
+.ch-search-count{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;white-space:nowrap;padding:0 5px;flex-shrink:0;transition:color 0.15s}
+.ch-search-count.has-results{color:var(--accent)}
+.ch-search-nav-btn,.ch-search-close-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:26px;min-height:26px;transition:all 0.12s}
+.ch-search-nav-btn:hover,.ch-search-close-btn:hover{color:var(--text);background:var(--surface)}
+.ch-search-nav-btn:active,.ch-search-close-btn:active{transform:scale(0.85)}
+.ch-msg-search-match{background:rgba(255,200,60,0.18);border-radius:2px;padding:0 1px}
+.ch-msg-search-active{background:rgba(255,170,0,0.38)!important;border-radius:2px;padding:0 1px}
+@media(max-width:768px){.ch-search-wrap.open{width:calc(100vw - 150px);max-width:none}}
+
+/* ─── SCROLL-DOWN BUTTON ─── */
+.ch-scroll-btn{position:absolute;right:22px;bottom:94px;z-index:10;width:38px;height:38px;border-radius:50%;background:var(--surface);border:1px solid var(--border);box-shadow:0 4px 18px rgba(0,0,0,0.2);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transform:translateY(10px) scale(0.82);pointer-events:none;transition:opacity 0.22s,transform 0.22s cubic-bezier(0.34,1.56,0.64,1),background 0.15s,border-color 0.15s}
+.ch-scroll-btn.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.ch-scroll-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--accent)}
+.ch-scroll-btn:active{transform:scale(0.88)!important}
+.ch-scroll-badge{position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;animation:scrollBadgeIn 0.25s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes scrollBadgeIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ─── HOVER QUICK-EMOJIS ─── */
+.ch-msg-quick-emojis{display:flex;gap:0;padding:0 4px 0 2px;border-right:1px solid var(--border);margin-right:2px}
+.ch-msg-qemoji{background:none;border:none;cursor:pointer;font-size:16px;padding:3px 5px;border-radius:6px;transition:transform 0.14s cubic-bezier(0.34,1.56,0.64,1),background 0.1s;line-height:1;display:flex;align-items:center}
+.ch-msg-qemoji:hover{background:var(--surface2);transform:scale(1.32)}
+.ch-msg-qemoji:active{transform:scale(0.82)}

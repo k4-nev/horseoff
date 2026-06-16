@@ -215,13 +215,21 @@
 .msg-chat-header-wrap{flex-shrink:0;z-index:15;display:flex;flex-direction:column;position:relative}
 
 /* Search in header - instant expand, white, minimal */
-.msg-chat-search-wrap{overflow:hidden;width:0;display:flex;align-items:center;gap:4px}
-.msg-chat-search-wrap.open{width:100%}
-.msg-search-input{flex:1;min-width:0;background:#fff;border:1px solid #ddd;border-radius:16px;padding:5px 12px;color:#333;font-size:12px;outline:none;font-family:'Inter',sans-serif}
-.msg-search-input:focus{border-color:#bbb}
+.msg-chat-search-wrap{overflow:hidden;width:0;max-width:0;display:flex;align-items:center;opacity:0;pointer-events:none;transition:width 0.28s cubic-bezier(0.4,0,0.2,1),max-width 0.28s cubic-bezier(0.4,0,0.2,1),opacity 0.2s ease;margin-right:-4px}
+.msg-chat-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px}
+.msg-search-inner{display:flex;align-items:center;gap:1px;background:#f4f4f4;border-radius:20px;border:1px solid #e0e0e0;padding:2px 4px 2px 12px;width:100%;transition:border-color 0.15s,box-shadow 0.15s}
+.msg-search-inner:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.msg-search-input{flex:1;background:transparent;border:none;outline:none;padding:5px 0;color:#333;font-size:12px;font-family:'Inter',sans-serif;min-width:0}
 .msg-search-input::placeholder{color:#aaa}
-.msg-search-count{font-size:9px;color:#999;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.msg-search-count{font-size:10px;color:#999;font-family:'JetBrains Mono',monospace;white-space:nowrap;padding:0 5px;flex-shrink:0}
+.msg-search-count.has-results{color:var(--accent)}
+.msg-search-nav-btn,.msg-search-close-btn{background:none;border:none;color:#bbb;cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:26px;min-height:26px;transition:all 0.12s}
+.msg-search-nav-btn:hover,.msg-search-close-btn:hover{color:#555;background:#ebebeb}
+.msg-search-nav-btn:active,.msg-search-close-btn:active{transform:scale(0.85)}
+.msg-chat-name{transition:opacity 0.2s ease,max-width 0.25s cubic-bezier(0.4,0,0.2,1)}
+.msg-chat-name.search-open{opacity:0;max-width:0;overflow:hidden;padding:0;flex:0}
 .msg-row.search-hidden{display:none!important}
+@media(max-width:768px){.msg-chat-search-wrap.open{width:calc(100vw - 140px);max-width:none}}
 
 /* Pin bar - white, same style as header, blue accent */
 .msg-pin-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff;border-bottom:1px solid #e8e8e8;cursor:pointer}

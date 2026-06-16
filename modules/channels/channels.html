@@ -11,7 +11,17 @@
     <div class="ch-chat-head" id="chChatHead" style="display:none">
       <button class="ch-back-btn" onclick="Channels.closeChat()"><span class="ico ico-18 ico-back"></span></button>
       <span class="ch-chat-channel"># <span id="chChatName">—</span></span>
+      <div class="ch-search-wrap" id="chSearchWrap">
+        <div class="ch-search-inner">
+          <input class="ch-search-input" id="chSearchInput" placeholder="Поиск по каналу..." oninput="Channels.onSearch(this.value)" onkeydown="if(event.key==='Escape')Channels.closeSearch();if(event.key==='Enter')event.shiftKey?Channels.searchPrev():Channels.searchNext()" autocomplete="off"/>
+          <span class="ch-search-count" id="chSearchCount"></span>
+          <button class="ch-search-nav-btn" onclick="Channels.searchPrev()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
+          <button class="ch-search-nav-btn" onclick="Channels.searchNext()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="ch-search-close-btn" onclick="Channels.closeSearch()"><span class="ico ico-12 ico-close"></span></button>
+        </div>
+      </div>
       <div class="ch-chat-actions">
+        <button class="ch-action-btn" id="chSearchBtn" onclick="Channels.toggleSearch()" title="Поиск"><span class="ico ico-16 ico-search"></span></button>
         <button class="ch-action-btn" onclick="Channels.toggleMembers()" title="Участники"><span class="ico ico-16 ico-users"></span></button>
       </div>
     </div>
@@ -23,6 +33,10 @@
         <p>Выберите канал для общения</p>
       </div>
     </div>
+    <button class="ch-scroll-btn" id="chScrollBtn" onclick="Channels.scrollToBottom()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      <span class="ch-scroll-badge" id="chScrollBadge" style="display:none">0</span>
+    </button>
     <div class="ch-typing" id="chTyping" style="display:none"></div>
     <div class="ch-reply-bar" id="chReplyBar" style="display:none">
       <span class="ch-bar-icon ico ico-16 ico-reply"></span>
