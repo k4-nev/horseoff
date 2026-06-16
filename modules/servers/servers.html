@@ -35,7 +35,11 @@
     <b class="srv-metric-value" id="sCpu">--</b>
   </div>
 </div>
-<div class="srv-pills"><button class="srv-pill host active" data-role="host" onclick="Servers.togglePill(this)">HOST</button><button class="srv-pill proxy active" data-role="proxy" onclick="Servers.togglePill(this)">Proxy</button><button class="srv-pill client active" data-role="client" onclick="Servers.togglePill(this)">Client</button></div>
+<div class="srv-pills">
+  <button class="srv-pill host active" data-role="host" onclick="Servers.togglePill(this)"><span class="srv-pill-dot"></span>HOST<span class="srv-pill-count" id="segCount-host">0</span></button>
+  <button class="srv-pill proxy active" data-role="proxy" onclick="Servers.togglePill(this)"><span class="srv-pill-dot"></span>Proxy<span class="srv-pill-count" id="segCount-proxy">0</span></button>
+  <button class="srv-pill client active" data-role="client" onclick="Servers.togglePill(this)"><span class="srv-pill-dot"></span>Client<span class="srv-pill-count" id="segCount-client">0</span></button>
+</div>
 </div>
 
 <div class="srv-table-head" id="srvTableHead" style="display:none">
@@ -45,7 +49,7 @@
 <div style="text-align:center">Дней</div><div></div>
 </div>
 <div id="srvList"><div class="loading"><div class="spinner"></div>Запускаю программу...</div></div>
-<div class="srv-footer"><span class="app-version">v2.209</span> · Created by k4nev with the support of mysika</div>
+<div class="srv-footer"><span class="app-version">v2.210</span> · Created by k4nev with the support of mysika</div>
 </div>
 
 <!-- Create Server Modal (full provision) -->
@@ -126,5 +130,5 @@
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:JetBrains Mono,monospace;font-size:13px;font-weight:600;color:var(--accent);min-width:50px">ruvds</span><input class="form-input" id="srvApiKey" placeholder="API key..." style="flex:1;min-width:120px"/><button class="btn btn-secondary" onclick="Servers.saveApiKey()" style="padding:6px 12px;font-size:12px">Сохранить</button><span id="srvApiStatus"></span></div>
 <div class="form-divider"></div>
 <div style="font-size:13px;color:var(--text-dim);line-height:1.6">Horseoff — легковесная панель мониторинга серверов 3proxy.</div>
-<div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--accent);margin-top:8px"><span class="app-version">v2.209</span> · Created by k4nev with the support of mysika</div>
+<div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--accent);margin-top:8px"><span class="app-version">v2.210</span> · Created by k4nev with the support of mysika</div>
 </div></div>

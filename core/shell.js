@@ -159,7 +159,25 @@ const Shell = {
     }
   },
 
+  setTheme(theme) {
+    document.body.classList.toggle('theme-light', theme === 'light');
+    document.body.classList.toggle('theme-dark', theme !== 'light');
+    localStorage.setItem('ho_theme', theme);
+    var meta = document.getElementById('metaThemeColor');
+    if (meta) meta.content = theme === 'light' ? '#f2f4f8' : '#0a0a0f';
+    // Update toggle buttons if profile is open
+    document.querySelectorAll('.theme-seg-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+  },
+
+  _loadTheme() {
+    var theme = localStorage.getItem('ho_theme') || 'dark';
+    this.setTheme(theme);
+  },
+
   async init() {
+    this._loadTheme();
     await this.loadLocale();
     const token = localStorage.getItem('ho_token');
     if (token) {
@@ -445,6 +463,11 @@ const Shell = {
     }
     var dnInput = document.getElementById('profDisplayName');
     if (dnInput) dnInput.value = d.display_name || '';
+    // Sync theme toggle
+    var currentTheme = localStorage.getItem('ho_theme') || 'dark';
+    document.querySelectorAll('.theme-seg-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+    });
     document.getElementById('profileModal').classList.add('active');
   },
 

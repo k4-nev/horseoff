@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,interactive-widget=resizes-content">
 <title>Horseoff</title>
-<meta name="theme-color" content="#0a0a0f">
+<meta name="theme-color" content="#0a0a0f" id="metaThemeColor">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/pwa/manifest.json">
@@ -59,6 +59,12 @@
 <div class="profile-info">
 <div class="profile-row"><span class="profile-label">Логин</span><span class="profile-value" id="profileUsername">—</span></div>
 <div class="profile-row"><span class="profile-label">Роль</span><span class="profile-value" id="profileRole">—</span></div>
+<div class="profile-row" style="align-items:center"><span class="profile-label">Тема</span>
+  <div class="theme-seg" id="themeSeg">
+    <button class="theme-seg-btn" data-theme="light" onclick="Shell.setTheme('light')">☀ Светлая</button>
+    <button class="theme-seg-btn" data-theme="dark" onclick="Shell.setTheme('dark')">☾ Тёмная</button>
+  </div>
+</div>
 </div>
 <div class="form-group"><label class="form-label">Отображаемое имя</label><div style="display:flex;gap:8px"><input class="form-input" id="profDisplayName" placeholder="Не указано"/><button class="btn btn-secondary" onclick="Shell.saveDisplayName()" style="padding:6px 12px;font-size:12px;white-space:nowrap">Сохранить</button></div><div class="form-hint">Только буквы и пробелы. Если не указано — отображается логин.</div></div>
 <div class="form-group" style="margin-top:16px"><label class="form-label">Текущий пароль</label><div class="input-eye"><input class="form-input" id="profOldPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
