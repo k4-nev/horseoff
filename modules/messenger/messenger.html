@@ -29,18 +29,20 @@
         </button>
         <div class="msg-chat-name" id="msgChatName" style="flex:1">—</div>
         <div class="msg-chat-typing" id="msgChatTyping"></div>
-        <div class="msg-chat-search-wrap" id="msgSearchWrap">
-          <div class="msg-search-inner">
-            <input class="msg-search-input" id="msgSearchInput" placeholder="Поиск..." oninput="Messenger.onSearch(this.value)" onkeydown="if(event.key==='Escape')Messenger.closeSearch();if(event.key==='Enter')event.shiftKey?Messenger.searchPrev():Messenger.searchNext()" autocomplete="off"/>
-            <span class="msg-search-count" id="msgSearchCount"></span>
-            <button class="msg-search-nav-btn" onclick="Messenger.searchPrev()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
-            <button class="msg-search-nav-btn" onclick="Messenger.searchNext()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
-            <button class="msg-search-close-btn" onclick="Messenger.closeSearch()"><span class="ico ico-12 ico-close"></span></button>
+        <div class="msg-search-group">
+          <div class="msg-chat-search-wrap" id="msgSearchWrap">
+            <div class="msg-search-inner">
+              <input class="msg-search-input" id="msgSearchInput" placeholder="Поиск..." oninput="Messenger.onSearch(this.value)" onkeydown="if(event.key==='Escape')Messenger.closeSearch();if(event.key==='Enter')event.shiftKey?Messenger.searchPrev():Messenger.searchNext()" autocomplete="off"/>
+              <span class="msg-search-count" id="msgSearchCount"></span>
+              <button class="msg-search-nav-btn" onclick="Messenger.searchPrev()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
+              <button class="msg-search-nav-btn" onclick="Messenger.searchNext()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="msg-search-close-btn" onclick="Messenger.closeSearch()"><span class="ico ico-12 ico-close"></span></button>
+            </div>
           </div>
+          <button class="msg-header-btn" id="msgSearchBtn" onclick="Messenger.toggleSearch()">
+            <span class="ico ico-16 ico-search"></span>
+          </button>
         </div>
-        <button class="msg-header-btn" id="msgSearchBtn" onclick="Messenger.toggleSearch()">
-          <span class="ico ico-16 ico-search"></span>
-        </button>
         <button class="msg-mob-dots" onclick="Messenger.toggleProfileMobile()">
           <span class="ico ico-18 ico-dots"></span>
         </button>
