@@ -1,4 +1,4 @@
-const VERSION = 'horseoff-v2.213';
+const VERSION = 'horseoff-v2.217';
 const CACHE = VERSION;
 
 self.addEventListener('install', e => { self.skipWaiting(); });
@@ -8,6 +8,8 @@ self.addEventListener('activate', e => {
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({type: 'window'}))
+      .then(clients => clients.forEach(c => c.postMessage({type: 'sw-activated', version: VERSION})))
   );
 });
 

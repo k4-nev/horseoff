@@ -33,6 +33,10 @@ const Channels = {
   _pinsVisible: false,
   _collapsed: {},
   _memberRefresh: null,
+  _searchMatches: [],
+  _searchIdx: -1,
+  _skelTimer: null,
+  _unreadBelow: 0,
 
   init() {
     this.currentUserId = Shell.user ? Shell.user.id : null;
@@ -160,15 +164,105 @@ const Channels = {
     if (window.innerWidth <= 768) { var sb = document.querySelector('.sidebar'); if (sb) sb.style.display = ''; document.getElementById('chChat').style.bottom = ''; }
     this.currentChannel = null;
     this.renderSidebar();
+    this.closeSearch();
+  },
+
+  // ─── Search ───
+  toggleSearch() {
+    var wrap = document.getElementById('chSearchWrap');
+    if (!wrap) return;
+    if (wrap.classList.contains('open')) { this.closeSearch(); }
+    else { wrap.classList.add('open'); var inp = document.getElementById('chSearchInput'); if (inp) { inp.focus(); inp.select(); } }
+  },
+
+  closeSearch() {
+    var wrap = document.getElementById('chSearchWrap');
+    if (wrap) wrap.classList.remove('open');
+    var inp = document.getElementById('chSearchInput');
+    if (inp) inp.value = '';
+    var cnt = document.getElementById('chSearchCount');
+    if (cnt) { cnt.textContent = ''; cnt.className = 'ch-search-count'; }
+    document.querySelectorAll('.ch-msg-search-match,.ch-msg-search-active').forEach(function(el) {
+      el.outerHTML = el.textContent;
+    });
+    this._searchMatches = []; this._searchIdx = -1;
+  },
+
+  onSearch(q) {
+    q = q.trim();
+    var cnt = document.getElementById('chSearchCount');
+    if (!q) { this.closeSearch(); return; }
+    // Highlight matches in rendered message texts
+    var msgs = document.querySelectorAll('.ch-msg-text');
+    var matches = [];
+    msgs.forEach(function(el) {
+      var orig = el.getAttribute('data-orig') || el.textContent;
+      el.setAttribute('data-orig', orig);
+      var re = new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+      el.innerHTML = orig.replace(re, '<mark class="ch-msg-search-match">$1</mark>');
+      el.querySelectorAll('.ch-msg-search-match').forEach(function(m){ matches.push(m); });
+    });
+    this._searchMatches = matches;
+    this._searchIdx = matches.length ? 0 : -1;
+    if (cnt) { cnt.textContent = matches.length ? (1+'/'+matches.length) : '0'; cnt.className = 'ch-search-count' + (matches.length ? ' has-results' : ''); }
+    this._highlightSearchMatch();
+  },
+
+  _highlightSearchMatch() {
+    this._searchMatches.forEach(function(m,i){ m.className = 'ch-msg-search-match'; });
+    var cur = this._searchMatches[this._searchIdx];
+    if (cur) { cur.className = 'ch-msg-search-active'; cur.scrollIntoView({behavior:'smooth',block:'center'}); }
+    var cnt = document.getElementById('chSearchCount');
+    if (cnt && this._searchMatches.length) cnt.textContent = (this._searchIdx+1)+'/'+this._searchMatches.length;
+  },
+
+  searchNext() {
+    if (!this._searchMatches.length) return;
+    this._searchIdx = (this._searchIdx + 1) % this._searchMatches.length;
+    this._highlightSearchMatch();
+  },
+
+  searchPrev() {
+    if (!this._searchMatches.length) return;
+    this._searchIdx = (this._searchIdx - 1 + this._searchMatches.length) % this._searchMatches.length;
+    this._highlightSearchMatch();
+  },
+
+  // ─── Scroll-down button ───
+  scrollToBottom() {
+    var el = document.getElementById('chMessages');
+    if (el) { el.scrollTop = el.scrollHeight; this._unreadBelow = 0; this._updateScrollBtn(); }
+  },
+
+  _updateScrollBtn() {
+    var el = document.getElementById('chMessages');
+    var btn = document.getElementById('chScrollBtn');
+    if (!el || !btn) return;
+    var distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    var visible = distFromBottom > 120;
+    btn.classList.toggle('visible', visible);
+    var badge = document.getElementById('chScrollBadge');
+    if (badge) {
+      if (visible && this._unreadBelow > 0) {
+        badge.textContent = this._unreadBelow > 99 ? '99+' : this._unreadBelow;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
   },
 
   _showSkeleton() {
-    var el = document.getElementById('chMessages');
-    if (el) el.innerHTML = '<div class="ch-skeleton">'
-      + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w40"></div><div class="ch-skel-line w80"></div></div></div>'
-      + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w60"></div><div class="ch-skel-line w40"></div></div></div>'
-      + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w80"></div><div class="ch-skel-line w60"></div></div></div>'
-      + '</div>';
+    var self = this;
+    clearTimeout(this._skelTimer);
+    this._skelTimer = setTimeout(function() {
+      var el = document.getElementById('chMessages');
+      if (el && !el.querySelector('.ch-msg')) el.innerHTML = '<div class="ch-skeleton">'
+        + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w40"></div><div class="ch-skel-line w80"></div></div></div>'
+        + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w60"></div><div class="ch-skel-line w40"></div></div></div>'
+        + '<div class="ch-skel-row"><div class="ch-skel-ava"></div><div class="ch-skel-lines"><div class="ch-skel-line w80"></div><div class="ch-skel-line w60"></div></div></div>'
+        + '</div>';
+    }, 300);
   },
 
   async loadMessages() {
@@ -176,6 +270,7 @@ const Channels = {
     this._msgOffset = 0; this._loadingMore = false; this._hasMore = true;
     this._showSkeleton();
     var d = await Shell.api('/api/mod/channels/messages?channel_id=' + this.currentChannel);
+    clearTimeout(this._skelTimer);
     if (d && d.messages) {
       this.messages = d.messages;
       this._lastRead = d.last_read || 0;
@@ -237,6 +332,9 @@ const Channels = {
         + self._renderReactions(m.reactions, m.id)
         + '</div>'
         + '<div class="ch-msg-quick">'
+        + '<div class="ch-msg-quick-emojis">'
+        + ['👍','❤️','😂','😮','😢'].map(function(e){return '<button class="ch-msg-qemoji" onclick="event.stopPropagation();Channels.addReaction(\x27'+m.id+'\x27,\x27'+e+'\x27)">'+e+'</button>';}).join('')
+        + '</div>'
         + '<button class="ch-msg-qbtn" onclick="event.stopPropagation();Channels.setReply(Channels.messages.find(function(x){return x.id===\x27'+m.id+'\x27}))" title="Ответить"><span class="ico ico-14 ico-reply"></span></button>'
         + '<button class="ch-msg-qbtn" onclick="event.stopPropagation();Channels.forwardToMessenger(Channels.messages.find(function(x){return x.id===\x27'+m.id+'\x27}))" title="Переслать"><span class="ico ico-14 ico-forward"></span></button>'
         + (self.isAdmin?'<button class="ch-msg-qbtn" onclick="event.stopPropagation();Channels.pinMessage(Channels.messages.find(function(x){return x.id===\x27'+m.id+'\x27}))" title="Закрепить"><span class="ico ico-14 ico-pin"></span></button>':'')
@@ -246,9 +344,10 @@ const Channels = {
     }).join('');
     el.scrollTop = el.scrollHeight;
 
-    // Scroll-to-top for older messages
+    // Scroll-to-top for older messages + scroll-down button
     var self3 = this;
     el.onscroll = function() {
+      // Older messages load
       if (el.scrollTop < 60 && !self3._loadingMore && self3._hasMore && self3.currentChannel) {
         self3._loadingMore = true;
         self3._msgOffset += 50;
@@ -263,6 +362,8 @@ const Channels = {
           el.scrollTop = el.scrollHeight - prevH;
         });
       }
+      // Scroll-down button visibility
+      self3._updateScrollBtn();
     };
     // Remove "new" separator on scroll
     var msgEl = document.getElementById('chMessages');
@@ -415,10 +516,14 @@ const Channels = {
         this._showChannelNotify(data.msg, data.channel_id, data.space_id);
       }
       if (data.channel_id === this.currentChannel) {
+        // Track unread below when user has scrolled up
+        var msgEl = document.getElementById('chMessages');
+        var atBottom = msgEl && (msgEl.scrollHeight - msgEl.scrollTop - msgEl.clientHeight < 80);
+        if (!atBottom && data.msg.from !== this.currentUserId) { this._unreadBelow++; }
         this.messages.push(data.msg);
         this._animMode = 'last';
         this.renderMessages();
-        Shell.api('/api/mod/channels/read?channel_id=' + this.currentChannel);
+        if (atBottom) { this._unreadBelow = 0; Shell.api('/api/mod/channels/read?channel_id=' + this.currentChannel); }
       } else {
         // Increment unread badge
         var badge = document.querySelector('.ch-channel[data-chid="'+data.channel_id+'"] .ch-unread-badge');

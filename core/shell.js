@@ -269,6 +269,43 @@ const Shell = {
     // Push notifications
     this.initPush();
     this.lockOrientation();
+    // Auto-reload when SW updates (fixes stale cache access issues)
+    this._initSwUpdateCheck();
+  },
+
+  _initSwUpdateCheck() {
+    if (!('serviceWorker' in navigator)) return;
+    // Reload when a new SW takes control
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      window.location.reload();
+    });
+    // Force SW update check every 5 minutes
+    var self = this;
+    setInterval(function() {
+      navigator.serviceWorker.getRegistration().then(function(reg) {
+        if (reg) reg.update();
+      });
+    }, 5 * 60 * 1000);
+    // Check server version every 10 min, reload if changed
+    setInterval(async function() {
+      try {
+        var v = await self.api('/api/version');
+        if (v && v.version && v.version !== self.appVersion) {
+          self.appVersion = v.version;
+          // Show update banner instead of hard reload
+          self._showUpdateBanner();
+        }
+      } catch(e) {}
+    }, 10 * 60 * 1000);
+  },
+
+  _showUpdateBanner() {
+    if (document.getElementById('updateBanner')) return;
+    var b = document.createElement('div');
+    b.id = 'updateBanner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:Inter,sans-serif;box-shadow:0 2px 12px rgba(0,212,170,0.3)';
+    b.innerHTML = '<span>Доступно обновление приложения</span><button onclick="window.location.reload()" style="background:rgba(0,0,0,0.2);border:none;color:#fff;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">Обновить</button>';
+    document.body.appendChild(b);
   },
 
   lockOrientation() {

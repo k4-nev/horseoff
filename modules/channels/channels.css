@@ -64,8 +64,8 @@
 .ch-skel-line.w60{width:60%}.ch-skel-line.w80{width:80%}.ch-skel-line.w40{width:40%}
 @keyframes ch-pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}
 
-/* ─── INPUT ─── */
-.ch-input-area{display:flex;align-items:flex-end;gap:8px;padding:8px 16px;background:var(--surface);z-index:5;margin:0 20px 20px;border-radius:20px;border-bottom:2px solid var(--border);flex-shrink:0;transition:background 0.25s,border-color 0.25s}
+/* ─── INPUT ─── floating rounded pill, bottom-border only (messenger style) */
+.ch-input-area{display:flex;align-items:flex-end;gap:8px;padding:8px 16px;background:var(--surface);z-index:5;margin:0 20px 20px;border-radius:20px;border-bottom:2px solid var(--border);opacity:0.96;flex-shrink:0;transition:background 0.25s,border-color 0.25s}
 .ch-input{flex:1;background:transparent;border:none;padding:5px 0;color:var(--text);font-size:13px;outline:none;font-family:'Inter',sans-serif;resize:none;max-height:120px;line-height:1.4;overflow-y:auto}
 .ch-input::placeholder{color:var(--text-dim);opacity:0.6}
 .ch-send-btn{background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;border-radius:8px;transition:transform 0.1s,background 0.15s}
@@ -151,8 +151,8 @@
 .ch-ctx-danger{color:var(--critical)}
 .ch-ctx-danger:hover{background:var(--critical-glow)}
 
-/* ─── REPLY / EDIT BAR (composer-attached) ─── */
-.ch-reply-bar,.ch-edit-bar{align-items:center;gap:10px;padding:8px 14px;flex-shrink:0;margin:0 20px -2px;background:var(--surface);border-bottom:2px solid var(--border);border-left:3px solid var(--accent);border-radius:14px 14px 0 0;animation:ch-previewIn 0.15s ease-out}
+/* ─── REPLY / EDIT BAR — independent floating rounded pill above input ─── */
+.ch-reply-bar,.ch-edit-bar{align-items:center;gap:10px;padding:8px 14px;flex-shrink:0;margin:0 20px 6px;background:var(--surface);border-bottom:2px solid var(--border);border-left:3px solid var(--accent);border-radius:15px;opacity:0.96;animation:ch-previewIn 0.15s ease-out}
 .ch-bar-icon{flex-shrink:0;color:var(--accent);display:flex;align-items:center}
 .ch-reply-info{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:1px}
 .ch-reply-name{font-size:11px;font-weight:600;color:var(--accent);display:block;line-height:1.2}
@@ -162,8 +162,8 @@
 .ch-edit-bar{border-left-color:var(--warning)}
 .ch-edit-bar .ch-bar-icon{color:var(--warning)}
 .ch-edit-label{font-size:12px;color:var(--text);font-weight:500;flex:1}
-/* When a bar sits above, flatten the input's top corners so they merge */
-.ch-input-area.has-bar{border-radius:0 0 20px 20px}
+/* Bars float independently above — input keeps its full pill shape */
+.ch-input-area.has-bar{border-radius:20px}
 
 /* ─── MEDIA VIEWER ─── */
 .ch-media-viewer{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:200;display:flex;align-items:center;justify-content:center}
@@ -171,8 +171,8 @@
 .ch-viewer-close:hover{background:rgba(255,255,255,0.2)}
 .ch-viewer-content img,.ch-viewer-content video{border-radius:8px;box-shadow:0 0 60px rgba(0,0,0,0.5)}
 
-/* ─── UPLOAD PREVIEW ─── */
-.ch-upload-preview{background:var(--surface);border-bottom:2px solid var(--border);padding:6px 10px;border-radius:16px 16px 0 0;margin:0 20px -2px;flex-shrink:0;animation:ch-previewIn 0.15s ease-out}
+/* ─── UPLOAD PREVIEW — independent floating rounded pill above input ─── */
+.ch-upload-preview{background:var(--surface);border-bottom:2px solid var(--border);padding:8px 12px;border-radius:16px;margin:0 20px 6px;opacity:0.96;flex-shrink:0;animation:ch-previewIn 0.15s ease-out}
 .ch-upload-items{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .ch-upload-thumb{width:48px;height:48px;border-radius:6px;overflow:hidden;position:relative;flex-shrink:0;cursor:pointer}
 .ch-upload-thumb img{width:100%;height:100%;object-fit:cover}
@@ -323,3 +323,33 @@
 .ch-emoji-item:active{transform:scale(0.8)}
 .ch-emoji-btn{background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;border-radius:8px;transition:all 0.1s}
 .ch-emoji-btn:active{transform:scale(0.88)}
+
+/* ─── ANIMATED SEARCH ─── */
+.ch-search-wrap{display:flex;align-items:center;width:0;max-width:0;opacity:0;overflow:hidden;pointer-events:none;transition:width 0.28s cubic-bezier(0.4,0,0.2,1),max-width 0.28s cubic-bezier(0.4,0,0.2,1),opacity 0.2s ease;margin-right:-4px}
+.ch-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px}
+.ch-search-inner{display:flex;align-items:center;gap:1px;background:var(--surface2);border-radius:20px;border:1px solid var(--border);padding:2px 4px 2px 12px;width:100%;transition:border-color 0.15s,box-shadow 0.15s}
+.ch-search-inner:focus-within{border-color:var(--text-dim);box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.ch-search-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;padding:5px 0;min-width:0}
+.ch-search-input::placeholder{color:var(--text-dim);opacity:0.6}
+.ch-search-count{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;white-space:nowrap;padding:0 5px;flex-shrink:0;transition:color 0.15s}
+.ch-search-count.has-results{color:var(--accent)}
+.ch-search-nav-btn,.ch-search-close-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:26px;min-height:26px;transition:all 0.12s}
+.ch-search-nav-btn:hover,.ch-search-close-btn:hover{color:var(--text);background:var(--surface)}
+.ch-search-nav-btn:active,.ch-search-close-btn:active{transform:scale(0.85)}
+.ch-msg-search-match{background:rgba(255,200,60,0.18);border-radius:2px;padding:0 1px}
+.ch-msg-search-active{background:rgba(255,170,0,0.38)!important;border-radius:2px;padding:0 1px}
+@media(max-width:768px){.ch-search-wrap.open{width:calc(100vw - 150px);max-width:none}}
+
+/* ─── SCROLL-DOWN BUTTON ─── */
+.ch-scroll-btn{position:absolute;right:22px;bottom:94px;z-index:10;width:38px;height:38px;border-radius:50%;background:var(--surface);border:1px solid var(--border);box-shadow:0 4px 18px rgba(0,0,0,0.2);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transform:translateY(10px) scale(0.82);pointer-events:none;transition:opacity 0.22s,transform 0.22s cubic-bezier(0.34,1.56,0.64,1),background 0.15s,border-color 0.15s}
+.ch-scroll-btn.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.ch-scroll-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--accent)}
+.ch-scroll-btn:active{transform:scale(0.88)!important}
+.ch-scroll-badge{position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;animation:scrollBadgeIn 0.25s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes scrollBadgeIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ─── HOVER QUICK-EMOJIS ─── */
+.ch-msg-quick-emojis{display:flex;gap:0;padding:0 4px 0 2px;border-right:1px solid var(--border);margin-right:2px}
+.ch-msg-qemoji{background:none;border:none;cursor:pointer;font-size:16px;padding:3px 5px;border-radius:6px;transition:transform 0.14s cubic-bezier(0.34,1.56,0.64,1),background 0.1s;line-height:1;display:flex;align-items:center}
+.ch-msg-qemoji:hover{background:var(--surface2);transform:scale(1.15)}
+.ch-msg-qemoji:active{transform:scale(0.82)}

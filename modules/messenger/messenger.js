@@ -288,14 +288,18 @@ const Messenger = {
     this._msgOffset = 0;
     this._loadingMore = false;
     this._hasMore = true;
-    // Show skeleton
     var mel = document.getElementById('msgMessages');
-    if (mel) mel.innerHTML = '<div class="msg-skeleton">'
-      + '<div class="msg-skel-row"><div class="msg-skel-bubble w40"></div></div>'
-      + '<div class="msg-skel-row right"><div class="msg-skel-bubble w60"></div></div>'
-      + '<div class="msg-skel-row"><div class="msg-skel-bubble w50"></div></div>'
-      + '<div class="msg-skel-row right"><div class="msg-skel-bubble w40"></div></div>'
-      + '</div>';
+    if (mel) mel.innerHTML = '';
+    clearTimeout(this._skelTimer);
+    this._skelTimer = setTimeout(function() {
+      var el = document.getElementById('msgMessages');
+      if (el && !el.querySelector('.msg-row')) el.innerHTML = '<div class="msg-skeleton">'
+        + '<div class="msg-skel-row"><div class="msg-skel-bubble w40"></div></div>'
+        + '<div class="msg-skel-row right"><div class="msg-skel-bubble w60"></div></div>'
+        + '<div class="msg-skel-row"><div class="msg-skel-bubble w50"></div></div>'
+        + '<div class="msg-skel-row right"><div class="msg-skel-bubble w40"></div></div>'
+        + '</div>';
+    }, 300);
     Shell.wsSend({type:'history', to: userId, offset: 0});
     Shell.wsSend({type:'read', chat: this.getChatKey(this.currentUserId, userId), to: userId});
   },
@@ -377,6 +381,7 @@ const Messenger = {
     document.getElementById('msgChatHeader').style.display='flex';
     document.getElementById('msgChatActive').style.display='block';
     document.getElementById('msgMessages').innerHTML = '';
+    this.closeSearch();
     // Show skeleton only if history takes >300ms
     clearTimeout(this._skelTimer);
     this._skelTimer = setTimeout(function() {
@@ -1091,45 +1096,51 @@ const Messenger = {
   },
 
   // ===== SEARCH =====
+  _searchMatches: [],
+  _searchIdx: -1,
+
   toggleSearch() {
     var wrap = document.getElementById('msgSearchWrap');
-    var name = document.getElementById('msgChatName');
-    var typing = document.getElementById('msgChatTyping');
     if (!wrap) return;
-    if (wrap.classList.contains('open')) {
-      this.closeSearch();
-    } else {
+    if (wrap.classList.contains('open')) { this.closeSearch(); }
+    else {
       wrap.classList.add('open');
-      if (name) name.style.display = 'none';
-      if (typing) typing.style.display = 'none';
-      document.getElementById('msgSearchInput').focus();
+      var name = document.getElementById('msgChatName');
+      if (name) { name.style.flex = '0 0 0px'; name.style.overflow = 'hidden'; name.style.opacity = '0'; }
+      var inp = document.getElementById('msgSearchInput');
+      if (inp) { inp.focus(); inp.select(); }
     }
   },
 
   closeSearch() {
     var wrap = document.getElementById('msgSearchWrap');
-    var name = document.getElementById('msgChatName');
-    var typing = document.getElementById('msgChatTyping');
     if (wrap) wrap.classList.remove('open');
-    if (name) name.style.display = '';
-    if (typing) typing.style.display = '';
+    var name = document.getElementById('msgChatName');
+    if (name) { name.style.flex = ''; name.style.overflow = ''; name.style.opacity = ''; }
     var input = document.getElementById('msgSearchInput');
     if (input) input.value = '';
-    document.getElementById('msgSearchCount').textContent = '';
+    var cnt = document.getElementById('msgSearchCount');
+    if (cnt) { cnt.textContent = ''; cnt.className = 'msg-search-count'; }
     document.querySelectorAll('.msg-row.search-hidden').forEach(function(r) { r.classList.remove('search-hidden'); });
     document.querySelectorAll('.msg-date-sep').forEach(function(s) { s.style.display = ''; });
+    this._searchMatches = []; this._searchIdx = -1;
   },
 
   onSearch(query) {
     var q = query.trim().toLowerCase();
-    var rows = document.querySelectorAll('.msg-row[data-msgid]');
-    var count = 0;
-    if (!q) { rows.forEach(function(r){ r.classList.remove('search-hidden'); });
+    var cnt = document.getElementById('msgSearchCount');
+    if (!q) {
+      document.querySelectorAll('.msg-row.search-hidden').forEach(function(r){ r.classList.remove('search-hidden'); });
       document.querySelectorAll('.msg-date-sep').forEach(function(s){ s.style.display=''; });
-      document.getElementById('msgSearchCount').textContent = ''; return; }
+      if (cnt) { cnt.textContent = ''; cnt.className = 'msg-search-count'; }
+      this._searchMatches = []; this._searchIdx = -1;
+      return;
+    }
+    var rows = document.querySelectorAll('.msg-row[data-msgid]');
+    var matches = [];
     rows.forEach(function(r) {
       var text = (r.getAttribute('data-text') || '').toLowerCase();
-      if (text.includes(q)) { r.classList.remove('search-hidden'); count++; }
+      if (text.includes(q)) { r.classList.remove('search-hidden'); matches.push(r); }
       else { r.classList.add('search-hidden'); }
     });
     document.querySelectorAll('.msg-date-sep').forEach(function(sep) {
@@ -1140,9 +1151,29 @@ const Messenger = {
       }
       sep.style.display = vis ? '' : 'none';
     });
-    document.getElementById('msgSearchCount').textContent = count ? count + ' найдено' : 'Не найдено';
-    var first = document.querySelector('.msg-row[data-msgid]:not(.search-hidden)');
-    if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
+    this._searchMatches = matches;
+    this._searchIdx = matches.length ? 0 : -1;
+    if (cnt) { cnt.textContent = matches.length ? '1/'+matches.length : '0'; cnt.className = 'msg-search-count'+(matches.length?' has-results':''); }
+    this._highlightSearchMatch();
+  },
+
+  _highlightSearchMatch() {
+    var cur = this._searchMatches[this._searchIdx];
+    if (cur) { cur.scrollIntoView({behavior:'smooth', block:'center'}); }
+    var cnt = document.getElementById('msgSearchCount');
+    if (cnt && this._searchMatches.length) cnt.textContent = (this._searchIdx+1)+'/'+this._searchMatches.length;
+  },
+
+  searchNext() {
+    if (!this._searchMatches.length) return;
+    this._searchIdx = (this._searchIdx + 1) % this._searchMatches.length;
+    this._highlightSearchMatch();
+  },
+
+  searchPrev() {
+    if (!this._searchMatches.length) return;
+    this._searchIdx = (this._searchIdx - 1 + this._searchMatches.length) % this._searchMatches.length;
+    this._highlightSearchMatch();
   },
 
   // ===== PIN =====
