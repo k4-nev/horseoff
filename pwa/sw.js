@@ -1,4 +1,4 @@
-const VERSION = 'horseoff-v2.220';
+const VERSION = 'horseoff-v2.221';
 const CACHE = VERSION;
 
 self.addEventListener('install', e => { self.skipWaiting(); });
