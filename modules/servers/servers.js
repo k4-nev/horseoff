@@ -105,17 +105,11 @@ const Servers = {
   },
 
   _categoryHeader(role) {
-    if (role === 'proxy') {
-      return '<div class="srv-table-head"><div></div><div>Role</div><div>Сервер</div><div>IP</div>'
-        + '<div style="text-align:center">CPU</div><div style="text-align:center">RAM</div>'
-        + '<div style="text-align:center">Скорость</div><div style="text-align:center">Прокси</div>'
-        + '<div style="text-align:center">Дней</div><div></div></div>';
-    } else {
-      return '<div class="srv-table-head"><div></div><div>Role</div><div>Сервер</div><div>IP</div>'
-        + '<div style="text-align:center">CPU</div><div style="text-align:center">RAM</div>'
-        + '<div style="text-align:center">Скорость</div><div style="text-align:center">Диск</div>'
-        + '<div style="text-align:center">Дней</div><div></div></div>';
-    }
+    var mid = role === 'proxy' ? 'Прокси' : 'Диск';
+    return '<div class="srv-table-head">'
+      + '<div>Role</div><div>Сервер</div><div>IP</div>'
+      + '<div>CPU</div><div>RAM</div><div>Скорость</div>'
+      + '<div>' + mid + '</div><div>Дней</div><div></div></div>';
   },
 
   startClock() {
@@ -364,10 +358,9 @@ const Servers = {
     }
 
     // Row
-    var rowCls = 'srv-row ' + sc + (isClient ? ' expandable' : '') + (on ? '' : ' row-offline');
+    var rowCls = 'srv-row ' + sc + (isClient ? ' expandable' : '') + (isHost ? ' host-row' : '') + (on ? '' : ' row-offline');
     var h = '<div class="' + rowCls + '" data-srvip="' + s.ip + '" data-role="' + (s.role||'') + '" oncontextmenu="Servers.showServerCtx(event,\'' + s.ip + '\')"' + (isClient ? ' onclick="Servers.toggleExpand(\'' + eid + '\')"' : '') + '>';
-    h += '<span class="status-dot ' + sc + '"></span>';
-    h += '<div>' + this.roleTag(s.role || '') + '</div>';
+    h += '<div class="srv-role-cell"><span class="status-dot ' + sc + '"></span>' + this.roleTag(s.role || '') + '</div>';
     h += '<div class="row-name">' + s.name + '<span class="row-name-sub">' + up + '</span></div>';
     h += '<div class="row-ip">' + s.ip + '</div>';
     h += cpuCell;

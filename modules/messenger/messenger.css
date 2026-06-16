@@ -10,8 +10,8 @@
 .msg-contacts-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:10px}
 .msg-search-wrap{position:relative}
 .msg-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-dim);pointer-events:none}
-.msg-search{width:100%;background:var(--surface2);border:1px solid transparent;border-radius:20px;padding:8px 12px 8px 32px;color:var(--text);font-size:12px;outline:none;font-family:'Inter',sans-serif;transition:background 0.15s,box-shadow 0.15s}
-.msg-search:focus{background:var(--surface);box-shadow:0 2px 10px rgba(0,0,0,0.08);border-color:transparent}
+.msg-search{width:100%;background:var(--surface2);border:none;outline:none;border-radius:20px;padding:8px 12px 8px 32px;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;transition:background 0.15s,box-shadow 0.15s;-webkit-appearance:none;appearance:none}
+.msg-search:focus{background:var(--surface);box-shadow:0 2px 10px rgba(0,0,0,0.08);outline:none}
 .msg-search::placeholder{color:var(--text-dim);opacity:0.55}
 .msg-contact-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .msg-contact-list::-webkit-scrollbar{width:4px}
@@ -217,16 +217,16 @@
 /* Search in header - instant expand, white, minimal */
 .msg-chat-search-wrap{overflow:hidden;width:0;max-width:0;display:flex;align-items:center;opacity:0;pointer-events:none;transition:width 0.28s cubic-bezier(0.4,0,0.2,1),max-width 0.28s cubic-bezier(0.4,0,0.2,1),opacity 0.2s ease;margin-right:-4px}
 .msg-chat-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px}
-.msg-search-inner{display:flex;align-items:center;gap:1px;background:#f4f4f4;border-radius:20px;border:1px solid #e0e0e0;padding:2px 4px 2px 12px;width:100%;transition:border-color 0.15s,box-shadow 0.15s}
-.msg-search-inner:focus-within{border-color:#bbb;box-shadow:0 2px 8px rgba(0,0,0,0.07)}
-.msg-search-input{flex:1;background:transparent;border:none;outline:none;padding:5px 0;color:#333;font-size:12px;font-family:'Inter',sans-serif;min-width:0}
+.msg-search-inner{display:flex;align-items:center;gap:1px;background:var(--surface2);border-radius:20px;border:1px solid transparent;padding:2px 4px 2px 12px;width:100%;transition:background 0.15s,box-shadow 0.15s}
+.msg-search-inner:focus-within{background:var(--surface);box-shadow:0 2px 10px rgba(0,0,0,0.08);border-color:transparent}
+.msg-search-input{flex:1;background:transparent;border:none;outline:none;padding:5px 0;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;min-width:0}
 .msg-search-input::placeholder{color:#aaa}
 .msg-search-count{font-size:10px;color:#999;font-family:'JetBrains Mono',monospace;white-space:nowrap;padding:0 5px;flex-shrink:0}
 .msg-search-count.has-results{color:var(--accent)}
 .msg-search-nav-btn,.msg-search-close-btn{background:none;border:none;color:#bbb;cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:26px;min-height:26px;transition:all 0.12s}
 .msg-search-nav-btn:hover,.msg-search-close-btn:hover{color:#555;background:#ebebeb}
 .msg-search-nav-btn:active,.msg-search-close-btn:active{transform:scale(0.85)}
-.msg-chat-name{transition:opacity 0.2s ease,flex 0.25s cubic-bezier(0.4,0,0.2,1)}
+.msg-search-group{display:flex;align-items:center;gap:0;flex-shrink:0}
 .msg-row.search-hidden{display:none!important}
 @media(max-width:768px){.msg-chat-search-wrap.open{width:calc(100vw - 140px);max-width:none}}
 
@@ -430,7 +430,8 @@
 
 
 /* Focus states */
-.msg-contact:focus-visible,.msg-emoji-btn:focus-visible,.msg-send-btn:focus-visible,.msg-back-btn:focus-visible,.msg-search:focus-visible,.msg-emoji-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.msg-contact:focus-visible,.msg-emoji-btn:focus-visible,.msg-send-btn:focus-visible,.msg-back-btn:focus-visible,.msg-emoji-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.msg-search:focus-visible,.msg-search:focus{outline:none}
 
 /* Message skeleton */
 .msg-skeleton{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
