@@ -49,8 +49,8 @@
 
 /* Table — 10 columns (merged proxy) */
 .srv-table-head{display:grid;grid-template-columns:8px 55px 1fr 124px 72px 72px 76px 108px 64px 52px;gap:8px;padding:6px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);border-bottom:1px solid var(--border);margin-bottom:6px;background:var(--bg)}
-.srv-row{display:grid;grid-template-columns:8px 55px 1fr 124px 72px 72px 76px 108px 64px 52px;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:3px;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s;font-size:13px}
-.srv-row:hover{background:var(--surface2);box-shadow:0 4px 16px rgba(0,0,0,0.07);transform:translateY(-1px)}
+.srv-row{display:grid;grid-template-columns:8px 55px 1fr 124px 72px 72px 76px 108px 64px 52px;gap:8px;align-items:center;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:3px;transition:background 0.18s ease,box-shadow 0.18s ease;font-size:13px}
+.srv-row:hover{background:var(--surface2);box-shadow:inset 3px 0 0 var(--accent)}
 .srv-row.offline{border-color:rgba(255,68,102,0.18);background:rgba(255,68,102,0.03)}
 .srv-row.expandable{cursor:pointer}
 .srv-expand{display:none;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin-bottom:3px;animation:expandIn 0.18s ease-out}
@@ -235,17 +235,17 @@
 }
 @media(max-width:480px){.srv-clock{display:none}.mob-info{grid-template-columns:1fr 1fr 1fr 1fr}.srv-expand-grid{grid-template-columns:1fr 1fr 1fr}}
 
-/* ─── LIGHT THEME TEXT HIERARCHY ─── */
-body.theme-light .srv-header h2{color:#2d3748}
-body.theme-light .srv-metric-value{color:#374151}
-body.theme-light .srv-metric-label{color:#8492a6}
-body.theme-light .row-metric{color:#4b5563}
-body.theme-light .row-metric .unit{color:#9ca3af}
-body.theme-light .row-name{color:#374151}
-body.theme-light .row-name-sub{color:#9ca3af}
-body.theme-light .row-ip{color:#a0aec0}
-body.theme-light .srv-expand-value{color:#4b5563}
-body.theme-light .srv-expand-label{color:#9ca3af}
-body.theme-light .srv-table-head{color:#9ca3af}
-body.theme-light .srv-clock{color:#a0aec0}
-body.theme-light .srv-row:hover{background:#edf0f5;box-shadow:0 4px 16px rgba(0,0,0,0.05)}
+/* ─── LIGHT THEME TEXT HIERARCHY — muted slate grays, never near-black ─── */
+body.theme-light .srv-header h2{color:#5a6373;font-weight:600}
+body.theme-light .srv-metric-value{color:#525b6b}
+body.theme-light .srv-metric-label{color:#9aa3b2}
+body.theme-light .row-metric{color:#5c6575}
+body.theme-light .row-metric .unit{color:#a7afbd}
+body.theme-light .row-name{color:#525b6b}
+body.theme-light .row-name-sub{color:#a0a8b6}
+body.theme-light .row-ip{color:#a7afbd}
+body.theme-light .srv-expand-value{color:#5c6575}
+body.theme-light .srv-expand-label{color:#a0a8b6}
+body.theme-light .srv-table-head{color:#a7afbd}
+body.theme-light .srv-clock{color:#a7afbd}
+body.theme-light .srv-row:hover{background:#eef1f6;box-shadow:inset 3px 0 0 var(--accent)}

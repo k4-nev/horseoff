@@ -235,7 +235,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .theme-seg-btn.active{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,0.15);color:var(--text);font-weight:600}
 .theme-seg-btn:hover:not(.active){color:var(--text)}
 
-/* ─── LIGHT THEME MODAL / HEADING SOFTENING ─── */
-body.theme-light .modal-title{color:#2d3748}
-body.theme-light .modal-subtitle{color:#4a5568}
-body.theme-light h2{color:#2d3748}
+/* ─── LIGHT THEME MODAL / HEADING SOFTENING — muted slate, not near-black ─── */
+body.theme-light .modal-title{color:#5a6373;font-weight:600}
+body.theme-light .modal-subtitle{color:#6b7484}
+body.theme-light h2{color:#5a6373;font-weight:600}
