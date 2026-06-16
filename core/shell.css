@@ -234,3 +234,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .theme-seg-btn{font-family:'Inter',sans-serif;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.18s;border:none;background:transparent;color:var(--text-dim);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .theme-seg-btn.active{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,0.15);color:var(--text);font-weight:600}
 .theme-seg-btn:hover:not(.active){color:var(--text)}
+
+/* ─── LIGHT THEME MODAL / HEADING SOFTENING ─── */
+body.theme-light .modal-title{color:#2d3748}
+body.theme-light .modal-subtitle{color:#4a5568}
+body.theme-light h2{color:#2d3748}
