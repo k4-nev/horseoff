@@ -253,8 +253,13 @@ const Servers = {
       // Add history for sparklines
       var self = this;
       data.forEach(function(s) {
-        var rp = (s.ram_used && s.ram_total) ? Math.round(s.ram_used / s.ram_total * 100) : null;
-        self._addHistory(s.ip, s.cpu != null ? s.cpu : null, rp);
+        // Server is authoritative for history (persists across reloads)
+        if (s.cpu_hist || s.ram_hist) {
+          self._history[s.ip] = {cpu: (s.cpu_hist || []).slice(), ram: (s.ram_hist || []).slice()};
+        } else {
+          var rp = (s.ram_used && s.ram_total) ? Math.round(s.ram_used / s.ram_total * 100) : null;
+          self._addHistory(s.ip, s.cpu != null ? s.cpu : null, rp);
+        }
       });
       var html = '';
       var lastRole = null;
