@@ -1399,13 +1399,27 @@ const Channels = {
       } else if (a.type === 'audio') {
         var dur = a.duration || 0;
         var mm = Math.floor(dur/60), ss = ('0'+(dur%60)).slice(-2);
+        var durTxt = mm+':'+ss;
         var isVoice = a.name && a.name.startsWith('voice_');
-        html += '<div class="ch-audio-player'+(isVoice?' voice':'')+'" data-aid="'+a.id+'" data-dur="'+dur+'">'
-          + '<button class="ch-audio-btn" onclick="event.stopPropagation();Channels.playAudio(\x27'+a.id+'\x27)"><span class="ch-audio-icon" data-aid="'+a.id+'">▶</span></button>'
-          + '<div class="ch-audio-info">'
-          + (isVoice?'':'<div class="ch-audio-name">'+this._esc(a.name)+'</div>')
-          + '<div class="ch-audio-bar" onclick="event.stopPropagation();Channels.seekAudio(event,\x27'+a.id+'\x27)"><div class="ch-audio-progress" data-aid="'+a.id+'"></div></div>'
-          + '<span class="ch-audio-time" data-aid="'+a.id+'">'+mm+':'+ss+'</span></div></div>';
+        var btn = '<button class="ch-audio-btn" onclick="event.stopPropagation();Channels.playAudio(\x27'+a.id+'\x27)"><span class="ch-audio-icon" data-aid="'+a.id+'">'+Channels._playIco+'</span></button>';
+        if (isVoice) {
+          html += '<div class="ch-audio-player voice" data-aid="'+a.id+'" data-dur="'+dur+'">'
+            + btn
+            + '<div class="ch-audio-wave" data-aid="'+a.id+'" onclick="event.stopPropagation();Channels.seekAudio(event,\x27'+a.id+'\x27)">'
+            + this._buildWaveBars(36, 0, 'var(--accent)', '#d2dae3') + '</div>'
+            + '<span class="ch-audio-time" data-aid="'+a.id+'">'+durTxt+'</span></div>';
+        } else {
+          var nm = a.name ? a.name.replace(/\.[^.]+$/, '') : '';
+          if (nm.length > 30) nm = nm.substring(0, 28) + '...';
+          html += '<div class="ch-audio-player" data-aid="'+a.id+'" data-dur="'+dur+'">'
+            + btn
+            + '<div class="ch-audio-info">'
+            + '<div class="ch-audio-name-row"><span class="ch-audio-name">'+this._esc(nm)+'</span>'
+            + '<span class="ch-audio-time" data-aid="'+a.id+'">'+durTxt+'</span></div>'
+            + '<div class="ch-audio-wave" data-aid="'+a.id+'" onclick="event.stopPropagation();Channels.seekAudio(event,\x27'+a.id+'\x27)">'
+            + this._buildWaveBars(44, 0, 'var(--accent)', 'var(--border)') + '</div>'
+            + '</div></div>';
+        }
       } else if (a.type === 'video') {
         html += '<div class="ch-att-video" onclick="Channels.openViewer(\x27video\x27,\x27/api/msg/file/'+a.id+'\x27)"><video preload="none" src="/api/msg/file/'+a.id+'" style="max-width:320px;max-height:240px;border-radius:8px"></video><div class="ch-video-play">▶</div></div>';
       } else {
@@ -1433,37 +1447,69 @@ const Channels = {
   },
 
   // ─── Audio Player ───
+  _playIco: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  _pauseIco: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2"/></svg>',
+
+  _buildWaveBars(count, played, cPlayed, cRest) {
+    var H = [8,15,22,12,18,9,14,20,7,13,17,10,16,19,11,21,8,14];
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var h = H[i % H.length];
+      var col = i < played ? cPlayed : cRest;
+      html += '<span class="ch-audio-wave-bar" data-idx="'+i+'" style="height:'+h+'px;background:'+col+'"></span>';
+    }
+    return html;
+  },
+
+  _updateWaveBars(aid, pct) {
+    var wave = document.querySelector('.ch-audio-wave[data-aid="'+aid+'"]');
+    if (!wave) return;
+    var bars = wave.querySelectorAll('.ch-audio-wave-bar');
+    var count = bars.length;
+    var played = Math.round(pct / 100 * count);
+    var player = wave.closest('.ch-audio-player');
+    var isVoice = player && player.classList.contains('voice');
+    var cPlayed = 'var(--accent)';
+    var cRest = isVoice ? '#d2dae3' : 'var(--border)';
+    bars.forEach(function(b, i) { b.style.background = i < played ? cPlayed : cRest; });
+  },
+
   playAudio(aid) {
     var url = '/api/msg/file/' + aid;
     if (this._activeAudioId === aid && this._activeAudio && !this._activeAudio.paused) {
       this._activeAudio.pause();
       var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
-      if (ic) ic.textContent = '▶';
+      if (ic) ic.innerHTML = this._playIco;
+      return;
+    }
+    if (this._activeAudioId === aid && this._activeAudio && this._activeAudio.paused) {
+      this._activeAudio.play();
+      var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
+      if (ic) ic.innerHTML = this._pauseIco;
       return;
     }
     if (this._activeAudio) {
       this._activeAudio.pause();
       var old = document.querySelector('.ch-audio-icon[data-aid="'+this._activeAudioId+'"]');
-      if (old) old.textContent = '▶';
+      if (old) old.innerHTML = this._playIco;
+      this._updateWaveBars(this._activeAudioId, 0);
     }
     this._activeAudioId = aid;
     this._activeAudio = new Audio(url);
     var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
-    if (ic) ic.textContent = '❚❚';
+    if (ic) ic.innerHTML = this._pauseIco;
     var self = this;
     this._activeAudio.ontimeupdate = function() {
-      var prog = document.querySelector('.ch-audio-progress[data-aid="'+aid+'"]');
       var timeEl = document.querySelector('.ch-audio-time[data-aid="'+aid+'"]');
-      if (prog && self._activeAudio.duration) { prog.style.width = (self._activeAudio.currentTime/self._activeAudio.duration*100)+'%'; }
+      if (self._activeAudio.duration) self._updateWaveBars(aid, self._activeAudio.currentTime/self._activeAudio.duration*100);
       if (timeEl) {
         var t = Math.floor(self._activeAudio.currentTime);
         timeEl.textContent = Math.floor(t/60)+':'+('0'+(t%60)).slice(-2);
       }
     };
     this._activeAudio.onended = function() {
-      if (ic) ic.textContent = '▶';
-      var prog = document.querySelector('.ch-audio-progress[data-aid="'+aid+'"]');
-      if (prog) prog.style.width = '0%';
+      if (ic) ic.innerHTML = self._playIco;
+      self._updateWaveBars(aid, 0);
       var dur = parseInt(document.querySelector('.ch-audio-player[data-aid="'+aid+'"]')?.dataset.dur||'0');
       var timeEl = document.querySelector('.ch-audio-time[data-aid="'+aid+'"]');
       if (timeEl) timeEl.textContent = Math.floor(dur/60)+':'+('0'+(dur%60)).slice(-2);
@@ -1476,7 +1522,10 @@ const Channels = {
     var bar = e.currentTarget;
     var rect = bar.getBoundingClientRect();
     var pct = (e.clientX - rect.left) / rect.width;
-    if (this._activeAudio.duration) this._activeAudio.currentTime = pct * this._activeAudio.duration;
+    if (this._activeAudio.duration) {
+      this._activeAudio.currentTime = pct * this._activeAudio.duration;
+      this._updateWaveBars(aid, pct * 100);
+    }
   },
 
   autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; },

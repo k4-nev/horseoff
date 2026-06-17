@@ -208,14 +208,14 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .ico-profile{-webkit-mask-image:url(/svg/profile.svg);mask-image:url(/svg/profile.svg)}
 
 /* Role badges */
-.role-badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:3px 8px;border-radius:4px;line-height:1}
-.role-badge.common{background:rgba(106,106,128,0.15);color:#6a6a80;border:1px solid rgba(106,106,128,0.3)}
-.role-badge.uncommon{background:rgba(0,212,170,0.15);color:#00d4aa;border:1px solid rgba(0,212,170,0.3)}
-.role-badge.rare{background:rgba(74,158,255,0.15);color:#4a9eff;border:1px solid rgba(74,158,255,0.3)}
-.role-badge.mythical{background:rgba(180,74,255,0.15);color:#b44aff;border:1px solid rgba(180,74,255,0.3)}
-.role-badge.legendary{background:rgba(255,154,46,0.15);color:#ff9a2e;border:1px solid rgba(255,154,46,0.3)}
-.role-badge.immortal{background:rgba(255,215,0,0.15);color:#ffd700;border:1px solid rgba(255,215,0,0.3)}
-.role-badge.arcana{background:rgba(255,68,204,0.15);color:#ff44cc;border:1px solid rgba(255,68,204,0.3)}
+.role-badge{line-height:1;display:inline-flex;align-items:center;padding:3px 11px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase}
+.role-badge.common{color:rgb(74,90,114);background:linear-gradient(rgb(222,231,242),rgb(176,195,217));box-shadow:rgba(255,255,255,0.6) 0 1px 0 inset,rgba(130,150,175,0.4) 0 1px 2px}
+.role-badge.uncommon{color:rgb(30,72,124);background:linear-gradient(rgb(196,221,246),rgb(94,152,217));box-shadow:rgba(255,255,255,0.55) 0 1px 0 inset,rgba(60,115,180,0.4) 0 1px 2px}
+.role-badge.rare{color:rgb(255,255,255);background:linear-gradient(rgb(120,142,255),rgb(75,105,255));box-shadow:rgba(255,255,255,0.45) 0 1px 0 inset,rgba(40,70,200,0.45) 0 1px 2px}
+.role-badge.mythical{color:rgb(255,255,255);background:linear-gradient(rgb(168,116,255),rgb(136,71,255));box-shadow:rgba(255,255,255,0.4) 0 1px 0 inset,rgba(90,40,200,0.45) 0 1px 2px}
+.role-badge.legendary{color:rgb(255,255,255);background:linear-gradient(rgb(244,110,110),rgb(235,75,75));box-shadow:rgba(255,255,255,0.4) 0 1px 0 inset,rgba(190,40,40,0.45) 0 1px 2px}
+.role-badge.immortal{color:rgb(146,103,10);background:linear-gradient(rgb(255,232,154),rgb(246,195,67));box-shadow:rgba(255,255,255,0.6) 0 1px 0 inset,rgba(214,160,30,0.4) 0 1px 2px}
+.role-badge.arcana{color:rgb(74,107,18);background:linear-gradient(rgb(212,244,166),rgb(173,229,92));box-shadow:rgba(255,255,255,0.6) 0 1px 0 inset,rgba(120,170,50,0.4) 0 1px 2px}
 
 .ico-channels{-webkit-mask-image:url(/svg/channels.svg);mask-image:url(/svg/channels.svg)}
 .ico-chevron-down{-webkit-mask-image:url(/svg/chevron-down.svg);mask-image:url(/svg/chevron-down.svg)}

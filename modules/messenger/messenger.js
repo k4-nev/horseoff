@@ -1350,7 +1350,7 @@ const Messenger = {
       var isVoice = a.name && a.name.startsWith('voice_');
       var name = isVoice ? 'Голосовое сообщение' : (a.name ? a.name.replace(/\.[^.]+$/, '') : '');
       if (name.length > 30) name = name.substring(0, 28) + '...';
-      var btn = '<button class="msg-audio-btn" onclick="event.stopPropagation();Messenger.playAudio(this,\''+a.id+'\')"><span class="msg-audio-icon">▶</span></button>';
+      var btn = '<button class="msg-audio-btn" onclick="event.stopPropagation();Messenger.playAudio(this,\''+a.id+'\')"><span class="msg-audio-icon">'+Messenger._playIco+'</span></button>';
       if (isVoice) {
         html += '<div class="msg-audio-player msg-voice" data-aid="'+a.id+'" data-dur="'+(a.duration||0)+'">'
           + btn
@@ -1649,28 +1649,32 @@ const Messenger = {
     bars.forEach(function(b, i) { b.style.background = i < played ? cPlayed : cRest; });
   },
 
+  _playIco: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  _pauseIco: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2"/></svg>',
+  _loadIco: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" class="msg-loading-spin"><path d="M12 3a9 9 0 1 0 9 9" opacity="0.85"/></svg>',
+
   // Audio player
   playAudio(btn, attId) {
     var icon = btn.querySelector('.msg-audio-icon');
     // Toggle current
     if (this._activeAudioId === attId && this._activeAudio) {
       if (this._activeAudio.paused) {
-        this._activeAudio.play(); icon.textContent = '⏸';
+        this._activeAudio.play(); icon.innerHTML = this._pauseIco;
       } else {
-        this._activeAudio.pause(); icon.textContent = '▶';
+        this._activeAudio.pause(); icon.innerHTML = this._playIco;
       }
       return;
     }
     // Stop previous
     this._stopAudio();
     // Loading state
-    icon.textContent = '•••';
+    icon.innerHTML = this._loadIco;
     var audio = new Audio('/api/msg/file/' + attId);
     audio.preload = 'auto';
     this._activeAudio = audio;
     this._activeAudioId = attId;
     var self = this;
-    audio.oncanplay = function() { icon.textContent = '⏸'; audio.play(); };
+    audio.oncanplay = function() { icon.innerHTML = self._pauseIco; audio.play(); };
     audio.ontimeupdate = function() {
       if (!audio.duration) return;
       var time = document.querySelector('.msg-audio-time[data-aid="'+attId+'"]');
@@ -1678,7 +1682,7 @@ const Messenger = {
       if (time) time.textContent = self._fmtDuration(Math.round(audio.currentTime)) + ' / ' + self._fmtDuration(Math.round(audio.duration));
     };
     audio.onended = function() { self._stopAudio(); };
-    audio.onerror = function() { icon.textContent = '▶'; Shell.toast('Ошибка воспроизведения','error'); };
+    audio.onerror = function() { icon.innerHTML = self._playIco; Shell.toast('Ошибка воспроизведения','error'); };
   },
 
   _stopAudio() {
@@ -1688,7 +1692,7 @@ const Messenger = {
     }
     if (this._activeAudioId) {
       var oldIcon = document.querySelector('.msg-audio-player[data-aid="'+this._activeAudioId+'"] .msg-audio-icon');
-      if (oldIcon) oldIcon.textContent = '▶';
+      if (oldIcon) oldIcon.innerHTML = this._playIco;
       this._updateWaveBars(this._activeAudioId, 0);
       this._activeAudioId = null;
     }
