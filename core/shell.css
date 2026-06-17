@@ -20,7 +20,7 @@
 
 /* ─── LIGHT THEME ─── */
 body.theme-light{
-  --bg:#f2f4f8;--surface:#ffffff;--surface2:#eaecf2;--border:#d4d8e4;
+  --bg:#f2f4f8;--surface:#ffffff;--surface2:#eaecf2;--border:rgb(230,234,240);
   --text:#252a35;--text-dim:#737a88;
   --msg-hover:rgba(0,0,0,0.04);
   --scrollbar:rgba(0,0,0,0.12);

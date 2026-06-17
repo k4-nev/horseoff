@@ -64,8 +64,8 @@
 .ch-skel-line.w60{width:60%}.ch-skel-line.w80{width:80%}.ch-skel-line.w40{width:40%}
 @keyframes ch-pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}
 
-/* ─── INPUT ─── floating rounded pill, bottom-border only (messenger style) */
-.ch-input-area{display:flex;align-items:flex-end;gap:8px;padding:8px 16px;background:var(--surface);z-index:5;margin:0 20px 20px;border-radius:20px;border-bottom:2px solid var(--border);opacity:0.96;flex-shrink:0;transition:background 0.25s,border-color 0.25s}
+/* ─── INPUT ─── volumetric floating card */
+.ch-input-area{display:flex;align-items:flex-end;gap:8px;padding:8px 16px;background:var(--surface);z-index:5;margin:0 20px 20px;border-radius:20px;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.12),0 1px 3px rgba(0,0,0,0.06),inset 0 1px 0 rgba(255,255,255,0.06);flex-shrink:0;transition:background 0.25s,border-color 0.25s}
 .ch-input{flex:1;background:transparent;border:none;padding:5px 0;color:var(--text);font-size:13px;outline:none;font-family:'Inter',sans-serif;resize:none;max-height:120px;line-height:1.4;overflow-y:auto}
 .ch-input::placeholder{color:var(--text-dim);opacity:0.6}
 .ch-send-btn{background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;border-radius:8px;transition:transform 0.1s,background 0.15s}
@@ -172,13 +172,19 @@
 .ch-viewer-content img,.ch-viewer-content video{border-radius:8px;box-shadow:0 0 60px rgba(0,0,0,0.5)}
 
 /* ─── UPLOAD PREVIEW — independent floating rounded pill above input ─── */
-.ch-upload-preview{background:var(--surface);border-bottom:2px solid var(--border);padding:8px 12px;border-radius:16px;margin:0 20px 6px;opacity:0.96;flex-shrink:0;animation:ch-previewIn 0.15s ease-out}
-.ch-upload-items{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.ch-upload-thumb{width:48px;height:48px;border-radius:6px;overflow:hidden;position:relative;flex-shrink:0;cursor:pointer}
-.ch-upload-thumb img{width:100%;height:100%;object-fit:cover}
-.ch-upload-x{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
-.ch-upload-file{display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text-dim);position:relative}
-.ch-upload-fname{max-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-upload-preview{background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,0.08);padding:10px 14px;border-radius:16px;margin:0 20px 6px;flex-shrink:0;animation:ch-previewIn 0.15s ease-out}
+.ch-upload-items{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* Photo chip */
+.ch-upload-thumb{width:60px;height:60px;border-radius:13px;overflow:visible;position:relative;flex-shrink:0;cursor:pointer}
+.ch-upload-thumb-inner{width:100%;height:100%;border-radius:13px;overflow:hidden;border:1px solid var(--border);background:var(--surface2)}
+.ch-upload-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ch-upload-x{position:absolute;top:-6px;right:-6px;background:#f43f5e;color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 4px rgba(244,63,94,.45);padding:0}
+/* File chip */
+.ch-upload-file{display:flex;align-items:center;gap:10px;height:60px;padding:0 14px 0 10px;background:linear-gradient(180deg,var(--surface),var(--surface2));border-radius:13px;border:1px solid var(--border);box-shadow:0 2px 6px rgba(0,0,0,0.08);position:relative}
+.ch-upload-file-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-glow);border:1px solid rgba(0,212,170,0.2);flex-shrink:0}
+.ch-upload-file-meta{display:flex;flex-direction:column;gap:2px}
+.ch-upload-fname{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.ch-upload-fsize{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)}
 @keyframes ch-previewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .ch-upload-close{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:4px}
 
@@ -193,10 +199,10 @@
 
 /* ─── ATTACHMENTS ─── */
 .ch-att-wrap{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
-.ch-att-img{cursor:pointer;border-radius:8px;overflow:hidden}
+.ch-att-img{cursor:pointer;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08)}
 .ch-att-img img{max-width:280px;max-height:200px;display:block;transition:filter 0.15s}
 .ch-att-img:hover img{filter:brightness(0.92)}
-.ch-att-video{position:relative;cursor:pointer;display:inline-block;border-radius:8px;overflow:hidden}
+.ch-att-video{position:relative;cursor:pointer;display:inline-block;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08)}
 .ch-att-video video{max-width:320px;max-height:240px;display:block}
 .ch-video-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.55);border-radius:50%;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:background 0.15s}
 .ch-att-video:hover .ch-video-play{background:rgba(0,0,0,0.7)}
@@ -353,3 +359,14 @@
 .ch-msg-qemoji{background:none;border:none;cursor:pointer;font-size:16px;padding:3px 5px;border-radius:6px;transition:transform 0.14s cubic-bezier(0.34,1.56,0.64,1),background 0.1s;line-height:1;display:flex;align-items:center}
 .ch-msg-qemoji:hover{background:var(--surface2);transform:scale(1.15)}
 .ch-msg-qemoji:active{transform:scale(0.82)}
+
+/* ─── LIGHT THEME ─── */
+body.theme-light .ch-input-area{background:#fff;border:1px solid rgb(230,234,240);box-shadow:0 4px 16px rgba(23,33,54,.07),0 1px 3px rgba(23,33,54,.04),inset 0 1px 0 #fff}
+body.theme-light .ch-upload-preview{background:#fff;border-color:rgb(230,234,240)}
+body.theme-light .ch-upload-thumb-inner{border-color:#e0e6ee;background:linear-gradient(145deg,#eef1f6,#d6dde7);box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
+body.theme-light .ch-upload-file{background:linear-gradient(180deg,#fff,#f5f7fa);border-color:#e6eaf0;box-shadow:0 2px 6px rgba(23,33,54,.07)}
+body.theme-light .ch-upload-file-icon{background:linear-gradient(160deg,color-mix(in srgb,#2bc685 16%,#fff),color-mix(in srgb,#2bc685 30%,#fff));border:1px solid color-mix(in srgb,#2bc685 32%,#fff);color:#189c66}
+body.theme-light .ch-upload-fname{color:#2a2f3a}
+body.theme-light .ch-upload-fsize{color:#aab2bf}
+body.theme-light .ch-att-img{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px rgba(23,33,54,.06)}
+body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px rgba(23,33,54,.06)}

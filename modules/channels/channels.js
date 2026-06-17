@@ -1278,11 +1278,20 @@ const Channels = {
   _renderUploadPreview() {
     var el = document.getElementById('chUploadItems');
     if (!el) return;
+    var xBtn = '<button class="ch-upload-x" onclick="event.stopPropagation();Channels.removePending(IDX)"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>';
+    var fileIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
     el.innerHTML = this._pendingFiles.map(function(f, i) {
+      var x = xBtn.replace('IDX', i);
       if (f.isImage && f.preview) {
-        return '<div class="ch-upload-thumb"><img src="'+f.preview+'"/><button class="ch-upload-x" onclick="event.stopPropagation();Channels.removePending('+i+')">&times;</button></div>';
+        return '<div class="ch-upload-thumb">'
+          + '<div class="ch-upload-thumb-inner"><img src="'+f.preview+'"/></div>'
+          + x + '</div>';
       }
-      return '<div class="ch-upload-file"><span class="ico ico-14 ico-file"></span><span class="ch-upload-fname">'+Channels._esc(f.file.name)+'</span><button class="ch-upload-x" onclick="event.stopPropagation();Channels.removePending('+i+')">&times;</button></div>';
+      var size = f.file.size > 0 ? Channels._fmtSize(f.file.size) : '';
+      return '<div class="ch-upload-file">'
+        + '<div class="ch-upload-file-icon">'+fileIconSvg+'</div>'
+        + '<div class="ch-upload-file-meta"><div class="ch-upload-fname">'+Channels._esc(f.file.name)+'</div><div class="ch-upload-fsize">'+Channels._esc(size)+'</div></div>'
+        + x + '</div>';
     }).join('');
   },
 
@@ -1471,6 +1480,11 @@ const Channels = {
   },
 
   autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; },
+  _fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' Б';
+    if (bytes < 1048576) return Math.round(bytes / 1024) + ' КБ';
+    return (bytes / 1048576).toFixed(1) + ' МБ';
+  },
   _fmtTime(ts) {
     if (!ts) return '';
     var d = new Date(ts * 1000), now = new Date();

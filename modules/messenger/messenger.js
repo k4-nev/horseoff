@@ -346,6 +346,8 @@ const Messenger = {
       if (cc) {
         var hDot = cc.online ? ' <span class="msg-online-dot-header"></span>' : '';
         document.getElementById('msgChatName').innerHTML = this.escapeHtml(this.getDisplayName(cc)) + hDot;
+        var hAva2 = document.getElementById('msgChatAva');
+        if (hAva2) { var dn3=this.getDisplayName(cc); hAva2.innerHTML=cc.avatar?'<img src="data:image/jpeg;base64,'+cc.avatar+'"/>':dn3.charAt(0).toUpperCase(); }
       }
     }
   },
@@ -375,6 +377,8 @@ const Messenger = {
     var c=this.contacts.find(function(x){return x.id===userId});if(!c)return;
     var headerOnline = c.online ? ' <span class="msg-online-dot-header"></span>' : '';
     document.getElementById('msgChatName').innerHTML = this.escapeHtml(this.getDisplayName(c)) + headerOnline;
+    var hAva = document.getElementById('msgChatAva');
+    if (hAva) { var dn2=this.getDisplayName(c); hAva.innerHTML=c.avatar?'<img src="data:image/jpeg;base64,'+c.avatar+'"/>':dn2.charAt(0).toUpperCase(); }
     document.getElementById('msgChatTyping').textContent='';
     this.updateProfilePanel(c);
     document.getElementById('msgChatEmpty').style.display='none';
@@ -875,11 +879,18 @@ const Messenger = {
     if (fnames.length > 35) fnames = fnames.substring(0,33) + '...';
     var el = document.getElementById('msgMessages');
     if (el) {
+      var fileIconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>';
       el.insertAdjacentHTML('beforeend',
         '<div class="msg-row mine group-end msg-anim" data-msgid="'+tempId+'">'
-        + '<div class="msg-content"><div class="msg-upload-loading">'
-        + '<svg class="msg-loading-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>'
-        + '<span style="font-size:11px;color:#999">'+Messenger.escapeHtml(fnames)+'</span></div></div></div>');
+        + '<div class="msg-content"><div class="msg-upload-card">'
+        + '<div class="msg-upload-icon">'+fileIconSvg+'</div>'
+        + '<div class="msg-upload-body">'
+        + '<div class="msg-upload-name-row"><span class="msg-upload-name">'+Messenger.escapeHtml(fnames)+'</span><span class="msg-upload-pct" id="'+tempId+'_pct">0%</span></div>'
+        + '<div class="msg-upload-track"><div class="msg-upload-fill" id="'+tempId+'_fill" style="width:0%"></div></div>'
+        + '<div class="msg-upload-meta">загрузка…</div>'
+        + '</div>'
+        + '<button class="msg-upload-action"><svg class="msg-loading-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></button>'
+        + '</div></div></div>');
       this.scrollToBottom(true);
     }
     var fd = new FormData();
@@ -908,6 +919,14 @@ const Messenger = {
         try { var r=JSON.parse(xhr.responseText); Shell.toast(r.error||'Ошибка','error'); }
         catch(e) { Shell.toast('Ошибка: '+xhr.status,'error'); }
       }
+    };
+    xhr.upload.onprogress = function(e) {
+      if (!e.lengthComputable) return;
+      var pct = Math.round(e.loaded / e.total * 100);
+      var pctEl = document.getElementById(tempId+'_pct');
+      var fillEl = document.getElementById(tempId+'_fill');
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (fillEl) fillEl.style.width = pct + '%';
     };
     xhr.onerror = function() {
       var tempRow = document.querySelector('.msg-row[data-msgid="'+tempId+'"]');
@@ -1012,7 +1031,7 @@ const Messenger = {
       var x = X.replace('IDX', i);
       var unsupportedClass = f.unsupported ? ' unsupported' : '';
       if (f.isImage && f.preview) {
-        html += '<div class="msg-attach-item'+unsupportedClass+'"><img src="'+f.preview+'"/>'+x+'</div>';
+        html += '<div class="msg-attach-item'+unsupportedClass+'"><div class="msg-attach-item-inner"><img src="'+f.preview+'"/></div>'+x+'</div>';
       } else {
         // File chip — horizontal layout with icon + name + size
         var name, meta;
@@ -1403,12 +1422,12 @@ const Messenger = {
     var d = await Shell.api('/api/msg/attachments/' + ck + '?type=' + type);
     var grid = document.getElementById('msgProfileAttachGrid');
     if (!grid) return;
-    if (!d || d.length === 0) { grid.innerHTML = '<div class="msg-profile-attach-empty">Пусто</div>'; return; }
+    if (!d || d.length === 0) { grid.innerHTML = '<div class="msg-profile-attach-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:0.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Пусто</div>'; return; }
     if (type === 'image') {
       var vids = await Shell.api('/api/msg/attachments/' + ck + '?type=video');
       var all = (d||[]).concat(vids||[]);
       all.sort(function(a,b){ return (b.time||0)-(a.time||0); });
-      if (!all.length) { grid.innerHTML = '<div class="msg-profile-attach-empty">Пусто</div>'; return; }
+      if (!all.length) { grid.innerHTML = '<div class="msg-profile-attach-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:0.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Пусто</div>'; return; }
       var groups = this._groupByDate(all);
       var html = '';
       for (var date in groups) {
@@ -1427,7 +1446,7 @@ const Messenger = {
       grid.innerHTML = html;
     } else if (type === 'audio') {
       grid.style.display = 'flex'; grid.style.flexDirection = 'column'; grid.style.gridTemplateColumns = '';
-      if (!d.length) { grid.innerHTML = '<div class="msg-profile-attach-empty">Пусто</div>'; return; }
+      if (!d.length) { grid.innerHTML = '<div class="msg-profile-attach-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:0.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Пусто</div>'; return; }
       var groups = this._groupByDate(d);
       var html = '';
       for (var date in groups) {
@@ -1445,7 +1464,7 @@ const Messenger = {
       }
       grid.innerHTML = html;
     } else {
-      if (!d.length) { grid.innerHTML = '<div class="msg-profile-attach-empty">Пусто</div>'; return; }
+      if (!d.length) { grid.innerHTML = '<div class="msg-profile-attach-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:0.4"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Пусто</div>'; return; }
       var groups = this._groupByDate(d);
       var html = '';
       for (var date in groups) {

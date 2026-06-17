@@ -41,9 +41,13 @@
 .msg-chat-empty{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
 .msg-chat-active{position:absolute;top:0;left:0;right:0;bottom:0}
 
-.msg-chat-header{height:52px;display:flex;align-items:center;gap:10px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.1)}
+.msg-chat-header{height:60px;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);z-index:10;box-shadow:0 1px 6px rgba(0,0,0,0.08)}
 .msg-back-btn{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:8px;min-width:44px;min-height:44px;border-radius:8px}
-.msg-chat-name{font-weight:600;font-size:15px;color:var(--text)}
+/* Avatar in header */
+.msg-chat-header-ava{width:36px;height:36px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-weight:700;font-size:13px;overflow:hidden;flex-shrink:0;border:2px solid var(--border)}
+.msg-chat-header-ava img{width:100%;height:100%;object-fit:cover}
+.msg-chat-header-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.msg-chat-name{font-weight:700;font-size:15px;color:var(--text);display:flex;align-items:center;gap:0}
 .msg-chat-typing{font-size:11px;color:#51d488;margin-left:8px;white-space:nowrap}
 .msg-mob-dots{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:6px;margin-left:auto}
 
@@ -56,8 +60,8 @@
 .msg-edit-bar svg{flex-shrink:0}
 .msg-edit-cancel{background:none;border:none;color:#999;cursor:pointer;margin-left:auto;font-size:16px;padding:2px 6px}
 
-/* Input area */
-.msg-input-area{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:2px solid var(--border);background:var(--surface);z-index:5;margin:0 20px 20px;border-radius:20px;opacity:0.96}
+/* Input area — volumetric card */
+.msg-input-area{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface);z-index:5;margin:0 20px 20px;border-radius:20px;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.12),0 1px 3px rgba(0,0,0,0.06),inset 0 1px 0 rgba(255,255,255,0.06)}
 .msg-input{flex:1;background:transparent;border:none;padding:5px 0;color:var(--text);font-size:13px;outline:none;font-family:'Inter',sans-serif;resize:none;max-height:120px;line-height:1.4;overflow-y:auto;-webkit-overflow-scrolling:touch;-ms-overflow-style:none;scrollbar-width:none;-webkit-appearance:none}
 .msg-input::-webkit-scrollbar{display:none}
 .msg-input::placeholder{color:var(--text-dim)}
@@ -95,9 +99,10 @@
 /* Attach preview bar above input */
 .msg-attach-preview{position:absolute;bottom:105%;left:0;right:0;background:var(--surface);border-bottom:2px solid var(--border);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;animation:previewIn 0.15s ease-out;opacity:0.97;border-radius:16px}
 @keyframes previewIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-/* Photo chip */
-.msg-attach-item{position:relative;width:60px;height:60px;border-radius:13px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:linear-gradient(145deg,var(--surface2),var(--bg));box-shadow:inset 0 1px 0 rgba(255,255,255,0.06)}
-.msg-attach-item img{width:100%;height:100%;object-fit:cover}
+/* Photo chip — outer wrapper allows X to overflow */
+.msg-attach-item{position:relative;width:60px;height:60px;flex-shrink:0}
+.msg-attach-item-inner{width:100%;height:100%;border-radius:13px;overflow:hidden;border:1px solid var(--border);background:linear-gradient(145deg,var(--surface2),var(--bg));box-shadow:inset 0 1px 0 rgba(255,255,255,0.06)}
+.msg-attach-item img{width:100%;height:100%;object-fit:cover;display:block}
 /* File chip — horizontal */
 .msg-attach-item.msg-attach-is-file{width:auto;height:60px;overflow:visible;display:flex;align-items:center;gap:10px;padding:0 14px 0 10px;border-radius:13px;background:linear-gradient(180deg,var(--surface),var(--surface2));box-shadow:0 2px 6px rgba(0,0,0,0.1)}
 .msg-attach-file-icon-wrap{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-glow);border:1px solid rgba(0,212,170,0.2);flex-shrink:0}
@@ -116,9 +121,9 @@
 
 /* Attachments in message — standalone, no bubble */
 .msg-content{display:flex;flex-direction:column;max-width:70%}
-.msg-att-grid{display:flex;gap:3px;flex-wrap:wrap;border-radius:10px;overflow:hidden}
+.msg-att-grid{display:flex;gap:4px;flex-wrap:wrap;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08)}
 .msg-att-thumb{width:140px;height:140px;cursor:pointer;position:relative;flex-shrink:0}
-.msg-att-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity 0.15s;border-radius:2px}
+.msg-att-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity 0.15s}
 .msg-att-thumb:hover img{opacity:0.85}
 .msg-att-file{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-top:3px;max-width:220px;text-decoration:none;color:inherit}
 .msg-att-file:hover{background:var(--surface)}
@@ -155,6 +160,21 @@
 /* Loading spinner */
 .msg-loading-spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Upload progress card (module 3 from design) */
+.msg-upload-card{display:flex;align-items:center;gap:14px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,0.06),0 8px 22px rgba(0,0,0,0.08);margin-top:4px;min-width:260px;max-width:360px}
+.msg-upload-icon{width:56px;height:56px;flex-shrink:0;border-radius:13px;background:linear-gradient(145deg,var(--surface2),var(--bg));border:1px solid var(--border);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;color:var(--text-dim)}
+.msg-upload-icon.ready{background:linear-gradient(160deg,rgba(0,212,170,0.15),rgba(0,212,170,0.28));border-color:rgba(0,212,170,0.3);color:var(--accent)}
+.msg-upload-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.msg-upload-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.msg-upload-name{font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-upload-pct{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);flex-shrink:0}
+.msg-upload-track{height:7px;border-radius:999px;background:var(--surface2);box-shadow:inset 0 1px 2px rgba(0,0,0,0.12)}
+.msg-upload-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,rgba(0,212,170,0.7),var(--accent));transition:width 0.3s}
+.msg-upload-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)}
+.msg-upload-meta.ready{color:var(--accent);display:flex;align-items:center;gap:4px}
+.msg-upload-action{width:32px;height:32px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-dim);border:1px solid var(--border);border-radius:9px;cursor:pointer;background:var(--surface);transition:background 0.15s}
+.msg-upload-action:hover{background:var(--surface2)}
+/* Old simple upload loading */
 .msg-upload-loading{display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(81,212,136,0.1);border-radius:14px}
 
 /* ── Voice message bubbles ── */
@@ -303,7 +323,7 @@
 .msg-profile-file-name{font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg-profile-file-meta{font-size:9px;color:var(--text-dim)}
 .msg-profile-attach-grid.files-list{display:flex;flex-direction:column;gap:3px}
-.msg-profile-attach-empty{grid-column:1/-1;text-align:center;padding:20px;color:var(--text-dim);font-size:11px}
+.msg-profile-attach-empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px 16px;background:linear-gradient(145deg,var(--surface),var(--surface2));border-radius:14px;border:1px solid var(--border);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 1px 3px rgba(0,0,0,0.1);color:var(--text-dim);font-size:11px}
 .msg-profile-date-header{font-size:10px;color:var(--text-dim);padding:8px 0 4px;font-family:'JetBrains Mono',monospace;grid-column:1/-1}
 .msg-profile-date-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;grid-column:1/-1}
 
@@ -523,9 +543,10 @@ body.theme-light .msg-search-input{color:var(--text)}
 
 /* Light theme — chat area keep white */
 body.theme-light .msg-chat{background:var(--bg)}
-body.theme-light .msg-chat-header{background:#fff;border-bottom-color:#e8ecf2;box-shadow:0 1px 4px rgba(23,33,54,.05)}
+body.theme-light .msg-chat-header{background:#fff;border-bottom-color:rgb(230,234,240);box-shadow:0 1px 4px rgba(23,33,54,.05)}
+body.theme-light .msg-chat-header-ava{background:#eaecf2;border-color:rgb(230,234,240)}
 body.theme-light .msg-chat-name{color:#252a35}
-body.theme-light .msg-input-area{background:#fff;border-bottom-color:#e8ecf2}
+body.theme-light .msg-input-area{background:#fff;border:1px solid rgb(230,234,240);box-shadow:0 4px 16px rgba(23,33,54,.07),0 1px 3px rgba(23,33,54,.04),inset 0 1px 0 #fff}
 body.theme-light .msg-input{color:#252a35}
 body.theme-light .msg-att-file{background:#fff;border-color:#e8ecf2}
 body.theme-light .msg-att-file:hover{background:#f5f7fb}
@@ -567,7 +588,7 @@ body.theme-light .msg-search-nav-btn:hover,.msg-search-close-btn:hover{color:#33
 body.theme-light .msg-group-time{color:#bbb}
 body.theme-light .msg-link{color:#2a7de1}
 body.theme-light .msg-row-ava{background:#e8e8e8;color:#999}
-body.theme-light .msg-attach-item{border-color:#e0e6ee;background:linear-gradient(145deg,#eef1f6,#d6dde7);box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
+body.theme-light .msg-attach-item-inner{border-color:#e0e6ee;background:linear-gradient(145deg,#eef1f6,#d6dde7);box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
 body.theme-light .msg-attach-item.msg-attach-is-file{background:linear-gradient(180deg,#fff,#f5f7fa);border:1px solid #e6eaf0;box-shadow:0 2px 6px rgba(23,33,54,.07)}
 body.theme-light .msg-attach-file-icon-wrap{background:linear-gradient(160deg,color-mix(in srgb,#2bc685 16%,#fff),color-mix(in srgb,#2bc685 30%,#fff));border:1px solid color-mix(in srgb,#2bc685 32%,#fff);color:#189c66}
 body.theme-light .msg-attach-fname{color:#2a2f3a}
