@@ -206,26 +206,29 @@
 .ch-att-video video{max-width:320px;max-height:240px;display:block}
 .ch-video-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.55);border-radius:50%;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:background 0.15s}
 .ch-att-video:hover .ch-video-play{background:rgba(0,0,0,0.7)}
-.ch-audio-player{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;min-width:240px;max-width:360px;margin-top:3px}
-.ch-audio-player.voice{gap:13px;padding:11px 16px 11px 11px;border-radius:16px 16px 16px 5px;background:var(--surface);min-width:220px}
-.ch-audio-btn{width:48px;height:48px;border-radius:14px;background:linear-gradient(180deg,var(--accent-dark),var(--accent));border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 8px rgba(0,212,170,0.3);transition:transform 0.1s;padding:0}
+.ch-audio-player{display:flex;align-items:center;gap:14px;padding:6px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;min-width:240px;max-width:360px;margin-top:3px}
+.ch-audio-player.voice{gap:13px;padding:6px 16px;border-radius:16px 16px 16px 5px;background:var(--surface);min-width:220px}
+.ch-audio-btn{width:36px;height:36px;border-radius:14px;background:linear-gradient(180deg,var(--accent-dark),var(--accent));border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 8px rgba(0,212,170,0.3);transition:transform 0.1s;padding:0}
 .ch-audio-btn:active{transform:scale(0.94)}
-.ch-audio-player.voice .ch-audio-btn{width:42px;height:42px;border-radius:50%;background:var(--accent);box-shadow:0 2px 6px rgba(0,212,170,0.36),inset 0 1px 0 rgba(255,255,255,.3)}
+.ch-audio-player.voice .ch-audio-btn{width:36px;height:36px;border-radius:50%;background:var(--accent);box-shadow:0 2px 6px rgba(0,212,170,0.36),inset 0 1px 0 rgba(255,255,255,.3)}
 .ch-audio-icon{pointer-events:none;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.ch-audio-icon svg{width:20px;height:20px;display:block}
-.ch-audio-player.voice .ch-audio-icon svg{width:18px;height:18px}
-.ch-audio-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.ch-audio-icon svg{width:24px;height:24px;display:block}
+.ch-audio-player.voice .ch-audio-icon svg{width:24px;height:24px}
+.ch-audio-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .ch-audio-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.ch-audio-name{font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-audio-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ch-audio-wave{flex:1;display:flex;align-items:center;justify-content:space-between;height:24px;cursor:pointer}
 .ch-audio-player.voice .ch-audio-wave{height:26px}
-.ch-audio-wave-bar{width:3px;border-radius:2px;flex-shrink:0;transition:background 0.08s}
+.ch-audio-wave-bar{width:3px;border-radius:2px;flex-shrink:0;transition:background 0.08s;transform-origin:center}
+.ch-audio-player.playing .ch-audio-wave-bar{animation:chWaveReveal 0.45s cubic-bezier(0.22,1,0.36,1) both}
+@keyframes chWaveReveal{from{transform:scaleY(0.12);opacity:0.4}to{transform:scaleY(1);opacity:1}}
 .ch-audio-time{font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0}
-.ch-att-file{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:8px;color:var(--text);text-decoration:none;font-size:12px;border:1px solid var(--border);transition:background 0.12s}
-.ch-att-file:hover{background:var(--border)}
-.ch-att-file-info{min-width:0}
-.ch-att-file-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-.ch-att-size{color:var(--text-dim);font-size:10px}
+.ch-att-file{display:inline-flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;background:linear-gradient(180deg,var(--surface),var(--surface2));border-radius:13px;color:var(--text);text-decoration:none;border:1px solid var(--border);box-shadow:0 2px 6px rgba(0,0,0,0.1);transition:transform 0.12s,box-shadow 0.12s}
+.ch-att-file:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,0.16)}
+.ch-att-file-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-glow);border:1px solid rgba(0,212,170,0.2);flex-shrink:0}
+.ch-att-file-info{min-width:0;display:flex;flex-direction:column;gap:2px}
+.ch-att-file-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.ch-att-size{color:var(--text-dim);font-size:11px;font-family:'JetBrains Mono',monospace}
 
 /* ─── ICON PICKER ─── */
 .ch-icon-picker{display:flex;flex-wrap:wrap;gap:6px}
@@ -378,5 +381,10 @@ body.theme-light .ch-upload-fsize{color:#aab2bf}
 body.theme-light .ch-audio-player{background:#fff;border-color:#e6eaf0;box-shadow:0 1px 2px rgba(23,33,54,.04),0 8px 22px rgba(23,33,54,.06)}
 body.theme-light .ch-audio-player.voice{background:#fff;border:1px solid #e9edf2}
 body.theme-light .ch-audio-name{color:#2a2f3a}
+body.theme-light .ch-att-file{background:linear-gradient(180deg,#fff,#f5f7fa);border-color:#e6eaf0;box-shadow:0 2px 6px rgba(23,33,54,.07)}
+body.theme-light .ch-att-file:hover{box-shadow:0 4px 10px rgba(23,33,54,.12)}
+body.theme-light .ch-att-file-icon{background:linear-gradient(160deg,color-mix(in srgb,#2bc685 16%,#fff),color-mix(in srgb,#2bc685 30%,#fff));border:1px solid color-mix(in srgb,#2bc685 32%,#fff);color:#189c66}
+body.theme-light .ch-att-file-name{color:#2a2f3a}
+body.theme-light .ch-att-size{color:#aab2bf}
 body.theme-light .ch-att-img{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px rgba(23,33,54,.06)}
 body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px rgba(23,33,54,.06)}

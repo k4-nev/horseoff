@@ -58,6 +58,10 @@
     </div>
     <div class="msg-chat-active" id="msgChatActive" style="display:none">
       <div class="msg-messages" id="msgMessages"></div>
+      <button class="msg-scroll-btn" id="msgScrollBtn" onclick="Messenger.scrollToLatest()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="msg-scroll-badge" id="msgScrollBadge" style="display:none">0</span>
+      </button>
       <div class="msg-edit-bar" id="msgEditBar" style="display:none">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
         <span>Редактирование</span>

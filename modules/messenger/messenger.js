@@ -187,8 +187,16 @@ const Messenger = {
   onWS(data) {
     if (data.type === 'message') {
       if (this.currentChat && data.chat === this.getChatKey(this.currentUserId, this.currentChat)) {
+        var mel = document.getElementById('msgMessages');
+        var wasAtBottom = !mel || (mel.scrollHeight - mel.scrollTop - mel.clientHeight < 150);
+        var isMine = data.msg && data.msg.from === this.currentUserId;
         this.addMessageToView(data.msg);
-        this.scrollToBottom(true);
+        if (wasAtBottom || isMine) {
+          this.scrollToBottom(true);
+        } else {
+          this._unreadBelow++;
+        }
+        this._updateScrollBtn();
         Shell.wsSend({type:'read', chat: data.chat, to: this.currentChat});
         if (data.msg.attachments && data.msg.attachments.length) this.loadProfileAttachments();
       }
@@ -736,7 +744,11 @@ const Messenger = {
           self._msgOffset += 50;
           Shell.wsSend({type:'history', to: self.currentChat, offset: self._msgOffset});
         }
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) self._unreadBelow = 0;
+        self._updateScrollBtn();
       };
+      this._unreadBelow = 0;
+      this._updateScrollBtn();
     } else {
       if (!msgs || !msgs.length) return;
       el.insertAdjacentHTML('afterbegin', this._buildHTML(msgs));
@@ -804,6 +816,31 @@ const Messenger = {
     var el = document.getElementById('msgMessages'); if (!el) return;
     if (force || el.scrollHeight - el.scrollTop - el.clientHeight < 150)
       setTimeout(function(){ el.scrollTop = el.scrollHeight; }, 30);
+  },
+
+  _unreadBelow: 0,
+  scrollToLatest() {
+    var el = document.getElementById('msgMessages'); if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    this._unreadBelow = 0;
+    this._updateScrollBtn();
+  },
+
+  _updateScrollBtn() {
+    var el = document.getElementById('msgMessages');
+    var btn = document.getElementById('msgScrollBtn');
+    if (!el || !btn) return;
+    var visible = (el.scrollHeight - el.scrollTop - el.clientHeight) > 120;
+    btn.classList.toggle('visible', visible);
+    var badge = document.getElementById('msgScrollBadge');
+    if (badge) {
+      if (visible && this._unreadBelow > 0) {
+        badge.textContent = this._unreadBelow > 99 ? '99+' : this._unreadBelow;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
   },
 
   send() {
@@ -1373,7 +1410,7 @@ const Messenger = {
     files.forEach(function(a) {
       var url = '/api/msg/file/' + a.id;
       html += '<a class="msg-att-file" href="'+url+'" download="'+Messenger.escapeHtml(a.name)+'" onclick="event.stopPropagation()">'
-        + '<span class="ico ico-16 ico-file"></span>'
+        + '<span class="msg-att-file-icon"><span class="ico ico-18 ico-file"></span></span>'
         + '<div class="msg-att-file-info"><div class="msg-att-file-name">'+Messenger.escapeHtml(a.name)+'</div><div class="msg-att-file-size">'+Messenger._fmtSize(a.size)+'</div></div></a>';
     });
     return html;
@@ -1658,10 +1695,13 @@ const Messenger = {
     var icon = btn.querySelector('.msg-audio-icon');
     // Toggle current
     if (this._activeAudioId === attId && this._activeAudio) {
+      var tp = document.querySelector('.msg-audio-player[data-aid="'+attId+'"]');
       if (this._activeAudio.paused) {
         this._activeAudio.play(); icon.innerHTML = this._pauseIco;
+        if (tp) { tp.classList.remove('playing'); void tp.offsetWidth; tp.classList.add('playing'); }
       } else {
         this._activeAudio.pause(); icon.innerHTML = this._playIco;
+        if (tp) tp.classList.remove('playing');
       }
       return;
     }
@@ -1674,7 +1714,12 @@ const Messenger = {
     this._activeAudio = audio;
     this._activeAudioId = attId;
     var self = this;
-    audio.oncanplay = function() { icon.innerHTML = self._pauseIco; audio.play(); };
+    audio.oncanplay = function() {
+      icon.innerHTML = self._pauseIco;
+      var player = document.querySelector('.msg-audio-player[data-aid="'+attId+'"]');
+      if (player) { player.classList.remove('playing'); void player.offsetWidth; player.classList.add('playing'); }
+      audio.play();
+    };
     audio.ontimeupdate = function() {
       if (!audio.duration) return;
       var time = document.querySelector('.msg-audio-time[data-aid="'+attId+'"]');
@@ -1691,8 +1736,8 @@ const Messenger = {
       this._activeAudio = null;
     }
     if (this._activeAudioId) {
-      var oldIcon = document.querySelector('.msg-audio-player[data-aid="'+this._activeAudioId+'"] .msg-audio-icon');
-      if (oldIcon) oldIcon.innerHTML = this._playIco;
+      var oldPlayer = document.querySelector('.msg-audio-player[data-aid="'+this._activeAudioId+'"]');
+      if (oldPlayer) { oldPlayer.classList.remove('playing'); var oi = oldPlayer.querySelector('.msg-audio-icon'); if (oi) oi.innerHTML = this._playIco; }
       this._updateWaveBars(this._activeAudioId, 0);
       this._activeAudioId = null;
     }

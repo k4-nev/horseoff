@@ -1424,7 +1424,7 @@ const Channels = {
         html += '<div class="ch-att-video" onclick="Channels.openViewer(\x27video\x27,\x27/api/msg/file/'+a.id+'\x27)"><video preload="none" src="/api/msg/file/'+a.id+'" style="max-width:320px;max-height:240px;border-radius:8px"></video><div class="ch-video-play">▶</div></div>';
       } else {
         var sz = a.size > 1048576 ? (a.size/1048576).toFixed(1)+' МБ' : Math.round(a.size/1024)+' КБ';
-        html += '<a class="ch-att-file" href="/api/msg/file/'+a.id+'" download="'+this._esc(a.name)+'" onclick="event.stopPropagation()"><span class="ico ico-14 ico-file"></span><div class="ch-att-file-info"><div class="ch-att-file-name">'+this._esc(a.name)+'</div><div class="ch-att-size">'+sz+'</div></div></a>';
+        html += '<a class="ch-att-file" href="/api/msg/file/'+a.id+'" download="'+this._esc(a.name)+'" onclick="event.stopPropagation()"><span class="ch-att-file-icon"><span class="ico ico-18 ico-file"></span></span><div class="ch-att-file-info"><div class="ch-att-file-name">'+this._esc(a.name)+'</div><div class="ch-att-size">'+sz+'</div></div></a>';
       }
     }
     return '<div class="ch-att-wrap">'+html+'</div>';
@@ -1480,24 +1480,30 @@ const Channels = {
       this._activeAudio.pause();
       var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
       if (ic) ic.innerHTML = this._playIco;
+      var pp = document.querySelector('.ch-audio-player[data-aid="'+aid+'"]');
+      if (pp) pp.classList.remove('playing');
       return;
     }
     if (this._activeAudioId === aid && this._activeAudio && this._activeAudio.paused) {
       this._activeAudio.play();
       var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
       if (ic) ic.innerHTML = this._pauseIco;
+      var pp2 = document.querySelector('.ch-audio-player[data-aid="'+aid+'"]');
+      if (pp2) { pp2.classList.remove('playing'); void pp2.offsetWidth; pp2.classList.add('playing'); }
       return;
     }
     if (this._activeAudio) {
       this._activeAudio.pause();
-      var old = document.querySelector('.ch-audio-icon[data-aid="'+this._activeAudioId+'"]');
-      if (old) old.innerHTML = this._playIco;
+      var oldPlayer = document.querySelector('.ch-audio-player[data-aid="'+this._activeAudioId+'"]');
+      if (oldPlayer) { oldPlayer.classList.remove('playing'); var oic = oldPlayer.querySelector('.ch-audio-icon'); if (oic) oic.innerHTML = this._playIco; }
       this._updateWaveBars(this._activeAudioId, 0);
     }
     this._activeAudioId = aid;
     this._activeAudio = new Audio(url);
     var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
     if (ic) ic.innerHTML = this._pauseIco;
+    var player = document.querySelector('.ch-audio-player[data-aid="'+aid+'"]');
+    if (player) { player.classList.remove('playing'); void player.offsetWidth; player.classList.add('playing'); }
     var self = this;
     this._activeAudio.ontimeupdate = function() {
       var timeEl = document.querySelector('.ch-audio-time[data-aid="'+aid+'"]');
@@ -1509,6 +1515,8 @@ const Channels = {
     };
     this._activeAudio.onended = function() {
       if (ic) ic.innerHTML = self._playIco;
+      var pl = document.querySelector('.ch-audio-player[data-aid="'+aid+'"]');
+      if (pl) pl.classList.remove('playing');
       self._updateWaveBars(aid, 0);
       var dur = parseInt(document.querySelector('.ch-audio-player[data-aid="'+aid+'"]')?.dataset.dur||'0');
       var timeEl = document.querySelector('.ch-audio-time[data-aid="'+aid+'"]');
