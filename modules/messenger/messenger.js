@@ -408,7 +408,7 @@ const Messenger = {
     var a=document.getElementById('msgProfileAva');a.innerHTML=c.avatar?'<img src="data:image/jpeg;base64,'+c.avatar+'"/>':dn.charAt(0).toUpperCase();
     document.getElementById('msgProfileName').textContent=dn;
     document.getElementById('msgProfileUsername').textContent='@'+c.username;
-    var rEl=document.getElementById('msgProfileRole');rEl.className='role-badge '+(c.role||'common');rEl.textContent=c.role?c.role.toUpperCase():'—';rEl.style.marginLeft='5px';
+    var rEl=document.getElementById('msgProfileRole');rEl.className='role-badge '+(c.role||'common');rEl.textContent=c.role?c.role.toUpperCase():'—';
     this._attachTab = 'image';
     document.querySelectorAll('.msg-profile-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.tab === 'image'); });
     var grid = document.getElementById('msgProfileAttachGrid');
@@ -1005,22 +1005,29 @@ const Messenger = {
     if (!el) return;
     if (this.pendingFiles.length === 0) { el.style.display = 'none'; this._updateSendBtn(); return; }
     el.style.display = 'flex';
+    var X = '<button class="msg-attach-remove" title="Убрать" onclick="Messenger.removeFile(IDX)"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>';
+    var fileIcon = '<div class="msg-attach-file-icon-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>';
     var html = '';
     this.pendingFiles.forEach(function(f, i) {
+      var x = X.replace('IDX', i);
       var unsupportedClass = f.unsupported ? ' unsupported' : '';
       if (f.isImage && f.preview) {
-        html += '<div class="msg-attach-item'+unsupportedClass+'"><img src="'+f.preview+'"/><button class="msg-attach-remove" onclick="Messenger.removeFile('+i+')">&times;</button></div>';
-      } else if (f.unsupported) {
-        var ext = f.file.name.split('.').pop().toUpperCase();
-        html += '<div class="msg-attach-item unsupported"><div class="msg-attach-file-icon"><span style="font-size:8px;color:#ff4466">⚠ '+ext+'</span><br><span style="font-size:7px;color:#ff4466">Не поддерж.</span></div><button class="msg-attach-remove" onclick="Messenger.removeFile('+i+')">&times;</button></div>';
-      } else if (f.mediaType === 'video') {
-        html += '<div class="msg-attach-item"><div class="msg-attach-file-icon">🎬<br><span style="font-size:8px">Видео</span></div><button class="msg-attach-remove" onclick="Messenger.removeFile('+i+')">&times;</button></div>';
-      } else if (f.mediaType === 'audio') {
-        var aname = f.file.name.length > 10 ? f.file.name.substring(0,8)+'..' : f.file.name;
-        html += '<div class="msg-attach-item"><div class="msg-attach-file-icon">🎵<br><span style="font-size:7px">'+Messenger.escapeHtml(aname)+'</span></div><button class="msg-attach-remove" onclick="Messenger.removeFile('+i+')">&times;</button></div>';
+        html += '<div class="msg-attach-item'+unsupportedClass+'"><img src="'+f.preview+'"/>'+x+'</div>';
       } else {
-        var ext = f.file.name.split('.').pop().toUpperCase();
-        html += '<div class="msg-attach-item"><div class="msg-attach-file-icon">'+ext+'<br>'+Messenger._fmtSize(f.file.size)+'</div><button class="msg-attach-remove" onclick="Messenger.removeFile('+i+')">&times;</button></div>';
+        // File chip — horizontal layout with icon + name + size
+        var name, meta;
+        if (f.unsupported) {
+          name = f.file.name; meta = 'не поддерж.';
+        } else if (f.mediaType === 'video') {
+          name = f.file.name; meta = 'Видео · ' + Messenger._fmtSize(f.file.size);
+        } else if (f.mediaType === 'audio') {
+          name = f.file.name; meta = 'Аудио · ' + Messenger._fmtSize(f.file.size);
+        } else {
+          name = f.file.name; meta = Messenger._fmtSize(f.file.size);
+        }
+        html += '<div class="msg-attach-item msg-attach-is-file'+unsupportedClass+'">'+fileIcon
+          + '<div class="msg-attach-file-meta"><div class="msg-attach-fname">'+Messenger.escapeHtml(name)+'</div>'
+          + '<div class="msg-attach-fsize">'+Messenger.escapeHtml(meta)+'</div></div>'+x+'</div>';
       }
     });
     el.innerHTML = html;
@@ -1324,13 +1331,24 @@ const Messenger = {
       var isVoice = a.name && a.name.startsWith('voice_');
       var name = isVoice ? 'Голосовое сообщение' : (a.name ? a.name.replace(/\.[^.]+$/, '') : '');
       if (name.length > 30) name = name.substring(0, 28) + '...';
-      var voiceClass = isVoice ? ' msg-voice' : '';
-      html += '<div class="msg-audio-player'+voiceClass+'" data-aid="'+a.id+'" data-dur="'+(a.duration||0)+'">'
-        + '<button class="msg-audio-btn" onclick="event.stopPropagation();Messenger.playAudio(this,\''+a.id+'\')"><span class="msg-audio-icon">▶</span></button>'
-        + '<div class="msg-audio-info">'
-        + '<div class="msg-audio-name">'+Messenger.escapeHtml(name)+'</div>'
-        + '<div class="msg-audio-bar" onclick="event.stopPropagation();Messenger.seekAudio(event,\''+a.id+'\')"><div class="msg-audio-progress" data-aid="'+a.id+'"></div></div>'
-        + '<span class="msg-audio-time" data-aid="'+a.id+'">'+dur+'</span></div></div>';
+      var btn = '<button class="msg-audio-btn" onclick="event.stopPropagation();Messenger.playAudio(this,\''+a.id+'\')"><span class="msg-audio-icon">▶</span></button>';
+      if (isVoice) {
+        html += '<div class="msg-audio-player msg-voice" data-aid="'+a.id+'" data-dur="'+(a.duration||0)+'">'
+          + btn
+          + '<div class="msg-audio-wave" data-aid="'+a.id+'" onclick="event.stopPropagation();Messenger.seekAudio(event,\''+a.id+'\')">'
+          + Messenger._buildWaveBars(36, 0, 'var(--accent)', 'var(--border)') + '</div>'
+          + '<span class="msg-audio-time" data-aid="'+a.id+'">'+dur+'</span>'
+          + '</div>';
+      } else {
+        html += '<div class="msg-audio-player" data-aid="'+a.id+'" data-dur="'+(a.duration||0)+'">'
+          + btn
+          + '<div class="msg-audio-info">'
+          + '<div class="msg-audio-name-row"><span class="msg-audio-name">'+Messenger.escapeHtml(name)+'</span>'
+          + '<span class="msg-audio-time" data-aid="'+a.id+'">'+dur+'</span></div>'
+          + '<div class="msg-audio-wave" data-aid="'+a.id+'" style="height:24px" onclick="event.stopPropagation();Messenger.seekAudio(event,\''+a.id+'\')">'
+          + Messenger._buildWaveBars(44, 0, 'var(--accent)', 'var(--border)') + '</div>'
+          + '</div></div>';
+      }
     });
     // Files
     files.forEach(function(a) {
@@ -1586,6 +1604,32 @@ const Messenger = {
     this._updateSendBtnColor();
   },
 
+  // Waveform helpers
+  _buildWaveBars(count, played, cPlayed, cRest) {
+    var H = [8,15,22,12,18,9,14,20,7,13,17,10,16,19,11,21,8,14];
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var h = H[i % H.length];
+      var col = i < played ? cPlayed : cRest;
+      html += '<span class="msg-audio-wave-bar" data-idx="'+i+'" style="height:'+h+'px;background:'+col+'"></span>';
+    }
+    return html;
+  },
+
+  _updateWaveBars(aid, pct) {
+    var wave = document.querySelector('.msg-audio-wave[data-aid="'+aid+'"]');
+    if (!wave) return;
+    var bars = wave.querySelectorAll('.msg-audio-wave-bar');
+    var count = bars.length;
+    var played = Math.round(pct / 100 * count);
+    var player = wave.closest('.msg-audio-player');
+    var isVoice = player && player.classList.contains('msg-voice');
+    var isMine = wave.closest('.msg-row.mine') != null;
+    var cPlayed = isMine && isVoice ? '#fff' : 'var(--accent)';
+    var cRest = isMine && isVoice ? 'rgba(255,255,255,0.4)' : (isVoice ? '#d2dae3' : 'var(--border)');
+    bars.forEach(function(b, i) { b.style.background = i < played ? cPlayed : cRest; });
+  },
+
   // Audio player
   playAudio(btn, attId) {
     var icon = btn.querySelector('.msg-audio-icon');
@@ -1610,9 +1654,8 @@ const Messenger = {
     audio.oncanplay = function() { icon.textContent = '⏸'; audio.play(); };
     audio.ontimeupdate = function() {
       if (!audio.duration) return;
-      var bar = document.querySelector('.msg-audio-progress[data-aid="'+attId+'"]');
       var time = document.querySelector('.msg-audio-time[data-aid="'+attId+'"]');
-      if (bar) bar.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      self._updateWaveBars(attId, audio.currentTime / audio.duration * 100);
       if (time) time.textContent = self._fmtDuration(Math.round(audio.currentTime)) + ' / ' + self._fmtDuration(Math.round(audio.duration));
     };
     audio.onended = function() { self._stopAudio(); };
@@ -1627,8 +1670,7 @@ const Messenger = {
     if (this._activeAudioId) {
       var oldIcon = document.querySelector('.msg-audio-player[data-aid="'+this._activeAudioId+'"] .msg-audio-icon');
       if (oldIcon) oldIcon.textContent = '▶';
-      var oldBar = document.querySelector('.msg-audio-progress[data-aid="'+this._activeAudioId+'"]');
-      if (oldBar) oldBar.style.width = '0%';
+      this._updateWaveBars(this._activeAudioId, 0);
       this._activeAudioId = null;
     }
   },
