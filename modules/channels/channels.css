@@ -349,9 +349,8 @@
 
 /* ─── ANIMATED SEARCH ─── */
 .ch-search-wrap{display:flex;align-items:center;width:0;max-width:0;opacity:0;overflow:hidden;pointer-events:none;transition:width 0.28s cubic-bezier(0.4,0,0.2,1),max-width 0.28s cubic-bezier(0.4,0,0.2,1),opacity 0.2s ease;margin-right:-4px;border-radius:20px}
-.ch-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px}
-.ch-search-inner{display:flex;align-items:center;gap:8px;width:300px;max-width:100%;flex-shrink:0;padding:9px 8px 9px 14px;border-radius:11px;background:var(--surface2);border:1px solid var(--border);transition:background 0.15s,border-color 0.15s}
-.ch-search-inner:focus-within{border-color:var(--accent)}
+.ch-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px;border-radius:10px}
+.ch-search-inner{display:flex;align-items:center;gap:4px;width:300px;max-width:100%;flex-shrink:0;padding:6px 8px;border-radius:10px;background:var(--surface2);border:1px solid var(--border)}
 .ch-search-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;padding:5px 0;min-width:0}
 .ch-search-input::placeholder{color:var(--text-dim);opacity:0.6}
 .ch-search-count{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;white-space:nowrap;padding:0 5px;flex-shrink:0;transition:color 0.15s}
@@ -379,7 +378,6 @@
 
 /* ─── LIGHT THEME ─── */
 body.theme-light .ch-search-inner{background:rgb(241,244,248);border-color:rgb(231,235,241);box-shadow:none}
-body.theme-light .ch-search-inner:focus-within{background:#fff;border-color:var(--accent);box-shadow:none}
 body.theme-light .ch-input-area{background:#fff;border:1px solid rgb(230,234,240);box-shadow:0 4px 16px rgba(23,33,54,.07),0 1px 3px rgba(23,33,54,.04),inset 0 1px 0 #fff}
 body.theme-light .ch-upload-preview{background:#fff;border-color:rgb(230,234,240)}
 body.theme-light .ch-upload-thumb-inner{border-color:#e0e6ee;background:linear-gradient(145deg,#eef1f6,#d6dde7);box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}

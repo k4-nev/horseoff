@@ -259,9 +259,8 @@
 
 /* Search in header - instant expand, white, minimal */
 .msg-chat-search-wrap{overflow:hidden;width:0;max-width:0;display:flex;align-items:center;opacity:0;pointer-events:none;transition:width 0.28s cubic-bezier(0.4,0,0.2,1),max-width 0.28s cubic-bezier(0.4,0,0.2,1),opacity 0.2s ease;margin-right:-4px;border-radius:20px}
-.msg-chat-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px}
-.msg-search-inner{display:flex;align-items:center;gap:8px;width:300px;max-width:100%;flex-shrink:0;padding:9px 8px 9px 14px;border-radius:11px;background:var(--surface2);border:1px solid var(--border);transition:background 0.15s,border-color 0.15s}
-.msg-search-inner:focus-within{border-color:var(--accent)}
+.msg-chat-search-wrap.open{width:260px;max-width:260px;opacity:1;pointer-events:auto;margin-right:4px;border-radius:10px}
+.msg-search-inner{display:flex;align-items:center;gap:4px;width:300px;max-width:100%;flex-shrink:0;padding:6px 8px;border-radius:10px;background:var(--surface2);border:1px solid var(--border)}
 .msg-search-input{flex:1;background:transparent;border:none;outline:none;padding:5px 0;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;min-width:0}
 .msg-search-input::placeholder{color:var(--text-dim);opacity:0.7}
 .msg-search-count{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;white-space:nowrap;padding:0 5px;flex-shrink:0}
@@ -426,7 +425,7 @@
   .msg-back-btn{display:flex}
   .msg-mob-dots{display:flex}
   .msg-contacts.mobile-hidden{display:none}
-  .msg-profile{display:none;position:fixed;top:0;right:0;bottom:48px;z-index:50;width:280px}
+  .msg-profile{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;width:100%}
   .msg-profile.mobile-open{display:block}
   .msg-profile-close-btn{display:flex}
   .msg-bubble{max-width:75vw}
@@ -550,7 +549,6 @@
 
 /* Light theme — search input volumetric style */
 body.theme-light .msg-search-inner{background:rgb(241,244,248);border-color:rgb(231,235,241);box-shadow:none}
-body.theme-light .msg-search-inner:focus-within{background:#fff;border-color:var(--accent);box-shadow:none}
 body.theme-light .msg-search-input{color:var(--text)}
 
 /* Light theme — chat area keep white */
