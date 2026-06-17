@@ -931,6 +931,11 @@ const Channels = {
         var pp = document.getElementById('chPinsPanel');
         if (pp) pp.style.display = 'none';
       }
+      if (self._emojiOpen && !e.target.closest('#chEmojiPicker') && !e.target.closest('.ch-emoji-btn')) {
+        self._emojiOpen = false;
+        var ep = document.getElementById('chEmojiPicker');
+        if (ep) ep.style.display = 'none';
+      }
     });
     document.addEventListener('touchstart', function(e) {
       if (!e.target.closest('#chCtx')) self._hideCtx();

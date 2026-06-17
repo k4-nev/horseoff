@@ -237,7 +237,10 @@ const Admin = {
 
   toggleRolePicker() {
     var dd = document.getElementById('admRoleDropdown');
-    if (dd) dd.classList.toggle('open');
+    if (!dd) return;
+    var open = dd.classList.toggle('open');
+    var modal = dd.closest('.modal');
+    if (modal) modal.classList.toggle('modal-overflow-visible', open);
   },
 
   selectRole(role) {
@@ -245,7 +248,10 @@ const Admin = {
     var badge = document.getElementById('admRoleBadge');
     badge.className = 'role-badge ' + role;
     badge.textContent = role.toUpperCase();
-    document.getElementById('admRoleDropdown').classList.remove('open');
+    var dd = document.getElementById('admRoleDropdown');
+    dd.classList.remove('open');
+    var modal = dd.closest('.modal');
+    if (modal) modal.classList.remove('modal-overflow-visible');
   },
 
   setRolePickerValue(role) {
@@ -258,6 +264,6 @@ const Admin = {
   }
 };
 
-document.addEventListener('click',function(e){if(!e.target.closest('.adm-role-picker')){var dd=document.getElementById('admRoleDropdown');if(dd)dd.classList.remove('open');}});
+document.addEventListener('click',function(e){if(!e.target.closest('.adm-role-picker')){var dd=document.getElementById('admRoleDropdown');if(dd){dd.classList.remove('open');var modal=dd.closest('.modal');if(modal)modal.classList.remove('modal-overflow-visible');}}});
 window.Admin = Admin;
 Admin.init();

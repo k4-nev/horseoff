@@ -168,7 +168,7 @@
 .metric-mid{color:var(--warning)!important}
 
 /* CPU cell — sparkline only */
-.cpu-cell{display:flex;align-items:start;justify-content:center}
+.cpu-cell{display:flex;align-items:start;justify-content:start}
 
 /* Sparkline */
 .spark{display:block;width:100%;max-width:62px}

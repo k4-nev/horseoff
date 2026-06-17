@@ -933,7 +933,7 @@ const Messenger = {
     this.emojiOpen=!this.emojiOpen;
     el.style.display=this.emojiOpen?'grid':'none';
   },
-  insertEmoji(emoji){var i=document.getElementById('msgInput');if(!i)return;i.value+=emoji;i.focus();this.autoResize(i)},
+  insertEmoji(emoji){var i=document.getElementById('msgInput');if(!i)return;i.value+=emoji;i.focus();this.autoResize(i);this._updateSendBtnColor()},
 
 
 
@@ -1039,6 +1039,7 @@ const Messenger = {
     btn.disabled = hasUnsupported;
     btn.style.opacity = hasUnsupported ? '0.3' : '1';
     btn.style.pointerEvents = hasUnsupported ? 'none' : 'auto';
+    this._updateSendBtnColor();
   },
 
   clearPreview() {

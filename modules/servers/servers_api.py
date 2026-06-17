@@ -15,6 +15,8 @@ DATA_DIR.mkdir(exist_ok=True)
 SERVERS_FILE = DATA_DIR / "servers.json"
 API_KEYS_FILE = DATA_DIR / "api_keys.json"
 RUVDS_CACHE_FILE = DATA_DIR / "ruvds_cache.json"
+METRICS_HIST_FILE = DATA_DIR / "metrics_history.json"
+HIST_MAX = 20
 
 POLL_INTERVAL = 25
 SPEED_TEST_INTERVAL = 300
@@ -32,6 +34,8 @@ speed_cache = {}
 speed_lock = threading.Lock()
 ruvds_cache = {}
 ruvds_lock = threading.Lock()
+metrics_hist = {}  # ip -> {cpu:[...], ram:[...]}
+hist_lock = threading.Lock()
 
 # ---- Provision state ----
 provision_status = {}  # ip -> {steps:[], current_step:int, done:bool, error:str|None, result:{}}
@@ -46,6 +50,29 @@ def _load_json(path, default=None):
 
 def _save_json(path, data):
     with open(path, 'w') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+
+def load_metrics_hist():
+    global metrics_hist
+    metrics_hist = _load_json(METRICS_HIST_FILE, {}) or {}
+
+def save_metrics_hist():
+    with hist_lock:
+        try: _save_json(METRICS_HIST_FILE, metrics_hist)
+        except: pass
+
+def _push_hist(ip, cpu, ram):
+    with hist_lock:
+        h = metrics_hist.get(ip)
+        if not h:
+            h = {'cpu': [], 'ram': []}
+            metrics_hist[ip] = h
+        if cpu is not None:
+            h['cpu'].append(cpu)
+            if len(h['cpu']) > HIST_MAX: h['cpu'] = h['cpu'][-HIST_MAX:]
+        if ram is not None:
+            h['ram'].append(ram)
+            if len(h['ram']) > HIST_MAX: h['ram'] = h['ram'][-HIST_MAX:]
+        return {'cpu': list(h['cpu']), 'ram': list(h['ram'])}
 
 def load_servers(): return _load_json(SERVERS_FILE, [])
 def save_servers(s): _save_json(SERVERS_FILE, s)
@@ -219,7 +246,17 @@ def poll_loop():
             results = []
             for s in servers:
                 m = get_metrics(s, do_speed)
+                # Persist CPU/RAM history server-side so sparklines survive page reloads
+                ram_pct = None
+                if m.get('ram_used') is not None and m.get('ram_total'):
+                    try: ram_pct = round(m['ram_used'] / m['ram_total'] * 100)
+                    except: ram_pct = None
+                hist = _push_hist(m['ip'], m.get('cpu') if m.get('online') else None,
+                                  ram_pct if m.get('online') else None)
+                m['cpu_hist'] = hist['cpu']
+                m['ram_hist'] = hist['ram']
                 results.append(m)
+            save_metrics_hist()
             with data_lock: cached_data = results
             # Push to all WS clients
             try:
@@ -649,6 +686,14 @@ def init():
                 'http_proxy': False, 'socks_proxy': False, 'proxy_running': False,
                 'speed_mbps': None, 'vds_info': None, 'days_left': None
             })
+    # Load persisted metrics history (sparklines survive reloads/restarts)
+    load_metrics_hist()
+    # Pre-populate cached_data with stored history
+    with data_lock:
+        for c in cached_data:
+            h = metrics_hist.get(c['ip'])
+            c['cpu_hist'] = list(h['cpu']) if h else []
+            c['ram_hist'] = list(h['ram']) if h else []
     # Load RuVDS cache
     ruvds_cache = _load_json(RUVDS_CACHE_FILE, {})
     if load_api_keys().get('ruvds'):

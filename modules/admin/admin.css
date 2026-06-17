@@ -57,7 +57,8 @@
 .adm-role-selected{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:border-color 0.2s}
 .adm-role-selected:hover{border-color:var(--accent)}
 .adm-role-arrow{color:var(--text-dim);font-size:12px}
-.adm-role-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;padding:4px;z-index:10;box-shadow:0 8px 20px rgba(0,0,0,0.4)}
+.adm-role-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;padding:4px;z-index:1010;box-shadow:0 8px 20px rgba(0,0,0,0.4)}
+.modal.modal-overflow-visible{overflow:visible}
 .adm-role-dropdown.open{display:block}
 .adm-role-option{padding:6px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s;display:flex;align-items:center}
 .adm-role-option:hover{background:var(--surface2)}
