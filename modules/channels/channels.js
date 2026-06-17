@@ -47,8 +47,41 @@ const Channels = {
     }
     this.loadSpaces();
     this._buildEmojiPicker();
+    this._initKeyboard();
     var self = this;
     this._memberRefresh = setInterval(function(){ if(self.currentSpace && self.membersVisible) self.loadMembers(); }, 10000);
+  },
+
+  _isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  },
+
+  _initKeyboard() {
+    if (!window.visualViewport) return;
+    var sidebar = document.getElementById('sidebar');
+    var ios = this._isIOS();
+    var wasKB = false;
+    var self = this;
+    var apply = function() {
+      if (window.innerWidth > 768) return;
+      var vv = window.visualViewport;
+      var kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      var open = kb > 80;
+      var c = document.getElementById('chChat');
+      if (open && !wasKB) {
+        wasKB = true;
+        if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform='translateY(100%)'; sidebar.style.opacity='0'; sidebar.style.pointerEvents='none'; }
+      } else if (!open && wasKB) {
+        wasKB = false;
+        if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform=''; sidebar.style.opacity=''; sidebar.style.pointerEvents=''; }
+      }
+      // iOS: lift the fixed chat above the on-screen keyboard (no layout shrink).
+      if (c && ios) c.style.bottom = open ? kb + 'px' : '';
+      if (open) { window.scrollTo(0, 0); self.scrollToBottom(); }
+    };
+    window.visualViewport.addEventListener('resize', apply);
+    window.visualViewport.addEventListener('scroll', apply);
   },
 
   async loadSpaces() {

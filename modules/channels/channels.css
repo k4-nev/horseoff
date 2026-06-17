@@ -51,7 +51,7 @@
 .ch-action-btn:hover{color:var(--text);background:var(--surface2)}
 .ch-action-btn:active{transform:scale(0.93)}
 .ch-action-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ch-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:0;scroll-behavior:smooth}
+.ch-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:0;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .ch-empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-dim);gap:10px;font-size:13px}
 .ch-empty-chat p{margin:0}
 
@@ -257,7 +257,7 @@
 
 /* ─── MOBILE ─── */
 @media(max-width:768px){
-  .ch-wrap{height:calc(100vh - 48px)}
+  .ch-wrap{height:calc(100vh - 48px);height:calc(100dvh - 48px)}
   .ch-sidebar{width:100%}
   .ch-chat{position:fixed;left:0;top:0;right:0;bottom:48px;z-index:35;display:none;background:var(--bg)}
   .ch-chat.mobile-open{display:flex}
@@ -265,6 +265,15 @@
   .ch-members{position:fixed;right:0;top:0;bottom:48px;width:280px;z-index:40;display:none !important}
   .ch-members.mobile-open{display:flex !important}
   .ch-msg-quick{display:none !important}
+}
+
+/* Safe area (iPhone notch / home indicator) */
+@supports(padding-bottom:env(safe-area-inset-bottom)){
+  @media(max-width:768px){
+    .ch-chat{bottom:calc(48px + env(safe-area-inset-bottom));top:env(safe-area-inset-top)}
+    .ch-members{top:env(safe-area-inset-top)}
+    .ch-input-area{margin-bottom:calc(20px + env(safe-area-inset-bottom))}
+  }
 }
 
 /* @Mentions */

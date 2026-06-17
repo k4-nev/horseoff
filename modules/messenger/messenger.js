@@ -158,28 +158,39 @@ const Messenger = {
     }, {passive: true});
   },
 
+  _isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  },
+
   _initKeyboard() {
+    if (!window.visualViewport) return;
     var sidebar = document.getElementById('sidebar');
+    var ios = this._isIOS();
     var wasKB = false;
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', function() {
-        if (window.innerWidth > 768) return;
-        var kb = (window.innerHeight - window.visualViewport.height) > 80;
-        if (kb && !wasKB) {
-          wasKB = true;
-          if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform='translateY(100%)'; sidebar.style.opacity='0'; sidebar.style.pointerEvents='none'; }
-          var c=document.getElementById('msgChat'); if(c)c.style.bottom='0';
-          var pr=document.getElementById('msgProfile'); if(pr)pr.classList.remove('mobile-open');
-          Messenger.scrollToBottom(true);
-          window.scrollTo(0,0);
-        } else if (!kb && wasKB) {
-          wasKB = false;
-          if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform=''; sidebar.style.opacity=''; sidebar.style.pointerEvents=''; }
-          var c=document.getElementById('msgChat'); if(c)c.style.bottom='';
-          window.scrollTo(0,0);
-        }
-      });
-    }
+    var apply = function() {
+      if (window.innerWidth > 768) return;
+      var vv = window.visualViewport;
+      // Keyboard height = layout viewport minus visible viewport (and any offset)
+      var kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      var open = kb > 80;
+      var c = document.getElementById('msgChat');
+      if (open && !wasKB) {
+        wasKB = true;
+        if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform='translateY(100%)'; sidebar.style.opacity='0'; sidebar.style.pointerEvents='none'; }
+        var pr=document.getElementById('msgProfile'); if(pr)pr.classList.remove('mobile-open');
+      } else if (!open && wasKB) {
+        wasKB = false;
+        if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform=''; sidebar.style.opacity=''; sidebar.style.pointerEvents=''; }
+      }
+      // iOS: layout viewport does NOT shrink for the keyboard, so we lift the
+      // fixed chat above the keyboard ourselves (eliminates the empty gap).
+      // Android uses interactive-widget=resizes-content and needs no offset.
+      if (c && ios) c.style.bottom = open ? kb + 'px' : '';
+      if (open) { window.scrollTo(0, 0); Messenger.scrollToBottom(true); }
+    };
+    window.visualViewport.addEventListener('resize', apply);
+    window.visualViewport.addEventListener('scroll', apply);
   },
 
 

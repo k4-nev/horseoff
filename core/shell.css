@@ -78,7 +78,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-danger:hover{background:var(--danger-glow)}
 
 /* APP SHELL */
-.app-shell{display:none;height:100vh;width:100vw}
+.app-shell{display:none;height:100vh;height:100dvh;width:100vw}
 .app-shell.active{display:flex}
 
 /* SIDEBAR */
@@ -194,6 +194,14 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .app-shell.active{flex-direction:column}
 .content{padding-bottom:52px}
 .modal{margin:10px;max-width:calc(100vw - 20px)}
+}
+
+/* Safe area (iPhone notch + home indicator) */
+@supports(padding-bottom:env(safe-area-inset-bottom)){
+  @media(max-width:768px){
+    .sidebar{height:calc(48px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}
+    .content{padding-bottom:calc(52px + env(safe-area-inset-bottom));padding-top:env(safe-area-inset-top)}
+  }
 }
 
 /* Icon system - CSS mask */

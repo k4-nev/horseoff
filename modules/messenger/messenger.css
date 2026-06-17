@@ -51,7 +51,7 @@
 .msg-chat-typing{font-size:11px;color:#51d488;margin-left:8px;white-space:nowrap}
 .msg-mob-dots{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:6px;margin-left:auto}
 
-.msg-messages{position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 20px 70px 20px}
+.msg-messages{position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 20px 70px 20px}
 .msg-messages::-webkit-scrollbar{width:3px}
 .msg-messages::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:3px}
 
@@ -437,7 +437,8 @@
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   @media(max-width:768px){
     .msg-input-area{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
-    .msg-chat{bottom:calc(48px + env(safe-area-inset-bottom))}
+    .msg-chat{bottom:calc(48px + env(safe-area-inset-bottom));top:env(safe-area-inset-top)}
+    .msg-profile{top:env(safe-area-inset-top)}
   }
 }
 
