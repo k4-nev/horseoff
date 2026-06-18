@@ -390,7 +390,7 @@ const Valentine = {
           +'<div class="vl-final-ava">'+myAva+'</div>'
           +'<div class="vl-final-name-row">'+this._esc(myName)+'</div>'
         +'</div>'
-        +'<div class="vl-final-love">потому что я тебя<br>очень люблю! ❤️</div>'
+        +'<div class="vl-final-love">Я тебя очень люблю<br>и дорожу тобой ❤️</div>'
         +'<div class="vl-final-divider"></div>'
         +'<div class="vl-final-from">'
           +'<span class="vl-final-from-label">Твой</span>'
