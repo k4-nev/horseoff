@@ -499,6 +499,19 @@ const Channels = {
   },
 
   onWS(data) {
+    if (data.type === 'ch_presence') {
+      var changed = false;
+      for (var pi = 0; pi < this.members.length; pi++) {
+        if (this.members[pi].user_id === data.user_id) {
+          this.members[pi].online = (data.status ? data.status !== 'offline' : data.online);
+          this.members[pi].status = data.status || (data.online ? 'online' : 'offline');
+          changed = true;
+          break;
+        }
+      }
+      if (changed && this.membersVisible) this.renderMembers();
+      return;
+    }
     if (data.type === 'ch_reacted' && data.channel_id === this.currentChannel) {
       for (var i = 0; i < this.messages.length; i++) {
         if (this.messages[i].id === data.msg_id) { this.messages[i].reactions = data.reactions; break; }
@@ -788,7 +801,7 @@ const Channels = {
       + '<span class="ch-member-name">'+this._esc(m.display_name||m.username)+'</span>'
       + (isMod?'<span class="ch-mod-badge">МОД</span>':'')
       + '<span class="role-badge '+m.role+'" style="font-size:8px;padding:1px 4px">'+m.role.toUpperCase()+'</span>'
-      + (off?'':'<span class="ch-member-online-dot"></span>')+'</div>';
+      + (off?'':'<span class="ch-member-online-dot '+(m.status||'online')+'"></span>')+'</div>';
   },
 
   _memberCtx(e, userId) {

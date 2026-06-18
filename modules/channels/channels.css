@@ -139,6 +139,7 @@
 .ch-member-name{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ch-member.offline{opacity:0.35}.ch-member.offline .ch-member-name{font-style:italic}
 .ch-member-online-dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:live-pulse var(--pulse-speed) infinite;flex-shrink:0}
+.ch-member-online-dot.away{background:#fbbf24;animation:none}
 .ch-add-member-btn{margin:8px;padding:8px;background:none;border:1px dashed var(--border);border-radius:8px;color:var(--text-dim);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;font-family:'Inter',sans-serif;transition:all 0.15s;min-height:44px}
 .ch-add-member-btn:hover{border-color:var(--accent);color:var(--accent)}
 .ch-add-member-btn:active{transform:scale(0.97)}

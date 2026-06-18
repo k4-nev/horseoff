@@ -130,16 +130,17 @@ def handle_get(handler, session, path):
     if p.endswith('/members'):
         space_id = _get_param(handler, 'space_id')
         if not space_id: return _json(handler, 400, {'error': 'space_id required'})
-        from server import load_users, get_avatar_b64, ws_clients
+        from server import load_users, get_avatar_b64, get_user_status
         users = load_users()
-        online_ids = set(cl['user_id'] for cl in ws_clients.values())
         members = load_members(space_id)
         result = []
         for m in members:
             u = next((u for u in users if u['id'] == m['user_id']), None)
             if u:
+                st = get_user_status(u['id'])
                 result.append({'user_id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),
-                    'role':u['role'],'space_role':m.get('role','member'),'avatar':get_avatar_b64(u['id']),'online':u['id'] in online_ids})
+                    'role':u['role'],'space_role':m.get('role','member'),'avatar':get_avatar_b64(u['id']),
+                    'online':st != 'offline','status':st})
         return _json(handler, 200, result)
 
     # GET /api/mod/channels/read?channel_id=xxx

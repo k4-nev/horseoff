@@ -665,9 +665,19 @@ def mark_read(chat_key, user_id):
         if changed: f.write_text(json.dumps(msgs, ensure_ascii=False))
     except: pass
 
+def get_user_status(user_id):
+    """Aggregate presence across all of a user's connections.
+    'online'  — at least one connection with a visible/focused window
+    'away'    — connected, but every window is hidden/minimized
+    'offline' — no active connections
+    """
+    conns = [cl for cl in ws_clients.values() if cl['user_id'] == user_id]
+    if not conns: return 'offline'
+    if any(not cl.get('hidden') for cl in conns): return 'online'
+    return 'away'
+
 def build_contacts(user_id):
     users = load_users()
-    online_ids = set(cl['user_id'] for cl in ws_clients.values())
     prefs = load_user_prefs(user_id)
     pinned_ids = prefs.get('pinned', [])
     muted_ids = prefs.get('muted', [])
@@ -680,11 +690,12 @@ def build_contacts(user_id):
         msg_count = get_msg_count(ck)
         is_pinned = u['id'] in pinned_ids
         is_muted = u['id'] in muted_ids
+        status = get_user_status(u['id'])
         contacts.append({'id': u['id'], 'username': u['username'],
             'display_name': u.get('display_name', ''), 'role': u['role'],
             'avatar': get_avatar_b64(u['id']),
             'last_msg': last, 'unread': unread, 'msg_count': msg_count,
-            'online': u['id'] in online_ids,
+            'online': status != 'offline', 'status': status,
             'pinned': is_pinned, 'muted': is_muted})
     # Sort: pinned first (by pin order), then by last message time
     contacts.sort(key=lambda c: (
@@ -722,9 +733,11 @@ def _ws_refresh_all_contacts():
         ws_loop.call_soon_threadsafe(_ws_queue.put_nowait, ('refresh_contacts', None, None, None))
     except: pass
 
-async def _broadcast_ch_presence(user_id, online):
-    """Broadcast online/offline status to all connected users for channels module."""
-    msg = json.dumps({'type': 'ch_presence', 'user_id': user_id, 'online': online})
+async def _broadcast_ch_presence(user_id, status=None):
+    """Broadcast presence status to all connected users for channels module.
+    status: 'online' | 'away' | 'offline' (computed if omitted)."""
+    if status is None: status = get_user_status(user_id)
+    msg = json.dumps({'type': 'ch_presence', 'user_id': user_id, 'online': status != 'offline', 'status': status})
     for tk, cl in list(ws_clients.items()):
         if cl['user_id'] != user_id:
             try: await cl['ws'].send(msg)
@@ -778,7 +791,8 @@ async def _ws_queue_processor():
                     for tk in dead:
                         ws_clients.pop(tk, None)
                 elif kind == 'ch_presence_offline':
-                    msg = json.dumps({'type': 'ch_presence', 'user_id': target_id, 'online': False})
+                    st = get_user_status(target_id)
+                    msg = json.dumps({'type': 'ch_presence', 'user_id': target_id, 'online': st != 'offline', 'status': st})
                     for tk, cl in list(ws_clients.items()):
                         try: await cl['ws'].send(msg)
                         except: pass
@@ -803,7 +817,7 @@ async def handle_ws(websocket):
             await websocket.close(); return
 
         token = t
-        ws_clients[token] = {'ws': websocket, 'user_id': s['id'], 'username': s['username'], 'role': s['role']}
+        ws_clients[token] = {'ws': websocket, 'user_id': s['id'], 'username': s['username'], 'role': s['role'], 'hidden': bool(data.get('hidden'))}
         await websocket.send(json.dumps({'type':'auth_ok'}))
 
         # Push full state on connect
@@ -827,12 +841,29 @@ async def handle_ws(websocket):
                     await cl['ws'].send(json.dumps({'type':'contacts','contacts':c}))
                 except: pass
         # Notify channels — user came online
-        await _broadcast_ch_presence(s['id'], True)
+        await _broadcast_ch_presence(s['id'])
 
         async for raw in websocket:
             try:
                 data = json.loads(raw)
                 mt = data.get('type')
+
+                if mt == 'presence':
+                    # Window visibility changed (visible/focused vs hidden/minimized)
+                    new_hidden = bool(data.get('hidden'))
+                    prev_status = get_user_status(s['id'])
+                    if token in ws_clients:
+                        ws_clients[token]['hidden'] = new_hidden
+                    new_status = get_user_status(s['id'])
+                    # Broadcast only when the aggregated status actually changed
+                    if new_status != prev_status:
+                        for tk, cl in list(ws_clients.items()):
+                            if cl['user_id'] != s['id']:
+                                try:
+                                    await cl['ws'].send(json.dumps({'type':'contacts','contacts':build_contacts(cl['user_id'])}))
+                                except: pass
+                        await _broadcast_ch_presence(s['id'], new_status)
+                    continue
 
                 if mt == 'send':
                     to_id = data.get('to')
@@ -860,12 +891,13 @@ async def handle_ws(websocket):
                             except: pass
                     c1 = build_contacts(s['id'])
                     await websocket.send(json.dumps({'type':'contacts','contacts':c1}))
-                    # Push notification if recipient offline
-                    if not recipient_online and HAS_PUSH:
-                        print(f"[PUSH] Recipient {to_id} offline, sending push")
+                    # Push notification if recipient offline OR away (all windows minimized)
+                    recipient_status = get_user_status(to_id)
+                    if recipient_status in ('offline', 'away') and HAS_PUSH:
+                        print(f"[PUSH] Recipient {to_id} {recipient_status}, sending push")
                         threading.Thread(target=send_push, args=(to_id, msg['from_name'], text[:100], '/', msg['from']), daemon=True).start()
-                    elif recipient_online:
-                        print(f"[PUSH] Recipient {to_id} online, skip push")
+                    else:
+                        print(f"[PUSH] Recipient {to_id} {recipient_status}, skip push")
 
                 elif mt == 'typing':
                     to_id = data.get('to')

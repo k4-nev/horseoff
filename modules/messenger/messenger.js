@@ -355,7 +355,7 @@ const Messenger = {
       var pinIcon = c.pinned ? '<span class="ico ico-pin msg-contact-pin" style="width:10px;height:10px"></span>' : '';
       var muteIcon = c.muted ? '<span class="ico ico-mute msg-contact-mute" style="width:10px;height:10px"></span>' : '';
       return '<div class="msg-contact'+active+'" data-uid="'+c.id+'" data-search="'+(c.username+' '+dn).toLowerCase()+'" onclick="Messenger.openChat(\''+c.id+'\')" oncontextmenu="event.preventDefault();Messenger.showContactMenu(event,\''+c.id+'\')" ontouchstart="Messenger._cTouchStart(event,\''+c.id+'\')" ontouchend="Messenger._cTouchEnd()" ontouchmove="Messenger._cTouchEnd()">'
-        +'<div class="msg-contact-ava-wrap">'+ava+(c.online?'<span class="msg-online-badge"></span>':'')+'</div>'
+        +'<div class="msg-contact-ava-wrap">'+ava+(c.online?'<span class="msg-online-badge '+(c.status||'online')+'"></span>':'')+'</div>'
         +'<div class="msg-contact-info"><div class="msg-contact-name">'+dn+pinIcon+muteIcon+'</div><div class="msg-contact-last">'+(last||'<span style="opacity:0.4">нет сообщений</span>')+'</div></div>'
         +'<div class="msg-contact-meta">'+(ts?'<div class="msg-contact-time">'+ts+'</div>':'')+unread+'</div></div>';
     }).join('');
@@ -363,7 +363,7 @@ const Messenger = {
     if (this.currentChat) {
       var cc = this.contacts.find(function(x){ return x.id === Messenger.currentChat; });
       if (cc) {
-        var hDot = cc.online ? ' <span class="msg-online-dot-header"></span>' : '';
+        var hDot = cc.online ? ' <span class="msg-online-dot-header '+(cc.status||'online')+'"></span>' : '';
         document.getElementById('msgChatName').innerHTML = this.escapeHtml(this.getDisplayName(cc)) + hDot;
         var hAva2 = document.getElementById('msgChatAva');
         if (hAva2) { var dn3=this.getDisplayName(cc); hAva2.innerHTML=cc.avatar?'<img src="data:image/jpeg;base64,'+cc.avatar+'"/>':dn3.charAt(0).toUpperCase(); }

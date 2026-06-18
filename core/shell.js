@@ -20,7 +20,7 @@ const Shell = {
     try {
       this.ws = new WebSocket(url);
       this.ws.onopen = () => {
-        this.ws.send(JSON.stringify({type:'auth',token:this.token}));
+        this.ws.send(JSON.stringify({type:'auth',token:this.token,hidden:this._isWindowHidden()}));
       };
       this.ws.onmessage = (e) => {
         try {
@@ -160,6 +160,29 @@ const Shell = {
     }
   },
 
+  _isWindowHidden() {
+    // "away" when the tab is hidden (mobile minimized) OR the window lost focus (another window on top)
+    try { return document.hidden === true || document.hasFocus() === false; }
+    catch(e) { return false; }
+  },
+
+  initPresence() {
+    if (this._presenceInit) return;
+    this._presenceInit = true;
+    this._presenceHidden = this._isWindowHidden();
+    var self = this;
+    var update = function() {
+      var hidden = self._isWindowHidden();
+      if (hidden === self._presenceHidden) return;
+      self._presenceHidden = hidden;
+      self.wsSend({type:'presence', hidden: hidden});
+    };
+    document.addEventListener('visibilitychange', update);
+    window.addEventListener('focus', update);
+    window.addEventListener('blur', update);
+    window.addEventListener('pageshow', update);
+  },
+
   wsSend(data) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.wsReady) {
       this.ws.send(JSON.stringify(data));
@@ -273,6 +296,8 @@ const Shell = {
     this.updateSidebarAvatar();
     // Connect WebSocket
     this.connectWS();
+    // Presence (away when window minimized / unfocused)
+    this.initPresence();
     // Push notifications
     this.initPush();
     this.lockOrientation();
