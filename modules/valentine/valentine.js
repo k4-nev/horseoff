@@ -30,10 +30,15 @@ const Valentine = {
 
   // ─── API helpers ───
   async _api(method, path, body) {
+    var opts = {method};
+    if (body) opts.body = JSON.stringify(body);
+    // Shell.api adds the Authorization: Bearer <token> header and handles 401
+    if (window.Shell && Shell.api) return await Shell.api(path, opts);
     try {
-      var opts = {method, headers:{'Content-Type':'application/json'}};
-      if (body) opts.body = JSON.stringify(body);
-      var r = await fetch(path, opts);
+      var headers = {'Content-Type':'application/json'};
+      var tok = (window.Shell && Shell.token) || localStorage.getItem('ho_token');
+      if (tok) headers['Authorization'] = 'Bearer ' + tok;
+      var r = await fetch(path, {method, headers, body: opts.body});
       return await r.json();
     } catch(e) { return null; }
   },
