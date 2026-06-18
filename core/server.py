@@ -1538,6 +1538,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/sw.js':
             return self._serve_file(ROOT_DIR / 'pwa' / 'sw.js')
 
+        if path.startswith('/stickers/'):
+            fname = path.split('/stickers/')[1]
+            if fname and '/' not in fname and '..' not in fname:
+                return self._serve_file(ROOT_DIR / 'stickers' / fname)
         if path in ('/', '/index.html'): return self._serve_file(CORE_DIR / 'shell.html')
         if path.startswith('/core/'): return self._serve_file(CORE_DIR / path.split('/core/')[1])
         self._json(404, {'error': 'Not found'})

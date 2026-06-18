@@ -232,6 +232,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .role-badge.arcana{color:rgb(74,107,18);background:linear-gradient(rgb(212,244,166),rgb(173,229,92));box-shadow:rgba(255,255,255,0.6) 0 1px 0 inset,rgba(120,170,50,0.4) 0 1px 2px}
 
 .ico-channels{-webkit-mask-image:url(/svg/channels.svg);mask-image:url(/svg/channels.svg)}
+.ico-valentine{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E")}
 .ico-chevron-down{-webkit-mask-image:url(/svg/chevron-down.svg);mask-image:url(/svg/chevron-down.svg)}
 .ico-chevron-right{-webkit-mask-image:url(/svg/chevron-right.svg);mask-image:url(/svg/chevron-right.svg)}
 .ico-plus{-webkit-mask-image:url(/svg/plus.svg);mask-image:url(/svg/plus.svg)}

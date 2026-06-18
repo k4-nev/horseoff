@@ -1,0 +1,152 @@
+<link rel="stylesheet" href="/modules/valentine/valentine.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
+
+<div class="vl-wrap" id="vlWrap">
+  <!-- Floating hearts canvas -->
+  <div class="vl-hearts-bg" id="vlHeartsBg"></div>
+
+  <!-- Header -->
+  <div class="vl-header">
+    <div class="vl-header-left">
+      <svg class="vl-header-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      <span class="vl-header-title">Валентинки</span>
+    </div>
+    <span class="vl-header-badge" id="vlHeaderBadge" style="display:none">0</span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="vl-tabs">
+    <button class="vl-tab vl-tab-active" id="vlTabCreate" onclick="Valentine.switchTab('create')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Создать
+    </button>
+    <button class="vl-tab" id="vlTabReceived" onclick="Valentine.switchTab('received')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      Мои признания
+      <span class="vl-tab-badge" id="vlTabBadge" style="display:none">0</span>
+    </button>
+  </div>
+
+  <!-- Create tab -->
+  <div class="vl-panel" id="vlPanelCreate">
+    <div class="vl-panel-hint">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      <span>Выбери, кому отправить свою валентинку</span>
+    </div>
+    <div class="vl-contacts-list" id="vlContactsList">
+      <div class="vl-loading">
+        <div class="vl-spin"></div>
+        Загружаю контакты...
+      </div>
+    </div>
+  </div>
+
+  <!-- Received tab -->
+  <div class="vl-panel vl-panel-hidden" id="vlPanelReceived">
+    <div class="vl-confessions-list" id="vlConfessionsList">
+      <div class="vl-loading">
+        <div class="vl-spin"></div>
+        Загружаю признания...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CREATOR MODAL ═══ -->
+<div class="vl-modal" id="vlCreatorModal" style="display:none">
+  <div class="vl-modal-backdrop" onclick="Valentine.closeCreator()"></div>
+  <div class="vl-modal-box vl-creator-box">
+    <div class="vl-creator-header">
+      <button class="vl-icon-btn" onclick="Valentine.closeCreator()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="vl-creator-title">
+        Создай Валентинку
+        <div class="vl-creator-to" id="vlCreatorTo"></div>
+      </div>
+      <button class="vl-icon-btn" onclick="Valentine.closeCreator()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Progress hearts -->
+    <div class="vl-progress" id="vlProgress">
+      <div class="vl-prog-item" data-i="0"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+      <div class="vl-prog-item" data-i="1"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+      <div class="vl-prog-item" data-i="2"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+      <div class="vl-prog-item" data-i="3"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+      <div class="vl-prog-item" data-i="4"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+    </div>
+
+    <div class="vl-page-lbl" id="vlPageLbl">Страница <b>1</b> из 5</div>
+
+    <!-- Sticker picker -->
+    <div class="vl-sticker-area">
+      <div class="vl-sticker-hint" id="vlStickerHint">Выбери картинку для этой страницы</div>
+      <div class="vl-sticker-grid" id="vlStickerGrid"></div>
+    </div>
+
+    <!-- Text input -->
+    <div class="vl-text-row">
+      <span class="vl-love-prefix">Любовь это…</span>
+      <input class="vl-text-input" id="vlTextInput" type="text" placeholder="напиши продолжение..." maxlength="120" autocomplete="off" oninput="Valentine.onTextInput(this.value)">
+    </div>
+
+    <!-- Nav -->
+    <div class="vl-creator-nav">
+      <button class="vl-nav-btn vl-btn-prev" id="vlPrevBtn" onclick="Valentine.prevPage()" style="visibility:hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Назад
+      </button>
+      <button class="vl-nav-btn vl-btn-next" id="vlNextBtn" onclick="Valentine.nextPage()" disabled>
+        Далее
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SEND CONFIRM MODAL ═══ -->
+<div class="vl-modal" id="vlConfirmModal" style="display:none">
+  <div class="vl-modal-backdrop" onclick="Valentine.closeConfirm()"></div>
+  <div class="vl-modal-box vl-confirm-box">
+    <div class="vl-confirm-hearts">💌</div>
+    <div class="vl-confirm-title">Готово отправить?</div>
+    <div class="vl-confirm-sub" id="vlConfirmSub">Отправить валентинку для <b id="vlConfirmName"></b>?</div>
+    <div class="vl-confirm-btns">
+      <button class="vl-btn vl-btn-ghost" onclick="Valentine.closeConfirm()">Ещё раз проверю</button>
+      <button class="vl-btn vl-btn-send" id="vlSendBtn" onclick="Valentine.sendValentine()">
+        Отправить 💌
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEWER MODAL ═══ -->
+<div class="vl-modal" id="vlViewerModal" style="display:none">
+  <div class="vl-modal-backdrop" onclick="Valentine.closeViewer()"></div>
+  <div class="vl-modal-box vl-viewer-box">
+    <div class="vl-viewer-hearts-bg" id="vlViewerHearts"></div>
+
+    <button class="vl-viewer-close" onclick="Valentine.closeViewer()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+
+    <!-- Page container -->
+    <div class="vl-viewer-stage" id="vlViewerStage"></div>
+
+    <!-- Navigation -->
+    <div class="vl-viewer-nav">
+      <button class="vl-viewer-arr vl-arr-prev" id="vlViewerPrev" onclick="Valentine.viewerPrev()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="vl-viewer-dots" id="vlViewerDots"></div>
+      <button class="vl-viewer-arr vl-arr-next" id="vlViewerNext" onclick="Valentine.viewerNext()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/modules/valentine/valentine.js"></script>
