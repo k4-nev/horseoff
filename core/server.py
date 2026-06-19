@@ -1465,6 +1465,60 @@ async def handle_ws(websocket):
                     await _voice_forward(data.get('room_id',''), data.get('to_user_id',''),
                         {'type':'voice_ice','room_id':data.get('room_id'),'from_user_id':s['id'],'candidate':data.get('candidate')})
 
+                elif mt == 'voice_invite':
+                    room_id = data.get('room_id','')
+                    to_user_id = data.get('to_user_id','')
+                    if room_id and to_user_id:
+                        # Find channel info
+                        channel_name = room_id
+                        space_id = ''
+                        with voice_rooms_lock:
+                            if room_id in voice_rooms:
+                                space_id = voice_rooms[room_id].get('space_id','')
+                        # Find channel name from channels data
+                        try:
+                            ch_f = DATA_DIR / 'channels.json'
+                            if ch_f.exists():
+                                ch_data = json.loads(ch_f.read_text())
+                                for sp in ch_data.get('spaces',[]):
+                                    for ch in sp.get('channels',[]):
+                                        if ch.get('id') == room_id:
+                                            channel_name = ch.get('name', room_id)
+                                            if not space_id:
+                                                space_id = sp.get('id','')
+                        except: pass
+                        # Find target user ws
+                        target_token = None
+                        with clients_lock:
+                            for tk, cl in ws_clients.items():
+                                if cl.get('user',{}).get('id') == to_user_id:
+                                    target_token = tk
+                                    break
+                        if target_token:
+                            cl = ws_clients.get(target_token)
+                            if cl:
+                                try:
+                                    await cl['ws'].send(json.dumps({'type':'voice_invite_notify','room_id':room_id,'space_id':space_id,'channel_name':channel_name,'from_user_id':s['id'],'from_username':s['username']}))
+                                except: pass
+
+                elif mt == 'voice_kick':
+                    room_id = data.get('room_id','')
+                    target_user_id = data.get('target_user_id','')
+                    if room_id and target_user_id and (s.get('role') in ['arcana','immortal','legendary']):
+                        target_token = None
+                        with voice_rooms_lock:
+                            if room_id in voice_rooms:
+                                for p in voice_rooms[room_id]['speakers'] + voice_rooms[room_id]['listeners']:
+                                    if p['user_id'] == target_user_id:
+                                        target_token = p.get('token')
+                                        break
+                        if target_token:
+                            cl = ws_clients.get(target_token)
+                            if cl:
+                                try: await cl['ws'].send(json.dumps({'type':'voice_kicked','room_id':room_id}))
+                                except: pass
+                            await _voice_leave(room_id, target_user_id, target_token)
+
                 elif mt == 'voice_mute':
                     room_id = data.get('room_id','')
                     muted = bool(data.get('muted',False))

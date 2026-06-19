@@ -549,7 +549,7 @@ const Channels = {
 
   onWS(data) {
     if (data.type && data.type.startsWith('voice_')) {
-      if (this._voiceRoomId || data.type === 'voice_rooms_update') this._onVoiceWS(data);
+      if (this._voiceRoomId || data.type === 'voice_rooms_update' || data.type === 'voice_invite_notify' || data.type === 'voice_kicked') this._onVoiceWS(data);
       return;
     }
     if (data.type === 'ch_presence') {
@@ -860,7 +860,7 @@ const Channels = {
       var inRoom = this.members.filter(function(m){return roomIds.has(m.user_id);});
       var onl = this.members.filter(function(m){return m.online && !roomIds.has(m.user_id);}).sort(function(a,b){return ro.indexOf(a.role)-ro.indexOf(b.role);});
       var off = this.members.filter(function(m){return !m.online && !roomIds.has(m.user_id);});
-      if (inRoom.length) html += '<div class="ch-member-group"><div class="ch-member-group-title ch-mgr-voice"><span class="ico ico-14 ico-speaker"></span> В комнате — '+inRoom.length+'</div>'+inRoom.map(function(m){return Channels._mHtml(m,false,false,true);}).join('')+'</div>';
+      if (inRoom.length) html += '<div class="ch-member-group"><div class="ch-member-group-title ch-mgr-voice"><span class="ico ico-14 ico-speaker"></span> В комнате — '+inRoom.length+'</div>'+inRoom.map(function(m){var spk=(Channels._voiceRoomData&&Channels._voiceRoomData.speakers||[]).find(function(p){return p.user_id===m.user_id;});var mWithMute=Object.assign({},m,{muted:spk?!!spk.muted:true});return Channels._mHtml(mWithMute,false,false,true);}).join('')+'</div>';
       if (onl.length) html += '<div class="ch-member-group"><div class="ch-member-group-title">Онлайн — '+onl.length+'</div>'+onl.map(function(m){return Channels._mHtml(m,false);}).join('')+'</div>';
       if (off.length) html += '<div class="ch-member-group"><div class="ch-member-group-title">Оффлайн — '+off.length+'</div>'+off.map(function(m){return Channels._mHtml(m,true);}).join('')+'</div>';
     } else {
@@ -929,6 +929,26 @@ const Channels = {
     }
     if (isMe) {
       items += '<div class="ch-ctx-item ch-ctx-danger" onclick="Channels.kickMember(\x27'+userId+'\x27);Channels._hideCtx()"><span class="ico ico-14 ico-trash"></span> Выйти из группы</div>';
+    }
+    // Voice invite option
+    if (this._voiceRoomId && !isMe) {
+      var inVoice = this._voiceRoomData && (
+        (this._voiceRoomData.speakers||[]).some(function(p){return p.user_id===userId;}) ||
+        (this._voiceRoomData.listeners||[]).some(function(p){return p.user_id===userId;})
+      );
+      if (!inVoice) {
+        items += '<div class="ch-ctx-item" onclick="Channels._voiceInvite(\x27'+userId+'\x27);Channels._hideCtx()"><span class="ico ico-14 ico-microphone"></span> Пригласить в комнату</div>';
+      }
+    }
+    // Voice kick option (admin only, not self)
+    if (this._voiceRoomId && this.isAdmin && !isMe) {
+      var inVoiceRoom = this._voiceRoomData && (
+        (this._voiceRoomData.speakers||[]).some(function(p){return p.user_id===userId;}) ||
+        (this._voiceRoomData.listeners||[]).some(function(p){return p.user_id===userId;})
+      );
+      if (inVoiceRoom) {
+        items += '<div class="ch-ctx-item ch-ctx-danger" onclick="Channels._voiceKick(\x27'+userId+'\x27);Channels._hideCtx()"><span class="ico ico-14 ico-phone-off"></span> Отключить от комнаты</div>';
+      }
     }
     if (!items) return;
     ctx.innerHTML = items;
@@ -2106,12 +2126,29 @@ const Channels = {
       ? '<img class="sb-vb-img" src="data:image/jpeg;base64,' + sp.photo + '" alt="">'
       : '<div class="sb-vb-icon-circle"><span class="ico ico-16 ' + chIconClass + '" style="background-color:var(--accent)"></span></div>';
     bar.style.display = 'flex';
+    var spaceId = this._voiceSpaceId;
+    var sp = this.spaces.find(function(s){return s.id===spaceId;});
+    var icoHtml = sp && sp.photo
+      ? '<img src="data:image/jpeg;base64,'+sp.photo+'" class="sb-vb-img" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+        + '<div class="sb-vb-icon-circle" style="display:none"><span class="ico ico-16 '+chIconClass+'" style="background-color:var(--accent)"></span></div>'
+      : '<div class="sb-vb-icon-circle"><span class="ico ico-16 '+chIconClass+'" style="background-color:var(--accent)"></span></div>';
     bar.innerHTML =
       '<div class="sb-voice-bar-ico" onclick="Channels._returnToVoiceRoom()" title="' + (ch ? ch.name : 'Голосовая') + '">' + icoHtml + '</div>' +
       '<div class="sb-voice-bar-controls">' +
         '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
         '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
       '</div>';
+  },
+
+  _voiceInvite(userId) {
+    if (!this._voiceRoomId) return;
+    Shell.wsSend({type:'voice_invite', room_id:this._voiceRoomId, to_user_id:userId});
+    Shell.toast('Приглашение отправлено');
+  },
+
+  _voiceKick(userId) {
+    if (!this._voiceRoomId) return;
+    Shell.wsSend({type:'voice_kick', room_id:this._voiceRoomId, target_user_id:userId});
   },
 
   _returnToVoiceRoom() {
@@ -2137,6 +2174,7 @@ const Channels = {
       var v = document.getElementById('chVaVid-'+userId);
       if (v) v.srcObject = self._voiceRemoteStreams[userId];
     };
+
     pc.onicecandidate = function(e) {
       if (e.candidate) Shell.wsSend({type:'voice_ice', room_id:self._voiceRoomId, to_user_id:userId, candidate:e.candidate.toJSON()});
     };
@@ -2358,6 +2396,7 @@ const Channels = {
           if (p.user_id===data.user_id){p.muted=data.muted;p.video_muted=data.video_muted;}
         });
       }
+      if (this.membersVisible) this.renderMembers();
       var tile = document.getElementById('chVaTile-'+data.user_id);
       var vid = document.getElementById('chVaVid-'+data.user_id);
       var wrap = document.getElementById('chVaAvWrap-'+data.user_id);
