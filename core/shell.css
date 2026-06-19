@@ -196,7 +196,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .modal{margin:10px;max-width:calc(100vw - 20px)}
 /* Voice bar — mobile: icon only in green circle */
 .sb-voice-bar{flex-direction:column;width:44px;height:44px;border-radius:50%;padding:0;gap:0;align-items:center;justify-content:center;background:rgba(0,212,170,0.2)}
-.sb-voice-bar-ico{width:32px;height:32px;margin:0;flex-shrink:0}
+.sb-voice-bar-ico{width:32px;height:32px;margin:0 !important;flex-shrink:0}
 .sb-vb-img{width:32px;height:32px}
 .sb-vb-icon-circle{width:32px;height:32px}
 .sb-voice-bar-controls{display:none}

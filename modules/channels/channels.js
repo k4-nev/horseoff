@@ -2015,33 +2015,56 @@ const Channels = {
       this._voiceVideoMuted = false;
       var self = this;
       for (var uid in this._voicePeers) {
-        var peerUid = uid;
-        try {
-          self._voicePeers[peerUid].addTrack(vTrack, self._voiceStream);
-          // Renegotiate so remote sees the new video track
+        var pc = this._voicePeers[uid];
+        // Find existing video sender (track may be null after _disableCamera used replaceTrack(null))
+        var senders = pc.getSenders();
+        var videoSender = senders.find(function(s){ return s.track && s.track.kind === 'video'; });
+        if (!videoSender) {
+          // Sender with null track (paused via replaceTrack(null)) — find via transceiver
+          var transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+          var vt = transceivers.find(function(tr){ return tr.receiver && tr.receiver.track && tr.receiver.track.kind === 'video'; });
+          if (vt) videoSender = vt.sender;
+        }
+        if (videoSender) {
+          // No renegotiation needed — just swap the track in existing sender
+          videoSender.replaceTrack(vTrack).catch(function(e){ console.warn('[WebRTC] replaceTrack', e); });
+        } else {
+          // No video transceiver at all — addTrack + renegotiate
+          var peerUid = uid;
+          try { pc.addTrack(vTrack, self._voiceStream); } catch(e){}
           (async function(puid) {
-            var pc = self._voicePeers[puid];
-            if (!pc) return;
+            var p = self._voicePeers[puid];
+            if (!p) return;
             try {
-              var offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:pc.localDescription.toJSON()});
+              var offer = await p.createOffer();
+              await p.setLocalDescription(offer);
+              Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()});
             } catch(e){ console.warn('[WebRTC] renegotiate error', e); }
           })(peerUid);
-        } catch(e){}
+        }
       }
       Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: false});
       this._updateVoiceControls();
       var myVid = document.getElementById('chVaVid-' + this._voiceMyId);
       var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
-      if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; }
+      if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; myVid.play().catch(function(){}); }
       if (myWrap) myWrap.style.display = 'none';
     } catch(e) { Shell.toast('Нет доступа к камере', 'error'); }
   },
 
   _disableCamera() {
+    var self = this;
     if (this._voiceStream) {
-      this._voiceStream.getVideoTracks().forEach(function(t){t.enabled=false;t.stop();});
+      this._voiceStream.getVideoTracks().forEach(function(t) {
+        // replaceTrack(null) keeps the transceiver alive so re-enable works without renegotiation
+        for (var uid in self._voicePeers) {
+          var senders = self._voicePeers[uid].getSenders();
+          var sender = senders.find(function(s){ return s.track === t; });
+          if (sender) { sender.replaceTrack(null).catch(function(){}); }
+        }
+        t.stop();
+        self._voiceStream.removeTrack(t);
+      });
     }
     this._voiceVideoMuted = true;
     Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: true});
