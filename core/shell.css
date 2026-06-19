@@ -250,7 +250,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-icon-only:hover{color:var(--text);background:var(--surface2)}
 
 /* Sidebar Voice Bar Capsule */
-.sb-voice-bar{display:flex;flex-direction:column;align-items:center;width:44px;background:rgba(0,212,170,0.1);border-radius:12px;padding:6px 4px;gap:4px;cursor:pointer;animation:sbVbIn 0.25s cubic-bezier(0.34,1.56,0.64,1);overflow:hidden}
+.sb-voice-bar{display:flex;flex-direction:column;align-items:center;width:40px;background:rgba(0,212,170,0.1);border-radius:18px;padding:6px 4px;gap:22px;cursor:pointer;overflow:hidden;transition:opacity 0.2s,transform 0.2s}
+.sb-voice-bar.sb-vb-enter{animation:sbVbIn 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards}
+.sb-voice-bar.sb-vb-exit{animation:sbVbOut 0.2s ease-in forwards}
 .sb-voice-bar-ico{width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin:8px 8px 2px}
 .sb-vb-img{width:32px;height:32px;border-radius:50%;object-fit:cover}
 .sb-vb-icon-circle{width:32px;height:32px;border-radius:50%;background:rgba(0,212,170,0.2);display:flex;align-items:center;justify-content:center}
@@ -260,6 +262,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .sb-vb-leave{color:rgba(231,76,60,0.7)}
 .sb-vb-leave:hover{color:#e74c3c;background:rgba(231,76,60,0.15)}
 @keyframes sbVbIn{from{opacity:0;transform:translateY(10px) scale(0.85)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes sbVbOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.8)}}
 
 .srv-hidden{display:none !important}
 

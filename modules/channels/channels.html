@@ -83,21 +83,17 @@
         <div class="ch-va-grid" id="chVaGrid"></div>
         <div class="ch-va-listeners" id="chVaListeners" style="display:none"></div>
         <div class="ch-va-controls">
-          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaMicBtn" onclick="Channels.toggleVoiceMic()">
-            <span class="ch-va-ctrl-ico" id="chVaMicIco"><span class="ico ico-20 ico-mic-off"></span></span>
-            <span class="ch-va-ctrl-label">Микрофон</span>
+          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaMicBtn" onclick="Channels.toggleVoiceMic()" title="Микрофон">
+            <span id="chVaMicIco"><span class="ico ico-20 ico-mic-off"></span></span>
           </button>
-          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaCamBtn" onclick="Channels._requestCamera()">
-            <span class="ch-va-ctrl-ico" id="chVaCamIco"><span class="ico ico-20 ico-video-off"></span></span>
-            <span class="ch-va-ctrl-label">Камера</span>
+          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaCamBtn" onclick="Channels._requestCamera()" title="Камера">
+            <span id="chVaCamIco"><span class="ico ico-20 ico-video-off"></span></span>
           </button>
-          <button class="ch-va-ctrl" id="chVaHandBtn" onclick="Channels.toggleVoiceHand()" style="display:none">
-            <span class="ch-va-ctrl-ico"><span class="ico ico-20 ico-hand"></span></span>
-            <span class="ch-va-ctrl-label">Рука</span>
+          <button class="ch-va-ctrl" id="chVaHandBtn" onclick="Channels.toggleVoiceHand()" title="Поднять руку" style="display:none">
+            <span class="ico ico-20 ico-hand"></span>
           </button>
-          <button class="ch-va-ctrl ch-va-ctrl-leave" onclick="Channels.leaveVoiceRoom()">
-            <span class="ch-va-ctrl-ico"><span class="ico ico-20 ico-phone-off"></span></span>
-            <span class="ch-va-ctrl-label">Выйти</span>
+          <button class="ch-va-ctrl ch-va-ctrl-leave" onclick="Channels.leaveVoiceRoom()" title="Выйти">
+            <span class="ico ico-20 ico-phone-off"></span>
           </button>
         </div>
       </div>

@@ -464,18 +464,16 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 .ch-va-listener{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-dim)}
 .ch-va-lst-av{width:20px;height:20px;border-radius:50%;object-fit:cover}
 .ch-va-lst-av-empty{width:20px;height:20px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text-dim)}
-.ch-va-controls{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px 14px;border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
-.ch-va-ctrl{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;cursor:pointer;padding:10px 14px;color:var(--text);transition:background 0.15s,border-color 0.15s,transform 0.1s;min-width:60px}
-.ch-va-ctrl:hover{background:var(--surface3,var(--surface2));transform:translateY(-1px)}
-.ch-va-ctrl:active{transform:scale(0.93)}
-.ch-va-ctrl-ico{font-size:22px;line-height:1}
-.ch-va-ctrl-label{font-size:10px;color:var(--text-dim);white-space:nowrap}
-.ch-va-ctrl-off{background:color-mix(in srgb,#e74c3c 15%,var(--surface2));border-color:rgba(231,76,60,0.45)}
-.ch-va-ctrl-off .ch-va-ctrl-label{color:rgba(231,76,60,0.8)}
-.ch-va-ctrl-on{background:color-mix(in srgb,var(--accent) 15%,var(--surface2));border-color:rgba(0,212,170,0.45)}
-.ch-va-ctrl-leave{background:color-mix(in srgb,#e74c3c 15%,var(--surface2));border-color:rgba(231,76,60,0.45)}
-.ch-va-ctrl-leave:hover{background:#e74c3c;color:#fff;border-color:#e74c3c}
-.ch-va-ctrl-leave .ch-va-ctrl-label{color:rgba(231,76,60,0.8)}
+.ch-va-controls{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px 14px;border-top:1px solid var(--border);flex-shrink:0}
+.ch-va-ctrl{background:none;border:none;cursor:pointer;padding:10px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#6b7585;transition:color 0.15s,background 0.15s,transform 0.12s}
+.ch-va-ctrl:hover{background:var(--surface2);color:var(--text);transform:translateY(-1px)}
+.ch-va-ctrl:active{transform:scale(0.92)}
+.ch-va-ctrl-off{background:color-mix(in srgb,#e74c3c 12%,transparent);color:rgba(231,76,60,0.7)}
+.ch-va-ctrl-off:hover{background:color-mix(in srgb,#e74c3c 20%,transparent);color:#e74c3c}
+.ch-va-ctrl-on{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+.ch-va-ctrl-on:hover{background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent)}
+.ch-va-ctrl-leave{color:rgba(231,76,60,0.7)}
+.ch-va-ctrl-leave:hover{background:rgba(231,76,60,0.15);color:#e74c3c}
 .ch-vp-promote-btn{font-size:11px;padding:2px 8px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-left:4px}
 
 /* ─── MINIMIZED VOICE BAR ─── */
