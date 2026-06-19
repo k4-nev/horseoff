@@ -1486,6 +1486,12 @@ async def handle_ws(websocket):
                                     p['raised_hand'] = raised; break
                     await _voice_broadcast_room(room_id, json.dumps({'type':'voice_hand_raised','room_id':room_id,'user_id':s['id'],'raised':raised,'username':s['username']}))
 
+                elif mt == 'voice_speaking':
+                    room_id = data.get('room_id','')
+                    speaking = bool(data.get('speaking', False))
+                    if room_id:
+                        await _voice_broadcast_room(room_id, json.dumps({'type':'voice_speaking','room_id':room_id,'user_id':s['id'],'speaking':speaking}), exclude_token=token)
+
                 elif mt == 'voice_allow_speak':
                     room_id = data.get('room_id','')
                     target_uid = data.get('user_id','')
