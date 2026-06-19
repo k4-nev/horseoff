@@ -74,8 +74,8 @@
           <div class="ch-vpj-device-row"><span class="ch-vpj-device-ico">📷</span><span>Камера выключена при входе</span></div>
         </div>
         <div class="ch-vpj-actions">
-          <button class="btn btn-secondary" onclick="Channels.openVoiceSettings()">⚙️ Настройки</button>
-          <button class="btn btn-primary ch-vpj-join-btn" onclick="Channels._doJoinVoiceRoom()">🚀 Войти в комнату</button>
+          <button class="btn-icon-only srv-settings-btn" onclick="Channels.openVoiceSettings()" title="Настройки"><span class="ico ico-16 ico-settings"></span></button>
+          <button class="btn btn-primary ch-vpj-join-btn" onclick="Channels._doJoinVoiceRoom()">Войти в комнату</button>
         </div>
       </div>
       <!-- Active voice room -->
@@ -84,19 +84,19 @@
         <div class="ch-va-listeners" id="chVaListeners" style="display:none"></div>
         <div class="ch-va-controls">
           <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaMicBtn" onclick="Channels.toggleVoiceMic()">
-            <span class="ch-va-ctrl-ico" id="chVaMicIco">🔇</span>
+            <span class="ch-va-ctrl-ico" id="chVaMicIco"><span class="ico ico-20 ico-mic-off"></span></span>
             <span class="ch-va-ctrl-label">Микрофон</span>
           </button>
           <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaCamBtn" onclick="Channels._requestCamera()">
-            <span class="ch-va-ctrl-ico" id="chVaCamIco">📷</span>
+            <span class="ch-va-ctrl-ico" id="chVaCamIco"><span class="ico ico-20 ico-video-off"></span></span>
             <span class="ch-va-ctrl-label">Камера</span>
           </button>
           <button class="ch-va-ctrl" id="chVaHandBtn" onclick="Channels.toggleVoiceHand()" style="display:none">
-            <span class="ch-va-ctrl-ico">✋</span>
+            <span class="ch-va-ctrl-ico"><span class="ico ico-20 ico-hand"></span></span>
             <span class="ch-va-ctrl-label">Рука</span>
           </button>
           <button class="ch-va-ctrl ch-va-ctrl-leave" onclick="Channels.leaveVoiceRoom()">
-            <span class="ch-va-ctrl-ico">📴</span>
+            <span class="ch-va-ctrl-ico"><span class="ico ico-20 ico-phone-off"></span></span>
             <span class="ch-va-ctrl-label">Выйти</span>
           </button>
         </div>
@@ -112,18 +112,6 @@
   <div class="ch-media-viewer" id="chMediaViewer" style="display:none" onclick="if(event.target===this)Channels.closeViewer()">
     <button class="ch-viewer-close" onclick="Channels.closeViewer()"><span class="ico ico-24 ico-close"></span></button>
     <div class="ch-viewer-content" id="chViewerContent"></div>
-  </div>
-  <!-- Minimized voice bar (shows when in voice room but viewing text channel) -->
-  <div id="chVoiceBar" class="ch-voice-bar" style="display:none">
-    <div class="ch-vb-info" onclick="Channels._returnToVoiceRoom()">
-      <span class="ch-vb-ico">🔊</span>
-      <span class="ch-vb-name" id="chVbName">—</span>
-      <div class="ch-vb-avatars" id="chVbAvatars"></div>
-    </div>
-    <div class="ch-vb-controls">
-      <button class="ch-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()">🔇</button>
-      <button class="ch-vb-btn ch-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()">✕</button>
-    </div>
   </div>
   <!-- Context Menu -->
   <div class="ch-ctx" id="chCtx" style="display:none">

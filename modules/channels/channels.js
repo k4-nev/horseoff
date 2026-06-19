@@ -860,7 +860,7 @@ const Channels = {
       var inRoom = this.members.filter(function(m){return roomIds.has(m.user_id);});
       var onl = this.members.filter(function(m){return m.online && !roomIds.has(m.user_id);}).sort(function(a,b){return ro.indexOf(a.role)-ro.indexOf(b.role);});
       var off = this.members.filter(function(m){return !m.online && !roomIds.has(m.user_id);});
-      if (inRoom.length) html += '<div class="ch-member-group"><div class="ch-member-group-title ch-mgr-voice">🔊 В комнате — '+inRoom.length+'</div>'+inRoom.map(function(m){return Channels._mHtml(m,false,false,true);}).join('')+'</div>';
+      if (inRoom.length) html += '<div class="ch-member-group"><div class="ch-member-group-title ch-mgr-voice"><span class="ico ico-14 ico-speaker"></span> В комнате — '+inRoom.length+'</div>'+inRoom.map(function(m){return Channels._mHtml(m,false,false,true);}).join('')+'</div>';
       if (onl.length) html += '<div class="ch-member-group"><div class="ch-member-group-title">Онлайн — '+onl.length+'</div>'+onl.map(function(m){return Channels._mHtml(m,false);}).join('')+'</div>';
       if (off.length) html += '<div class="ch-member-group"><div class="ch-member-group-title">Оффлайн — '+off.length+'</div>'+off.map(function(m){return Channels._mHtml(m,true);}).join('')+'</div>';
     } else {
@@ -882,7 +882,7 @@ const Channels = {
 
   _mHtml(m, off, isMod, inRoom) {
     var ava = m.avatar ? '<img src="data:image/jpeg;base64,'+m.avatar+'"/>' : (m.display_name||m.username).charAt(0).toUpperCase();
-    var inRoomIco = inRoom ? '<span class="ch-member-voice-ico">🔊</span>' : '';
+    var inRoomIco = inRoom ? '<span class="ch-member-voice-ico"><span class="ico ico-14 ico-speaker"></span></span>' : '';
     return '<div class="ch-member'+(off?' offline':'')+(isMod?' moderator':'')+(inRoom?' in-voice':'')+'" oncontextmenu="event.preventDefault();Channels._memberCtx(event,\x27'+m.user_id+'\x27)">'
       + '<div class="ch-member-ava">'+ava+'</div>'
       + '<span class="ch-member-name">'+this._esc(m.display_name||m.username)+'</span>'
@@ -1752,6 +1752,12 @@ const Channels = {
 
   // Open voice channel — show pre-join or active room in main area
   async openVoiceChannel(spaceId, roomId) {
+    // If already in a different voice room, ask to leave
+    if (this._voiceRoomId && this._voiceRoomId !== roomId) {
+      var ok = confirm('Вы уже подключены к голосовой комнате. Выйти и подключиться к новой?');
+      if (!ok) return;
+      this.leaveVoiceRoom();
+    }
     this.currentSpace = spaceId;
     this.currentChannel = roomId;
     this.renderSidebar();
@@ -1776,7 +1782,7 @@ const Channels = {
     if (vm) { vm.style.display = 'flex'; vm.style.flexDirection = 'column'; }
 
     // Hide minimized bar while on this room
-    var bar = document.getElementById('chVoiceBar');
+    var bar = document.getElementById('sidebarVoiceBar');
     if (bar) bar.style.display = 'none';
 
     await this.loadMembers();
@@ -1836,10 +1842,12 @@ const Channels = {
     try {
       this._voiceStream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
       this._voiceStream.getAudioTracks().forEach(function(t){t.enabled = false;});
+      this._voiceIsSpk = true;
     } catch(e) {
-      Shell.toast('Нет доступа к микрофону. Проверьте разрешения в браузере.', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '🚀 Войти в комнату'; }
-      return;
+      // No mic — join as listener only
+      this._voiceStream = null;
+      this._voiceIsSpk = false;
+      Shell.toast('У вас нет микрофона, вы подключены как слушатель', 'info');
     }
     this._voiceRoomId = roomId;
     this._voiceSpaceId = spaceId;
@@ -1894,21 +1902,21 @@ const Channels = {
     var camBtn = document.getElementById('chVaCamBtn');
     var camIco = document.getElementById('chVaCamIco');
     var handBtn = document.getElementById('chVaHandBtn');
-    var vbMic = document.getElementById('chVbMicBtn');
     if (micBtn) {
       micBtn.classList.toggle('ch-va-ctrl-off', this._voiceMuted);
       micBtn.classList.toggle('ch-va-ctrl-on', !this._voiceMuted);
     }
-    if (micIco) micIco.textContent = this._voiceMuted ? '🔇' : '🎤';
+    if (micIco) micIco.innerHTML = this._voiceMuted ? '<span class="ico ico-20 ico-mic-off"></span>' : '<span class="ico ico-20 ico-mic"></span>';
     if (camBtn) {
       camBtn.classList.toggle('ch-va-ctrl-off', this._voiceVideoMuted);
       camBtn.classList.toggle('ch-va-ctrl-on', !this._voiceVideoMuted);
       camBtn.onclick = this._voiceVideoMuted ? function(){Channels._requestCamera();} : function(){Channels._disableCamera();};
     }
-    if (camIco) camIco.textContent = this._voiceVideoMuted ? '📷' : '📹';
+    if (camIco) camIco.innerHTML = this._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
     if (handBtn) handBtn.style.display = this._voiceIsSpk ? 'none' : 'flex';
     if (handBtn) handBtn.classList.toggle('ch-va-ctrl-on', this._voiceHandRaised);
-    if (vbMic) vbMic.textContent = this._voiceMuted ? '🔇' : '🎤';
+    var vbMicIco = document.getElementById('chVbMicIco');
+    if (vbMicIco) vbMicIco.innerHTML = this._voiceMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic"></span>';
   },
 
   _renderVoiceGrid() {
@@ -1922,7 +1930,7 @@ const Channels = {
       var isMe = p.user_id === myId;
       var av = p.avatar ? '<img src="data:image/png;base64,'+p.avatar+'" class="ch-va-av">' : '<div class="ch-va-av ch-va-av-empty">'+(p.username||'?')[0].toUpperCase()+'</div>';
       var muteClass = p.muted ? ' ch-va-muted' : '';
-      var micIco = p.muted ? '🔇' : '';
+      var micIco = p.muted ? '<span class="ico ico-14 ico-mic-off"></span>' : '';
       return '<div class="ch-va-tile'+muteClass+'" id="chVaTile-'+p.user_id+'">' +
         '<video class="ch-va-video" id="chVaVid-'+p.user_id+'" autoplay playsinline '+(isMe?'muted':'')+' style="display:'+(p.video_muted?'none':'block')+'"></video>' +
         '<div class="ch-va-av-wrap" id="chVaAvWrap-'+p.user_id+'" style="display:'+(p.video_muted?'flex':'none')+'">'+av+'</div>' +
@@ -2046,8 +2054,8 @@ const Channels = {
     this._voiceIsSpk = false;
     this._voiceSpeaking = false;
 
-    var bar = document.getElementById('chVoiceBar');
-    if (bar) bar.style.display = 'none';
+    var bar = document.getElementById('sidebarVoiceBar');
+    if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
 
     // If currently on voice channel view - show pre-join empty
     var vm = document.getElementById('chVoiceMain');
@@ -2058,22 +2066,19 @@ const Channels = {
   },
 
   _showVoiceBar() {
-    var bar = document.getElementById('chVoiceBar');
+    var bar = document.getElementById('sidebarVoiceBar');
     if (!bar || !this._voiceRoomId) return;
     var channels = this.channelsBySpace[this._voiceSpaceId] || [];
     var ch = channels.find(function(c){return c.id===Channels._voiceRoomId});
+    var chIconClass = (ch && ch.icon) ? 'ico-' + ch.icon : 'ico-speaker';
+    var micIcoHtml = Channels._voiceMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic"></span>';
     bar.style.display = 'flex';
-    var nameEl = document.getElementById('chVbName');
-    if (nameEl) nameEl.textContent = ch ? ch.name : '—';
-    var avsEl = document.getElementById('chVbAvatars');
-    if (avsEl && this._voiceRoomData) {
-      var self = this;
-      avsEl.innerHTML = (this._voiceRoomData.speakers||[]).slice(0,3).map(function(p){
-        return p.avatar ? '<img class="ch-vb-av" src="data:image/png;base64,'+p.avatar+'">' : '<div class="ch-vb-av ch-vb-av-empty">'+(p.username||'?')[0]+'</div>';
-      }).join('');
-    }
-    var vbMic = document.getElementById('chVbMicBtn');
-    if (vbMic) vbMic.textContent = this._voiceMuted ? '🔇' : '🎤';
+    bar.innerHTML =
+      '<div class="sb-voice-bar-ico" onclick="Channels._returnToVoiceRoom()" title="' + (ch ? ch.name : 'Голосовая') + '"><span class="ico ico-20 ' + chIconClass + '" style="background-color:var(--accent)"></span></div>' +
+      '<div class="sb-voice-bar-controls">' +
+        '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
+        '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
+      '</div>';
   },
 
   _returnToVoiceRoom() {

@@ -238,6 +238,27 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .ico-plus{-webkit-mask-image:url(/svg/plus.svg);mask-image:url(/svg/plus.svg)}
 .ico-refresh{-webkit-mask-image:url(/svg/refresh.svg);mask-image:url(/svg/refresh.svg)}
 
+.ico-mic{-webkit-mask-image:url(/svg/mic.svg);mask-image:url(/svg/mic.svg)}
+.ico-mic-off{-webkit-mask-image:url(/svg/mic-off.svg);mask-image:url(/svg/mic-off.svg)}
+.ico-video{-webkit-mask-image:url(/svg/video.svg);mask-image:url(/svg/video.svg)}
+.ico-video-off{-webkit-mask-image:url(/svg/video-off.svg);mask-image:url(/svg/video-off.svg)}
+.ico-hand{-webkit-mask-image:url(/svg/hand.svg);mask-image:url(/svg/hand.svg)}
+.ico-phone-off{-webkit-mask-image:url(/svg/phone-off.svg);mask-image:url(/svg/phone-off.svg)}
+.ico-speaker{-webkit-mask-image:url(/svg/speaker.svg);mask-image:url(/svg/speaker.svg)}
+.ico-24{width:24px;height:24px}
+.btn-icon-only{background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:all 0.2s}
+.btn-icon-only:hover{color:var(--text);background:var(--surface2)}
+
+/* Sidebar Voice Bar Capsule */
+.sb-voice-bar{display:flex;flex-direction:column;align-items:center;width:44px;background:color-mix(in srgb,var(--accent) 12%,var(--surface2));border:1.5px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:12px;padding:6px 4px;gap:4px;cursor:pointer;animation:sbVbIn 0.25s cubic-bezier(0.34,1.56,0.64,1);overflow:hidden}
+.sb-voice-bar-ico{width:20px;height:20px;flex-shrink:0;animation:vbPulse 2s ease-in-out infinite}
+.sb-voice-bar-controls{display:flex;flex-direction:column;gap:2px;width:100%;align-items:center}
+.sb-vb-btn{background:none;border:none;cursor:pointer;padding:3px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:all 0.15s}
+.sb-vb-btn:hover{color:var(--text);background:var(--surface3,var(--surface2))}
+.sb-vb-leave{color:rgba(231,76,60,0.7)}
+.sb-vb-leave:hover{color:#e74c3c;background:rgba(231,76,60,0.15)}
+@keyframes sbVbIn{from{opacity:0;transform:translateY(10px) scale(0.85)}to{opacity:1;transform:translateY(0) scale(1)}}
+
 .srv-hidden{display:none !important}
 
 /* Live pulse */
