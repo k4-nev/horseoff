@@ -1874,7 +1874,13 @@ const Channels = {
     this._voiceSpaceId = spaceId;
     this._voiceMuted = true;
     this._voiceVideoMuted = true;
-    this._voiceMyId = Shell.user ? Shell.user.id : null;
+    this._voiceMyId = Shell.user && Shell.user.id ? Shell.user.id : null;
+    if (!this._voiceMyId) {
+      try {
+        var pd = await Shell.api('/api/profile');
+        if (pd && pd.id) { Shell.user = Object.assign(Shell.user || {}, {id: pd.id}); this._voiceMyId = pd.id; }
+      } catch(e) {}
+    }
     Shell.wsSend({type:'voice_join', room_id: roomId, space_id: spaceId});
     this._showVoiceActive();
     this.renderSidebar();
@@ -2130,10 +2136,11 @@ const Channels = {
 
   _initPeer(userId, isInitiator) {
     var self = this;
+    var existingQueue = this._iceCandidateQueues[userId] || [];
     if (this._voicePeers[userId]) { try{this._voicePeers[userId].close();}catch(e){} }
     var pc = new RTCPeerConnection({iceServers: this._iceServers});
     this._voicePeers[userId] = pc;
-    this._iceCandidateQueues[userId] = [];
+    this._iceCandidateQueues[userId] = existingQueue;
 
     pc.ontrack = function(e) {
       if (!self._voiceRemoteStreams[userId]) self._voiceRemoteStreams[userId] = new MediaStream();
@@ -2144,7 +2151,10 @@ const Channels = {
         self._voiceRemoteStreams[userId].addTrack(e.track);
       }
       var v = document.getElementById('chVaVid-'+userId);
-      if (v && v.srcObject !== self._voiceRemoteStreams[userId]) v.srcObject = self._voiceRemoteStreams[userId];
+      if (v && v.srcObject !== self._voiceRemoteStreams[userId]) {
+        v.srcObject = self._voiceRemoteStreams[userId];
+        v.play().catch(function(){});
+      }
     };
     pc.onicecandidate = function(e) {
       if (e.candidate) Shell.wsSend({type:'voice_ice', room_id:self._voiceRoomId, to_user_id:userId, candidate:e.candidate.toJSON()});
