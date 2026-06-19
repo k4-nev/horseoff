@@ -710,6 +710,11 @@ def build_contacts(user_id):
 # ============================================================
 ws_clients = {}  # token -> {ws, user_id, username, role}
 ws_loop = None
+
+# Voice rooms state (in-memory)
+# room_id -> {space_id, speakers:[{user_id,username,avatar,muted,video_muted,raised_hand,token}], listeners:[...]}
+voice_rooms = {}
+voice_rooms_lock = threading.Lock()
 _ws_queue = None  # asyncio.Queue for cross-thread messaging
 
 def _ws_broadcast_to_user(user_id, data, exclude_token=None):
@@ -801,6 +806,69 @@ async def _ws_queue_processor():
         except Exception as e:
             print(f"  [WS Queue] Fatal: {e}")
             await asyncio.sleep(1)
+
+def _voice_room_snapshot(room):
+    return {
+        'speakers': [{'user_id':p['user_id'],'username':p['username'],'avatar':p.get('avatar'),
+                      'muted':p.get('muted',False),'video_muted':p.get('video_muted',True),'raised_hand':p.get('raised_hand',False)} for p in room['speakers']],
+        'listeners': [{'user_id':p['user_id'],'username':p['username'],'avatar':p.get('avatar'),'raised_hand':p.get('raised_hand',False)} for p in room['listeners']],
+    }
+
+async def _voice_broadcast_room(room_id, msg_str, exclude_token=None):
+    with voice_rooms_lock:
+        if room_id not in voice_rooms: return
+        room = voice_rooms[room_id]
+        tokens = [p['token'] for p in room['speakers'] + room['listeners']]
+    for tk in tokens:
+        if tk == exclude_token: continue
+        cl = ws_clients.get(tk)
+        if cl:
+            try: await cl['ws'].send(msg_str)
+            except: pass
+
+async def _voice_forward(room_id, to_user_id, msg_dict):
+    with voice_rooms_lock:
+        if room_id not in voice_rooms: return
+        all_p = voice_rooms[room_id]['speakers'] + voice_rooms[room_id]['listeners']
+        target = next((p for p in all_p if p['user_id'] == to_user_id), None)
+        if not target: return
+        tk = target['token']
+    cl = ws_clients.get(tk)
+    if cl:
+        try: await cl['ws'].send(json.dumps(msg_dict))
+        except: pass
+
+async def _voice_leave(room_id, user_id, token_val):
+    space_id = None
+    total = 1
+    with voice_rooms_lock:
+        if room_id not in voice_rooms: return
+        room = voice_rooms[room_id]
+        space_id = room['space_id']
+        room['speakers'] = [p for p in room['speakers'] if p['user_id'] != user_id]
+        room['listeners'] = [p for p in room['listeners'] if p['user_id'] != user_id]
+        total = len(room['speakers']) + len(room['listeners'])
+        if total == 0:
+            del voice_rooms[room_id]
+    if total > 0:
+        await _voice_broadcast_room(room_id, json.dumps({'type':'voice_left','room_id':room_id,'user_id':user_id}))
+    if space_id:
+        await _voice_notify_space(space_id)
+
+async def _voice_notify_space(space_id):
+    rooms_data = {}
+    with voice_rooms_lock:
+        for rid, room in voice_rooms.items():
+            if room.get('space_id') == space_id:
+                rooms_data[rid] = {
+                    'total': len(room['speakers']) + len(room['listeners']),
+                    'speaker_count': len(room['speakers']),
+                    'speakers': [{'user_id':p['user_id'],'username':p['username'],'avatar':p.get('avatar')} for p in room['speakers']]
+                }
+    msg = json.dumps({'type':'voice_rooms_update','space_id':space_id,'rooms':rooms_data})
+    for cl in list(ws_clients.values()):
+        try: await cl['ws'].send(msg)
+        except: pass
 
 async def handle_ws(websocket):
     token = None
@@ -1358,6 +1426,80 @@ async def handle_ws(websocket):
                             try: await cl['ws'].send(json.dumps({'type':'ch_update'}))
                             except: pass
 
+                elif mt == 'voice_join':
+                    room_id = data.get('room_id','')
+                    space_id = data.get('space_id','')
+                    if room_id:
+                        av = get_avatar_b64(s['id'])
+                        with voice_rooms_lock:
+                            if room_id not in voice_rooms:
+                                voice_rooms[room_id] = {'space_id':space_id,'speakers':[],'listeners':[]}
+                            room = voice_rooms[room_id]
+                            room['speakers'] = [p for p in room['speakers'] if p['user_id'] != s['id']]
+                            room['listeners'] = [p for p in room['listeners'] if p['user_id'] != s['id']]
+                            p = {'user_id':s['id'],'username':s['username'],'avatar':av,'muted':False,'video_muted':True,'raised_hand':False,'token':token}
+                            if len(room['speakers']) < 6:
+                                room['speakers'].append(p)
+                                as_speaker = True
+                            else:
+                                room['listeners'].append(p)
+                                as_speaker = False
+                            snap = _voice_room_snapshot(room)
+                        await websocket.send(json.dumps({'type':'voice_state','room_id':room_id,'room':snap,'you_are':'speaker' if as_speaker else 'listener'}))
+                        await _voice_broadcast_room(room_id, json.dumps({'type':'voice_joined','room_id':room_id,'user_id':s['id'],'username':s['username'],'avatar':av,'as_speaker':as_speaker}), exclude_token=token)
+                        await _voice_notify_space(space_id)
+
+                elif mt == 'voice_leave':
+                    room_id = data.get('room_id','')
+                    if room_id: await _voice_leave(room_id, s['id'], token)
+
+                elif mt == 'voice_offer':
+                    await _voice_forward(data.get('room_id',''), data.get('to_user_id',''),
+                        {'type':'voice_offer','room_id':data.get('room_id'),'from_user_id':s['id'],'sdp':data.get('sdp')})
+
+                elif mt == 'voice_answer':
+                    await _voice_forward(data.get('room_id',''), data.get('to_user_id',''),
+                        {'type':'voice_answer','room_id':data.get('room_id'),'from_user_id':s['id'],'sdp':data.get('sdp')})
+
+                elif mt == 'voice_ice':
+                    await _voice_forward(data.get('room_id',''), data.get('to_user_id',''),
+                        {'type':'voice_ice','room_id':data.get('room_id'),'from_user_id':s['id'],'candidate':data.get('candidate')})
+
+                elif mt == 'voice_mute':
+                    room_id = data.get('room_id','')
+                    muted = bool(data.get('muted',False))
+                    vmuted = bool(data.get('video_muted',False))
+                    with voice_rooms_lock:
+                        if room_id in voice_rooms:
+                            for p in voice_rooms[room_id]['speakers']:
+                                if p['user_id'] == s['id']:
+                                    p['muted'] = muted; p['video_muted'] = vmuted; break
+                    await _voice_broadcast_room(room_id, json.dumps({'type':'voice_mute_update','room_id':room_id,'user_id':s['id'],'muted':muted,'video_muted':vmuted}))
+
+                elif mt == 'voice_raise_hand':
+                    room_id = data.get('room_id','')
+                    raised = bool(data.get('raised', True))
+                    with voice_rooms_lock:
+                        if room_id in voice_rooms:
+                            for p in voice_rooms[room_id]['listeners']:
+                                if p['user_id'] == s['id']:
+                                    p['raised_hand'] = raised; break
+                    await _voice_broadcast_room(room_id, json.dumps({'type':'voice_hand_raised','room_id':room_id,'user_id':s['id'],'raised':raised,'username':s['username']}))
+
+                elif mt == 'voice_allow_speak':
+                    room_id = data.get('room_id','')
+                    target_uid = data.get('user_id','')
+                    with voice_rooms_lock:
+                        if room_id in voice_rooms:
+                            room = voice_rooms[room_id]
+                            if len(room['speakers']) < 6:
+                                listener = next((p for p in room['listeners'] if p['user_id'] == target_uid), None)
+                                if listener:
+                                    room['listeners'] = [p for p in room['listeners'] if p['user_id'] != target_uid]
+                                    listener['raised_hand'] = False; listener['muted'] = False; listener['video_muted'] = True
+                                    room['speakers'].append(listener)
+                    await _voice_broadcast_room(room_id, json.dumps({'type':'voice_promoted','room_id':room_id,'user_id':target_uid}))
+
                 elif mt == 'servers_request':
                     srv_mod = _loaded_modules.get('servers_api')
                     if srv_mod and hasattr(srv_mod, 'cached_data') and hasattr(srv_mod, 'data_lock'):
@@ -1368,10 +1510,17 @@ async def handle_ws(websocket):
     except: pass
     finally:
         user_id = None
+        v_rooms = []
         if token and token in ws_clients:
             user_id = ws_clients[token]['user_id']
             del ws_clients[token]
         if user_id:
+            with voice_rooms_lock:
+                for rid, room in list(voice_rooms.items()):
+                    if any(p['user_id'] == user_id for p in room['speakers'] + room['listeners']):
+                        v_rooms.append((rid, room['space_id']))
+            for rid, sid in v_rooms:
+                await _voice_leave(rid, user_id, token)
             _ws_refresh_all_contacts()
             _ws_ch_presence_offline(user_id)
 

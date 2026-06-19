@@ -93,6 +93,7 @@
   <div class="modal-header"><div class="modal-title" id="chSpaceModalTitle">Создать группу</div><button class="modal-close" onclick="Shell.closeModal('chCreateSpaceModal')"><span class="ico ico-18 ico-close"></span></button></div>
   <input type="hidden" id="chSpaceEditId"/>
   <div class="form-group"><label class="form-label">Название</label><input class="form-input" id="chSpaceNameInput" placeholder="Моя группа" maxlength="40"/></div>
+  <div class="form-group" id="chSpaceTypeRow"><label class="form-label">Тип группы</label><div class="ch-type-picker"><label class="ch-type-opt"><input type="radio" name="chSpaceType" value="text" checked> <span>💬 Текстовая</span><small>Каналы с сообщениями</small></label><label class="ch-type-opt"><input type="radio" name="chSpaceType" value="voice_group"> <span>🔊 Голосовая</span><small>Только голосовые комнаты</small></label></div></div>
   <div class="form-group"><label class="form-label">Фото (необязательно)</label><div class="ch-photo-row"><div class="ch-space-photo-pick" id="chSpacePhotoPreview" onclick="Channels.pickSpacePhoto()"><span class="ico ico-18 ico-attach" style="opacity:0.4"></span></div><button class="btn btn-secondary" onclick="Channels.removeSpacePhoto()" style="font-size:11px;padding:4px 10px">Удалить</button></div></div>
   <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCreateSpaceModal')">Отмена</button><button class="btn btn-primary" id="chSpaceSaveBtn" onclick="Channels.saveSpace()">Создать</button></div>
 </div></div>
@@ -103,7 +104,7 @@
   <input type="hidden" id="chCreateChanSpace"/>
   <input type="hidden" id="chChanEditId"/>
   <div class="form-group"><label class="form-label">Название</label><input class="form-input" id="chChanNameInput" placeholder="общий" maxlength="30"/></div>
-  <div class="form-group"><label class="form-label">Иконка</label><div class="ch-icon-picker" id="chIconPicker"></div></div>
+  <div class="form-group" id="chIconPickerRow"><label class="form-label">Иконка</label><div class="ch-icon-picker" id="chIconPicker"></div></div>
   <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCreateChanModal')">Отмена</button><button class="btn btn-primary" id="chChanSaveBtn" onclick="Channels.saveChannel()">Создать</button></div>
 </div></div>
 
