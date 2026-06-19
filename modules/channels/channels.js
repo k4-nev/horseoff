@@ -2137,12 +2137,14 @@ const Channels = {
     bar.style.display = 'flex';
     bar.classList.remove('sb-vb-exit');
     bar.classList.add('sb-vb-enter');
+    var isMobile = window.innerWidth <= 768;
     bar.innerHTML =
       '<div class="sb-voice-bar-ico" onclick="Channels._returnToVoiceRoom()" title="' + (ch ? ch.name : 'Голосовая') + '">' + icoHtml + '</div>' +
-      '<div class="sb-voice-bar-controls">' +
-        '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
-        '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
-      '</div>';
+      (isMobile ? '' :
+        '<div class="sb-voice-bar-controls">' +
+          '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
+          '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
+        '</div>');
   },
 
   _returnToVoiceRoom() {
@@ -2188,9 +2190,14 @@ const Channels = {
     // Add local tracks or transceivers for receiving
     if (this._voiceStream) {
       this._voiceStream.getTracks().forEach(function(t){ pc.addTrack(t, self._voiceStream); });
+      // If no video track locally, still add recvonly transceiver so remote can send video
+      if (!self._voiceStream.getVideoTracks().length) {
+        try { pc.addTransceiver('video', {direction: 'recvonly'}); } catch(e){}
+      }
     } else {
-      // Listener: no local stream — request recv-only so remote can send
+      // Listener: no local stream
       try { pc.addTransceiver('audio', {direction: 'recvonly'}); } catch(e){}
+      try { pc.addTransceiver('video', {direction: 'recvonly'}); } catch(e){}
     }
 
     if (isInitiator) {
