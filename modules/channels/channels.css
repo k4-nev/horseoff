@@ -443,8 +443,8 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 .ch-vpj-join-btn:active{transform:scale(0.97)}
 
 /* ─── ACTIVE VOICE ROOM ─── */
-.ch-va-wrap{flex:1;flex-direction:column;min-height:0;overflow:hidden}
-.ch-va-grid{flex:1;display:grid;gap:6px;padding:12px;overflow-y:auto;align-content:start;min-height:0}
+.ch-va-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ch-va-grid{flex:1;display:grid;gap:6px;padding:12px;overflow:hidden;align-content:start;min-height:0}
 .ch-va-grid[data-count="1"]{grid-template-columns:1fr}
 .ch-va-grid[data-count="2"]{grid-template-columns:1fr 1fr}
 .ch-va-grid[data-count="3"],.ch-va-grid[data-count="4"]{grid-template-columns:1fr 1fr}
@@ -459,7 +459,7 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 .ch-va-tile-name{position:absolute;bottom:6px;left:8px;right:8px;font-size:11px;color:#fff;background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px)}
 .ch-va-tile-mico{font-size:10px}
 .ch-va-tile.ch-va-muted .ch-va-tile-name::after{content:'🔇';font-size:10px;margin-left:auto}
-.ch-va-listeners{padding:6px 12px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex-shrink:0}
+.ch-va-listeners{padding:6px 12px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex-shrink:0;overflow:hidden}
 .ch-va-lst-title{font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;width:100%}
 .ch-va-listener{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-dim)}
 .ch-va-lst-av{width:20px;height:20px;border-radius:50%;object-fit:cover}
@@ -503,5 +503,5 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 
 /* ─── MEMBERS VOICE STATE ─── */
 .ch-member.in-voice .ch-member-ava{box-shadow:0 0 0 2px var(--accent)}
-.ch-member-voice-ico{font-size:12px;margin-left:auto}
+.ch-member-voice-ico{display:flex;align-items:center;margin-left:auto;opacity:0.7}
 .ch-mgr-voice{color:var(--accent)!important}

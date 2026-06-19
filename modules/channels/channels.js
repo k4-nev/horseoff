@@ -882,7 +882,13 @@ const Channels = {
 
   _mHtml(m, off, isMod, inRoom) {
     var ava = m.avatar ? '<img src="data:image/jpeg;base64,'+m.avatar+'"/>' : (m.display_name||m.username).charAt(0).toUpperCase();
-    var inRoomIco = inRoom ? '<span class="ch-member-voice-ico"><span class="ico ico-14 ico-speaker"></span></span>' : '';
+    var micIco = '';
+    if (inRoom) {
+      var spk = this._voiceRoomData ? (this._voiceRoomData.speakers||[]).find(function(p){return p.user_id===m.user_id;}) : null;
+      var isMuted = spk ? spk.muted : true;
+      micIco = isMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic" style="background-color:var(--accent)"></span>';
+    }
+    var inRoomIco = inRoom ? '<span class="ch-member-voice-ico">' + micIco + '</span>' : '';
     return '<div class="ch-member'+(off?' offline':'')+(isMod?' moderator':'')+(inRoom?' in-voice':'')+'" oncontextmenu="event.preventDefault();Channels._memberCtx(event,\x27'+m.user_id+'\x27)">'
       + '<div class="ch-member-ava">'+ava+'</div>'
       + '<span class="ch-member-name">'+this._esc(m.display_name||m.username)+'</span>'
@@ -902,6 +908,15 @@ const Channels = {
     var items = '';
     if (!isMe) {
       items += '<div class="ch-ctx-item" onclick="Shell.switchModule(\x27messenger\x27);setTimeout(function(){if(Messenger)Messenger.openChat(\x27'+userId+'\x27)},200);Channels._hideCtx()"><span class="ico ico-14 ico-messenger"></span> Написать</div>';
+    }
+    if (!isMe && this._voiceRoomId) {
+      var inRoom = this._voiceRoomData && ((this._voiceRoomData.speakers||[]).concat(this._voiceRoomData.listeners||[])).some(function(p){return p.user_id===userId;});
+      if (!inRoom) {
+        items += '<div class="ch-ctx-item" onclick="Channels.inviteToVoice(\x27'+userId+'\x27);Channels._hideCtx()"><span class="ico ico-14 ico-microphone"></span> Пригласить в комнату</div>';
+      }
+      if (inRoom && this.isAdmin) {
+        items += '<div class="ch-ctx-item ch-ctx-danger" onclick="Channels.kickFromVoice(\x27'+userId+'\x27);Channels._hideCtx()"><span class="ico ico-14 ico-phone-off"></span> Отключить от комнаты</div>';
+      }
     }
     if (this.isAdmin && !isArcana && !isMe) {
       var isMod = member && member.space_role === 'moderator';
@@ -1737,6 +1752,7 @@ const Channels = {
   _vsTestStream: null,
   _vsTestCtx: null,
   _chanIsVoice: false,
+  _iceCandidateQueues: {},
 
   _iceServers: [
     {urls: 'stun:stun.l.google.com:19302'},
@@ -1766,7 +1782,8 @@ const Channels = {
 
     // Header
     var lbl = document.getElementById('chChatChannelLabel');
-    if (lbl) lbl.innerHTML = '🔊 <span id="chChatName">' + this._esc(ch ? ch.name : '—') + '</span>';
+    var chIconCls = 'ico-' + ((ch && ch.icon) ? ch.icon : 'microphone');
+    if (lbl) lbl.innerHTML = '<span class="ico ico-16 ' + chIconCls + '" style="background-color:var(--accent);margin-right:6px"></span><span id="chChatName">' + this._esc(ch ? ch.name : '—') + '</span>';
     document.getElementById('chChatHead').style.display = 'flex';
     document.getElementById('chChat').classList.add('mobile-open');
     if (window.innerWidth <= 768) { var sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none'; }
@@ -2032,6 +2049,17 @@ const Channels = {
     Shell.wsSend({type:'voice_allow_speak', room_id: this._voiceRoomId, user_id: userId});
   },
 
+  inviteToVoice(userId) {
+    if (!this._voiceRoomId) return;
+    Shell.wsSend({type:'voice_invite', room_id: this._voiceRoomId, to_user_id: userId});
+    Shell.toast('Приглашение отправлено');
+  },
+
+  kickFromVoice(userId) {
+    if (!this._voiceRoomId) return;
+    Shell.wsSend({type:'voice_kick', room_id: this._voiceRoomId, target_user_id: userId});
+  },
+
   async leaveVoiceRoom() {
     if (!this._voiceRoomId) return;
     Shell.wsSend({type:'voice_leave', room_id: this._voiceRoomId});
@@ -2042,6 +2070,7 @@ const Channels = {
     for (var uid in this._voicePeers) { try{this._voicePeers[uid].close();}catch(e){} }
     this._voicePeers = {};
     this._voiceRemoteStreams = {};
+    this._iceCandidateQueues = {};
     if (this._voiceStream) { this._voiceStream.getTracks().forEach(function(t){t.stop();}); this._voiceStream = null; }
     if (this._vadCtx) { try{this._vadCtx.close();}catch(e){} this._vadCtx = null; }
     this._stopMicTest();
@@ -2070,11 +2099,15 @@ const Channels = {
     if (!bar || !this._voiceRoomId) return;
     var channels = this.channelsBySpace[this._voiceSpaceId] || [];
     var ch = channels.find(function(c){return c.id===Channels._voiceRoomId});
-    var chIconClass = (ch && ch.icon) ? 'ico-' + ch.icon : 'ico-speaker';
-    var micIcoHtml = Channels._voiceMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic"></span>';
+    var chIconClass = (ch && ch.icon) ? 'ico-' + ch.icon : 'ico-microphone';
+    var micIcoHtml = Channels._voiceMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic" style="background-color:var(--accent)"></span>';
+    var sp = this.spaces ? this.spaces.find(function(s){return s.id===Channels._voiceSpaceId;}) : null;
+    var icoHtml = sp && sp.photo
+      ? '<img class="sb-vb-img" src="data:image/jpeg;base64,' + sp.photo + '" alt="">'
+      : '<div class="sb-vb-icon-circle"><span class="ico ico-16 ' + chIconClass + '" style="background-color:var(--accent)"></span></div>';
     bar.style.display = 'flex';
     bar.innerHTML =
-      '<div class="sb-voice-bar-ico" onclick="Channels._returnToVoiceRoom()" title="' + (ch ? ch.name : 'Голосовая') + '"><span class="ico ico-20 ' + chIconClass + '" style="background-color:var(--accent)"></span></div>' +
+      '<div class="sb-voice-bar-ico" onclick="Channels._returnToVoiceRoom()" title="' + (ch ? ch.name : 'Голосовая') + '">' + icoHtml + '</div>' +
       '<div class="sb-voice-bar-controls">' +
         '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
         '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
@@ -2091,14 +2124,18 @@ const Channels = {
     if (this._voicePeers[userId]) { try{this._voicePeers[userId].close();}catch(e){} }
     var pc = new RTCPeerConnection({iceServers: this._iceServers});
     this._voicePeers[userId] = pc;
-    if (this._voiceStream) {
-      this._voiceStream.getTracks().forEach(function(t){ pc.addTrack(t, self._voiceStream); });
-    }
+    this._iceCandidateQueues[userId] = [];
+
     pc.ontrack = function(e) {
-      if (!self._voiceRemoteStreams[userId]) self._voiceRemoteStreams[userId] = new MediaStream();
-      self._voiceRemoteStreams[userId].addTrack(e.track);
+      var stream = e.streams && e.streams[0];
+      if (stream) {
+        self._voiceRemoteStreams[userId] = stream;
+      } else {
+        if (!self._voiceRemoteStreams[userId]) self._voiceRemoteStreams[userId] = new MediaStream();
+        self._voiceRemoteStreams[userId].addTrack(e.track);
+      }
       var v = document.getElementById('chVaVid-'+userId);
-      if (v) { v.srcObject = self._voiceRemoteStreams[userId]; }
+      if (v) v.srcObject = self._voiceRemoteStreams[userId];
     };
     pc.onicecandidate = function(e) {
       if (e.candidate) Shell.wsSend({type:'voice_ice', room_id:self._voiceRoomId, to_user_id:userId, candidate:e.candidate.toJSON()});
@@ -2106,14 +2143,23 @@ const Channels = {
     pc.onconnectionstatechange = function() {
       if (pc.connectionState==='failed') { try{pc.restartIce();}catch(e){} }
     };
+
+    // Set onnegotiationneeded BEFORE addTrack so it fires when tracks are added
     if (isInitiator) {
+      var offered = false;
       pc.onnegotiationneeded = async function() {
+        if (offered) return;
+        offered = true;
         try {
           var offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:userId, sdp:pc.localDescription.toJSON()});
-        } catch(e){}
+        } catch(e){ offered = false; }
       };
+    }
+
+    if (this._voiceStream) {
+      this._voiceStream.getTracks().forEach(function(t){ pc.addTrack(t, self._voiceStream); });
     }
     return pc;
   },
@@ -2243,24 +2289,66 @@ const Channels = {
     }
 
     if (t === 'voice_offer') {
-      var pc = this._initPeer(data.from_user_id, false);
-      pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function(){return pc.createAnswer();}).then(function(ans){
-        return pc.setLocalDescription(ans).then(function(){
-          Shell.wsSend({type:'voice_answer',room_id:self._voiceRoomId,to_user_id:data.from_user_id,sdp:pc.localDescription.toJSON()});
+      var uid = data.from_user_id;
+      var pc = this._initPeer(uid, false);
+      pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
+        var q = self._iceCandidateQueues[uid] || [];
+        self._iceCandidateQueues[uid] = [];
+        return Promise.all(q.map(function(c){ return pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); }))
+          .then(function(){ return pc.createAnswer(); });
+      }).then(function(ans) {
+        return pc.setLocalDescription(ans).then(function() {
+          Shell.wsSend({type:'voice_answer',room_id:self._voiceRoomId,to_user_id:uid,sdp:pc.localDescription.toJSON()});
         });
-      }).catch(function(e){});
+      }).catch(function(){});
       return;
     }
 
     if (t === 'voice_answer') {
-      var pc2 = this._voicePeers[data.from_user_id];
-      if (pc2) pc2.setRemoteDescription(new RTCSessionDescription(data.sdp)).catch(function(e){});
+      var uid2 = data.from_user_id;
+      var pc2 = this._voicePeers[uid2];
+      if (pc2) pc2.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
+        var q = self._iceCandidateQueues[uid2] || [];
+        self._iceCandidateQueues[uid2] = [];
+        q.forEach(function(c){ pc2.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); });
+      }).catch(function(){});
       return;
     }
 
     if (t === 'voice_ice') {
-      var pc3 = this._voicePeers[data.from_user_id];
-      if (pc3 && data.candidate) pc3.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function(e){});
+      var uid3 = data.from_user_id;
+      var pc3 = this._voicePeers[uid3];
+      if (!pc3 || !data.candidate) return;
+      if (pc3.remoteDescription) {
+        pc3.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function(){});
+      } else {
+        if (!self._iceCandidateQueues[uid3]) self._iceCandidateQueues[uid3] = [];
+        self._iceCandidateQueues[uid3].push(data.candidate);
+      }
+      return;
+    }
+
+    if (t === 'voice_invite_notify') {
+      var channels2 = self.channelsBySpace[data.space_id] || [];
+      var invCh = channels2.find(function(c){return c.id===data.room_id;});
+      var chName = invCh ? invCh.name : 'голосовую комнату';
+      var existing = document.querySelector('.ch-voice-invite');
+      if (existing) existing.remove();
+      var el = document.createElement('div');
+      el.className = 'ch-notify ch-voice-invite';
+      el.innerHTML = '<div class="ch-notify-icon"><span class="ico ico-16 ico-microphone" style="background-color:var(--accent)"></span></div>'
+        + '<div class="ch-notify-body"><div class="ch-notify-source">' + self._esc(data.from_username || '') + '</div>'
+        + '<div class="ch-notify-text">приглашает в ' + self._esc(chName) + '</div></div>'
+        + '<button class="btn btn-primary" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="Channels.openChannel(\'' + data.space_id + '\',\'' + data.room_id + '\');this.closest(\'.ch-notify\').remove()">Войти</button>'
+        + '<button class="ch-notify-close" onclick="this.parentNode.remove()">&times;</button>';
+      document.body.appendChild(el);
+      setTimeout(function(){ if (el.parentNode){ el.style.opacity='0'; setTimeout(function(){el.remove();},300); } }, 12000);
+      return;
+    }
+
+    if (t === 'voice_kicked') {
+      Shell.toast('Вас отключили от голосовой комнаты', 'error');
+      self.leaveVoiceRoom();
       return;
     }
 
