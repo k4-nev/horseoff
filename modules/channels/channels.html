@@ -10,7 +10,7 @@
   <div class="ch-chat" id="chChat">
     <div class="ch-chat-head" id="chChatHead" style="display:none">
       <button class="ch-back-btn" onclick="Channels.closeChat()"><span class="ico ico-18 ico-back"></span></button>
-      <span class="ch-chat-channel"># <span id="chChatName">—</span></span>
+      <span class="ch-chat-channel" id="chChatChannelLabel"># <span id="chChatName">—</span></span>
       <div class="ch-search-wrap" id="chSearchWrap">
         <div class="ch-search-inner">
           <input class="ch-search-input" id="chSearchInput" placeholder="Поиск по каналу..." oninput="Channels.onSearch(this.value)" onkeydown="if(event.key==='Escape')Channels.closeSearch();if(event.key==='Enter')event.shiftKey?Channels.searchPrev():Channels.searchNext()" autocomplete="off"/>
@@ -22,6 +22,7 @@
       </div>
       <div class="ch-chat-actions">
         <button class="ch-action-btn" id="chSearchBtn" onclick="Channels.toggleSearch()" title="Поиск"><span class="ico ico-16 ico-search"></span></button>
+        <button class="ch-action-btn" id="chVoiceSettingsBtn" onclick="Channels.openVoiceSettings()" title="Настройки" style="display:none"><span class="ico ico-16 ico-settings"></span></button>
         <button class="ch-action-btn" onclick="Channels.toggleMembers()" title="Участники"><span class="ico ico-16 ico-users"></span></button>
       </div>
     </div>
@@ -60,6 +61,43 @@
       <textarea class="ch-input" id="chInput" placeholder="Написать сообщение..." rows="1" maxlength="4000" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();Channels.send()}" oninput="Channels.onTyping();Channels.autoResize(this);Channels.updateSendBtn();Channels._checkMention()"></textarea>
       <button class="ch-send-btn" id="chSendBtn" onclick="Channels.onSendClick()"><span class="ico ico-18 ico-mic" style="background-color:#999"></span></button>
     </div>
+    <!-- Voice Room Main Area -->
+    <div id="chVoiceMain" style="display:none;flex:1;flex-direction:column;min-height:0">
+      <!-- Pre-join screen -->
+      <div id="chVoicePreJoin" class="ch-vpj-wrap" style="display:none">
+        <div class="ch-vpj-icon">🔊</div>
+        <div class="ch-vpj-room-name" id="chVpjName">Комната</div>
+        <div class="ch-vpj-participants" id="chVpjParticipants"></div>
+        <div class="ch-vpj-status" id="chVpjStatus">В комнате никого нет</div>
+        <div class="ch-vpj-preview">
+          <div class="ch-vpj-device-row"><span class="ch-vpj-device-ico"><span class="ico ico-20 ico-mic-off" style="background-color:#6b7585"></span></span><span>Микрофон выключен при входе</span></div>
+          <div class="ch-vpj-device-row"><span class="ch-vpj-device-ico"><span class="ico ico-20 ico-video-off" style="background-color:#6b7585"></span></span><span>Камера выключена при входе</span></div>
+        </div>
+        <div class="ch-vpj-actions">
+          <button class="btn-icon-only srv-settings-btn" onclick="Channels.openVoiceSettings()" title="Настройки"><span class="ico ico-16 ico-settings"></span></button>
+          <button class="btn btn-primary ch-vpj-join-btn" onclick="Channels._doJoinVoiceRoom()">Войти в комнату</button>
+        </div>
+      </div>
+      <!-- Active voice room -->
+      <div id="chVoiceActive" class="ch-va-wrap" style="display:none">
+        <div class="ch-va-grid" id="chVaGrid"></div>
+        <div class="ch-va-listeners" id="chVaListeners" style="display:none"></div>
+        <div class="ch-va-controls">
+          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaMicBtn" onclick="Channels.toggleVoiceMic()" title="Микрофон">
+            <span id="chVaMicIco"><span class="ico ico-20 ico-mic-off"></span></span>
+          </button>
+          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaCamBtn" onclick="Channels._requestCamera()" title="Камера">
+            <span id="chVaCamIco"><span class="ico ico-20 ico-video-off"></span></span>
+          </button>
+          <button class="ch-va-ctrl" id="chVaHandBtn" onclick="Channels.toggleVoiceHand()" title="Поднять руку" style="display:none">
+            <span class="ico ico-20 ico-hand"></span>
+          </button>
+          <button class="ch-va-ctrl ch-va-ctrl-leave" onclick="Channels.leaveVoiceRoom()" title="Выйти">
+            <span class="ico ico-20 ico-phone-off"></span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="ch-members" id="chMembers">
     <div class="ch-members-head"><span>Участники</span><button class="ch-action-btn" onclick="Channels.toggleMembers()"><span class="ico ico-16 ico-close"></span></button></div>
@@ -71,11 +109,6 @@
     <button class="ch-viewer-close" onclick="Channels.closeViewer()"><span class="ico ico-24 ico-close"></span></button>
     <div class="ch-viewer-content" id="chViewerContent"></div>
   </div>
-
-
-
-
-
   <!-- Context Menu -->
   <div class="ch-ctx" id="chCtx" style="display:none">
     <div class="ch-ctx-item" data-action="reply"><span class="ico ico-14 ico-reply"></span> Ответить</div>
@@ -84,8 +117,6 @@
     <div class="ch-ctx-item" data-action="edit" id="chCtxEdit" style="display:none"><span class="ico ico-14 ico-pencil"></span> Редактировать</div>
     <div class="ch-ctx-item ch-ctx-danger" data-action="delete" id="chCtxDelete" style="display:none"><span class="ico ico-14 ico-trash"></span> Удалить</div>
   </div>
-
-
 </div>
 
 <!-- Create Group Modal -->
@@ -93,6 +124,12 @@
   <div class="modal-header"><div class="modal-title" id="chSpaceModalTitle">Создать группу</div><button class="modal-close" onclick="Shell.closeModal('chCreateSpaceModal')"><span class="ico ico-18 ico-close"></span></button></div>
   <input type="hidden" id="chSpaceEditId"/>
   <div class="form-group"><label class="form-label">Название</label><input class="form-input" id="chSpaceNameInput" placeholder="Моя группа" maxlength="40"/></div>
+  <div class="form-group" id="chSpaceTypeRow"><label class="form-label">Тип группы</label>
+    <div class="ch-type-picker">
+      <label class="ch-type-opt"><input type="radio" name="chSpaceType" value="text" checked><div class="ch-type-opt-body"><span class="ch-type-opt-title">💬 Текстовая</span><small class="ch-type-opt-desc">Каналы с сообщениями</small></div></label>
+      <label class="ch-type-opt"><input type="radio" name="chSpaceType" value="voice_group"><div class="ch-type-opt-body"><span class="ch-type-opt-title">🔊 Голосовая</span><small class="ch-type-opt-desc">Только голосовые комнаты</small></div></label>
+    </div>
+  </div>
   <div class="form-group"><label class="form-label">Фото (необязательно)</label><div class="ch-photo-row"><div class="ch-space-photo-pick" id="chSpacePhotoPreview" onclick="Channels.pickSpacePhoto()"><span class="ico ico-18 ico-attach" style="opacity:0.4"></span></div><button class="btn btn-secondary" onclick="Channels.removeSpacePhoto()" style="font-size:11px;padding:4px 10px">Удалить</button></div></div>
   <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCreateSpaceModal')">Отмена</button><button class="btn btn-primary" id="chSpaceSaveBtn" onclick="Channels.saveSpace()">Создать</button></div>
 </div></div>
@@ -103,7 +140,7 @@
   <input type="hidden" id="chCreateChanSpace"/>
   <input type="hidden" id="chChanEditId"/>
   <div class="form-group"><label class="form-label">Название</label><input class="form-input" id="chChanNameInput" placeholder="общий" maxlength="30"/></div>
-  <div class="form-group"><label class="form-label">Иконка</label><div class="ch-icon-picker" id="chIconPicker"></div></div>
+  <div class="form-group" id="chIconPickerRow"><label class="form-label">Иконка</label><div class="ch-icon-picker" id="chIconPicker"></div></div>
   <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCreateChanModal')">Отмена</button><button class="btn btn-primary" id="chChanSaveBtn" onclick="Channels.saveChannel()">Создать</button></div>
 </div></div>
 
@@ -120,4 +157,28 @@
   <input class="form-input" id="chMemberSearch" placeholder="Поиск..." oninput="Channels.filterMemberPicker(this.value)" style="margin-bottom:10px"/>
   <div class="ch-member-picker" id="chMemberPicker"></div>
   <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chAddMembersModal')">Отмена</button><button class="btn btn-primary" onclick="Channels.addSelectedMembers()">Добавить</button></div>
+</div></div>
+
+<!-- Voice Settings Modal -->
+<div class="modal-overlay" id="chVoiceSettingsModal"><div class="modal ch-vs-modal">
+  <div class="modal-header"><div class="modal-title">⚙️ Настройки голоса</div><button class="modal-close" onclick="Shell.closeModal('chVoiceSettingsModal');Channels._stopMicTest()"><span class="ico ico-18 ico-close"></span></button></div>
+  <div class="form-group"><label class="form-label">Микрофон</label><select class="form-input" id="chVsMicSelect"></select></div>
+  <div class="form-group"><label class="form-label">Камера</label><select class="form-input" id="chVsCamSelect"></select></div>
+  <div class="form-group"><label class="form-label">Динамик</label><select class="form-input" id="chVsSpkSelect"></select></div>
+  <div class="form-group">
+    <label class="form-label">Тест микрофона</label>
+    <div class="ch-vs-test-wrap">
+      <button class="btn btn-secondary ch-vs-test-btn" id="chVsTestBtn" onclick="Channels._toggleMicTest()">▶ Начать тест</button>
+      <div class="ch-vs-meter"><div class="ch-vs-meter-fill" id="chVsMeterFill"></div></div>
+    </div>
+  </div>
+  <div class="form-group"><button class="btn btn-secondary" style="width:100%" onclick="Channels._requestPermissions()">🔐 Запросить разрешения на микрофон и камеру</button></div>
+  <div class="modal-actions"><button class="btn btn-primary" onclick="Shell.closeModal('chVoiceSettingsModal');Channels._stopMicTest()">Готово</button></div>
+</div></div>
+
+<!-- Camera Confirm Modal -->
+<div class="modal-overlay" id="chCamConfirmModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title">Включить камеру?</div></div>
+  <div style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Ваше изображение станет видно всем участникам комнаты.</div>
+  <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCamConfirmModal')">Отмена</button><button class="btn btn-primary" onclick="Shell.closeModal('chCamConfirmModal');Channels._enableCamera()">Включить</button></div>
 </div></div>

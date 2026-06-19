@@ -130,16 +130,34 @@ def handle_get(handler, session, path):
     if p.endswith('/members'):
         space_id = _get_param(handler, 'space_id')
         if not space_id: return _json(handler, 400, {'error': 'space_id required'})
-        from server import load_users, get_avatar_b64, ws_clients
+        from server import load_users, get_avatar_b64, get_user_status
         users = load_users()
-        online_ids = set(cl['user_id'] for cl in ws_clients.values())
         members = load_members(space_id)
         result = []
         for m in members:
             u = next((u for u in users if u['id'] == m['user_id']), None)
             if u:
+                st = get_user_status(u['id'])
                 result.append({'user_id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),
-                    'role':u['role'],'space_role':m.get('role','member'),'avatar':get_avatar_b64(u['id']),'online':u['id'] in online_ids})
+                    'role':u['role'],'space_role':m.get('role','member'),'avatar':get_avatar_b64(u['id']),
+                    'online':st != 'offline','status':st})
+        return _json(handler, 200, result)
+
+    # GET /api/mod/channels/voice_rooms?space_id=xxx
+    if p.endswith('/voice_rooms'):
+        space_id = _get_param(handler, 'space_id')
+        try:
+            from server import voice_rooms, voice_rooms_lock
+            with voice_rooms_lock:
+                result = {}
+                for rid, room in voice_rooms.items():
+                    if room.get('space_id') == space_id:
+                        result[rid] = {
+                            'total': len(room['speakers']) + len(room['listeners']),
+                            'speaker_count': len(room['speakers']),
+                            'speakers': [{'user_id':p['user_id'],'username':p['username'],'avatar':p.get('avatar')} for p in room['speakers']]
+                        }
+        except: result = {}
         return _json(handler, 200, result)
 
     # GET /api/mod/channels/read?channel_id=xxx
@@ -196,7 +214,9 @@ def handle_post(handler, session, path, data):
             if photo_b64: save_space_photo(edit_id, photo_b64)
             elif data.get('remove_photo'): delete_space_photo(edit_id)
             return _json(handler, 200, {'status': 'ok'})
-        space = {'id': secrets.token_hex(6), 'name': name, 'owner_id': session['id'], 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+        sp_type = data.get('type', 'text')
+        if sp_type not in ('text', 'voice_group'): sp_type = 'text'
+        space = {'id': secrets.token_hex(6), 'name': name, 'type': sp_type, 'owner_id': session['id'], 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
         spaces.append(space)
         save_spaces(spaces)
         save_members(space['id'], [{'user_id': session['id'], 'role': 'owner', 'joined': space['created']}])
@@ -220,7 +240,9 @@ def handle_post(handler, session, path, data):
                     break
             save_channels(space_id, channels)
             return _json(handler, 200, {'status': 'ok'})
-        channel = {'id': secrets.token_hex(6), 'name': name, 'icon': icon, 'type': 'text', 'space_id': space_id, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+        ch_type = data.get('type', 'text')
+        if ch_type not in ('text', 'voice'): ch_type = 'text'
+        channel = {'id': secrets.token_hex(6), 'name': name, 'icon': icon, 'type': ch_type, 'space_id': space_id, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
         channels.append(channel)
         save_channels(space_id, channels)
         return _json(handler, 200, {'status': 'ok', 'channel': channel})

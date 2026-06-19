@@ -27,8 +27,11 @@
         <button class="msg-back-btn" onclick="Messenger.closeChat()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div class="msg-chat-name" id="msgChatName" style="flex:1">—</div>
-        <div class="msg-chat-typing" id="msgChatTyping"></div>
+        <div class="msg-chat-header-ava" id="msgChatAva"></div>
+        <div class="msg-chat-header-info">
+          <div class="msg-chat-name" id="msgChatName">—</div>
+          <div class="msg-chat-typing" id="msgChatTyping"></div>
+        </div>
         <div class="msg-search-group">
           <div class="msg-chat-search-wrap" id="msgSearchWrap">
             <div class="msg-search-inner">
@@ -36,7 +39,6 @@
               <span class="msg-search-count" id="msgSearchCount"></span>
               <button class="msg-search-nav-btn" onclick="Messenger.searchPrev()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
               <button class="msg-search-nav-btn" onclick="Messenger.searchNext()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
-              <button class="msg-search-close-btn" onclick="Messenger.closeSearch()"><span class="ico ico-12 ico-close"></span></button>
             </div>
           </div>
           <button class="msg-header-btn" id="msgSearchBtn" onclick="Messenger.toggleSearch()">
@@ -55,6 +57,10 @@
     </div>
     <div class="msg-chat-active" id="msgChatActive" style="display:none">
       <div class="msg-messages" id="msgMessages"></div>
+      <button class="msg-scroll-btn" id="msgScrollBtn" onclick="Messenger.scrollToLatest()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="msg-scroll-badge" id="msgScrollBadge" style="display:none">0</span>
+      </button>
       <div class="msg-edit-bar" id="msgEditBar" style="display:none">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
         <span>Редактирование</span>

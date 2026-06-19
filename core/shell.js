@@ -20,7 +20,7 @@ const Shell = {
     try {
       this.ws = new WebSocket(url);
       this.ws.onopen = () => {
-        this.ws.send(JSON.stringify({type:'auth',token:this.token}));
+        this.ws.send(JSON.stringify({type:'auth',token:this.token,hidden:this._isWindowHidden()}));
       };
       this.ws.onmessage = (e) => {
         try {
@@ -46,6 +46,13 @@ const Shell = {
           if (window.Messenger && Messenger.onWS) Messenger.onWS(data);
           // Forward to channels
           if (window.Channels && Channels.onWS) Channels.onWS(data);
+          // Forward to valentine
+          if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
+          // Valentine badge (when module not active)
+          if (data.type === 'valentine' && this.activeModule !== 'valentine') {
+            var sb = document.getElementById('valBadge');
+            if (sb) { var n = (parseInt(sb.textContent)||0)+1; sb.textContent=n; sb.style.display='flex'; }
+          }
         } catch(ex) {}
       };
       this.ws.onclose = () => {
@@ -151,6 +158,29 @@ const Shell = {
     } else {
       badge.style.display = 'none';
     }
+  },
+
+  _isWindowHidden() {
+    // "away" when the tab is hidden (mobile minimized) OR the window lost focus (another window on top)
+    try { return document.hidden === true || document.hasFocus() === false; }
+    catch(e) { return false; }
+  },
+
+  initPresence() {
+    if (this._presenceInit) return;
+    this._presenceInit = true;
+    this._presenceHidden = this._isWindowHidden();
+    var self = this;
+    var update = function() {
+      var hidden = self._isWindowHidden();
+      if (hidden === self._presenceHidden) return;
+      self._presenceHidden = hidden;
+      self.wsSend({type:'presence', hidden: hidden});
+    };
+    document.addEventListener('visibilitychange', update);
+    window.addEventListener('focus', update);
+    window.addEventListener('blur', update);
+    window.addEventListener('pageshow', update);
   },
 
   wsSend(data) {
@@ -266,6 +296,8 @@ const Shell = {
     this.updateSidebarAvatar();
     // Connect WebSocket
     this.connectWS();
+    // Presence (away when window minimized / unfocused)
+    this.initPresence();
     // Push notifications
     this.initPush();
     this.lockOrientation();
@@ -404,7 +436,8 @@ const Shell = {
       servers:'<span class="ico ico-18 ico-servers"></span>',
       users:'<span class="ico ico-18 ico-users"></span>',
       messenger:'<span class="ico ico-18 ico-messenger"></span>',
-      channels:'<span class="ico ico-18 ico-channels"></span>'
+      channels:'<span class="ico ico-18 ico-channels"></span>',
+      valentine:'<span class="ico ico-18 ico-valentine"></span>'
     };
     const el = document.getElementById('sidebarModules');
     var visibleMods = mods.filter(m => {
@@ -413,6 +446,7 @@ const Shell = {
     });
     el.innerHTML = visibleMods.map(m => {
       var badge = m.id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
+      if (m.id === 'valentine') badge = '<span class="val-badge" id="valBadge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e8395e;color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;"></span>';
       return '<button class="sidebar-module" data-id="'+m.id+'" onclick="Shell.switchModule(\''+m.id+'\')" title="'+m.name+'" style="position:relative">'+(icons[m.icon]||icons.servers)+badge+'</button>';
     }).join('');
     // Add admin module as bottom button for god
@@ -624,7 +658,8 @@ const Shell = {
       servers:'<span class="ico ico-18 ico-servers"></span>',
       users:'<span class="ico ico-18 ico-users"></span>',
       messenger:'<span class="ico ico-18 ico-messenger"></span>',
-      channels:'<span class="ico ico-18 ico-channels"></span>'
+      channels:'<span class="ico ico-18 ico-channels"></span>',
+      valentine:'<span class="ico ico-18 ico-valentine"></span>'
     };
     var badge = id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
     var btn = document.createElement('button');
