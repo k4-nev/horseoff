@@ -104,7 +104,7 @@ const Channels = {
     // Toggle channels visibility in DOM without full re-render
     var group = document.querySelector('.ch-space-group[data-sid="'+spaceId+'"]');
     if (!group) { this.renderSidebar(); return; }
-    var channels = group.querySelectorAll('.ch-channel, .ch-space-empty');
+    var channels = group.querySelectorAll('.ch-channel, .ch-voice-room, .ch-space-empty');
     var arrow = group.querySelector('.ch-collapse-arrow');
     var collapsed = this._collapsed[spaceId];
     channels.forEach(function(el) { el.style.display = collapsed ? 'none' : ''; });
@@ -156,10 +156,11 @@ const Channels = {
             return p.avatar ? '<img class="ch-vr-av" src="data:image/png;base64,'+p.avatar+'">' : '<div class="ch-vr-av ch-vr-av-empty">'+self._esc((p.username||'?')[0])+'</div>';
           }).join('');
           var amInRoom = self._voiceRoomId === ch.id;
-          var activeCls = amInRoom ? ' ch-vr-active' : '';
+          var activeCls = (amInRoom || self.currentChannel === ch.id) ? ' ch-vr-active' : '';
           var fullCls = spkCount >= 6 ? ' ch-vr-full' : '';
-          html += '<div class="ch-voice-room'+activeCls+fullCls+'" data-chid="'+ch.id+'" onclick="Channels.joinVoiceRoom(\x27'+sp.id+'\x27,\x27'+ch.id+'\x27,false)">';
-          html += '<span class="ch-vr-ico">🔊</span>';
+          html += '<div class="ch-voice-room'+activeCls+fullCls+'" data-chid="'+ch.id+'" onclick="Channels.openChannel(\x27'+sp.id+'\x27,\x27'+ch.id+'\x27)">';
+          var vrIco = ch.icon && ch.icon !== 'channels' ? '<span class="ico ico-14 ico-'+ch.icon+'" style="opacity:0.6;flex-shrink:0"></span>' : '<span class="ico ico-14 ico-microphone" style="opacity:0.6;flex-shrink:0"></span>';
+          html += vrIco;
           html += '<span class="ch-vr-name">'+self._esc(ch.name)+'</span>';
           if (total > 0) {
             html += '<div class="ch-vr-meta">'+spkAvatars+'<span class="ch-vr-count">'+spkCount+'/6</span></div>';
@@ -199,7 +200,7 @@ const Channels = {
     Object.keys(this._collapsed).forEach(function(sid) {
       if (!self2._collapsed[sid]) return;
       var g = el.querySelector('.ch-space-group[data-sid="'+sid+'"]');
-      if (g) g.querySelectorAll('.ch-channel, .ch-space-empty').forEach(function(e){e.style.display='none';});
+      if (g) g.querySelectorAll('.ch-channel, .ch-voice-room, .ch-space-empty').forEach(function(e){e.style.display='none';});
     });
     if (!this._spaceCtxAttached) { this._attachSpaceCtx(); this._spaceCtxAttached = true; }
   },
@@ -719,7 +720,7 @@ const Channels = {
     this._selectedIcon = isVoiceGroup ? 'microphone' : 'channels';
     this._chanIsVoice = isVoiceGroup;
     var iconRow = document.getElementById('chIconPickerRow');
-    if (iconRow) iconRow.style.display = isVoiceGroup ? 'none' : '';
+    if (iconRow) iconRow.style.display = '';
     this._renderIconPicker();
     document.getElementById('chCreateChanModal').classList.add('active');
     document.getElementById('chChanNameInput').focus();
@@ -874,7 +875,7 @@ const Channels = {
     Object.keys(this._collapsed).forEach(function(sid) {
       if (!self2._collapsed[sid]) return;
       var g = el.querySelector('.ch-space-group[data-sid="'+sid+'"]');
-      if (g) g.querySelectorAll('.ch-channel, .ch-space-empty').forEach(function(e){e.style.display='none';});
+      if (g) g.querySelectorAll('.ch-channel, .ch-voice-room, .ch-space-empty').forEach(function(e){e.style.display='none';});
     });
     if (!this._spaceCtxAttached) { this._attachSpaceCtx(); this._spaceCtxAttached = true; }
   },
