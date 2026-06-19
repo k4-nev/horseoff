@@ -307,9 +307,10 @@ const Shell = {
 
   _initSwUpdateCheck() {
     if (!('serviceWorker' in navigator)) return;
-    // Reload when a new SW takes control
+    // Show update banner when a new SW takes control (don't force-reload)
+    var self = this;
     navigator.serviceWorker.addEventListener('controllerchange', function() {
-      window.location.reload();
+      self._showUpdateBanner();
     });
     // Force SW update check every 5 minutes
     var self = this;
