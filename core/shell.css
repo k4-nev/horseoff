@@ -190,10 +190,17 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .sidebar{width:100%;height:48px;flex-direction:row;padding:0 8px;border-right:none;border-top:1px solid var(--border);order:2;position:fixed;bottom:0;left:0;right:0;z-index:50}
 .sidebar-logo{display:none}
 .sidebar-modules{flex-direction:row;gap:2px}
-.sidebar-bottom{flex-direction:row;margin-top:0;margin-left:auto}
+.sidebar-bottom{flex-direction:row;margin-top:0;margin-left:auto;align-items:center}
 .app-shell.active{flex-direction:column}
 .content{padding-bottom:52px}
 .modal{margin:10px;max-width:calc(100vw - 20px)}
+/* Voice bar horizontal on mobile */
+.sb-voice-bar{flex-direction:row;width:auto;max-width:200px;height:36px;border-radius:18px;padding:4px 8px;gap:6px;align-items:center}
+.sb-voice-bar-ico{width:24px;height:24px;margin:0;flex-shrink:0}
+.sb-vb-img{width:24px;height:24px}
+.sb-vb-icon-circle{width:24px;height:24px}
+.sb-voice-bar-controls{flex-direction:row;gap:0;width:auto}
+.sb-vb-btn{margin:0 2px}
 }
 
 /* Safe area (iPhone notch + home indicator) */

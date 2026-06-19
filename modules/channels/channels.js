@@ -1758,7 +1758,7 @@ const Channels = {
   _iceServers: [
     {urls: 'stun:stun.l.google.com:19302'},
     {urls: 'stun:stun1.l.google.com:19302'},
-    {urls: 'turn:horseoff-workspace.ru:3478', username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'}
+    {urls: ['turn:horseoff-workspace.ru:3478', 'turn:horseoff-workspace.ru:3478?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'}
   ],
 
   async loadVoiceRooms(spaceId) {
@@ -2149,29 +2149,35 @@ const Channels = {
     pc.onicecandidate = function(e) {
       if (e.candidate) Shell.wsSend({type:'voice_ice', room_id:self._voiceRoomId, to_user_id:userId, candidate:e.candidate.toJSON()});
     };
+    pc.oniceconnectionstatechange = function() {
+      console.log('[WebRTC] ICE', userId, pc.iceConnectionState);
+    };
     pc.onconnectionstatechange = function() {
-      console.log('[WebRTC]', userId, pc.connectionState);
-      if (pc.connectionState === 'failed') { try{pc.restartIce();}catch(e){} }
+      console.log('[WebRTC] conn', userId, pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        try { pc.restartIce(); } catch(e) {}
+      }
     };
 
-    // Add local tracks
+    // Add local tracks or transceivers for receiving
     if (this._voiceStream) {
       this._voiceStream.getTracks().forEach(function(t){ pc.addTrack(t, self._voiceStream); });
     } else {
-      // No local stream — add receive-only transceivers so remote sends to us
+      // Listener: no local stream — request recv-only so remote can send
       try { pc.addTransceiver('audio', {direction: 'recvonly'}); } catch(e){}
     }
 
     if (isInitiator) {
-      // Explicit offer creation — more reliable than onnegotiationneeded
+      // Explicit offer — more reliable than onnegotiationneeded across browsers
       setTimeout(async function() {
-        if (self._voicePeers[userId] !== pc) return; // peer was replaced
+        if (self._voicePeers[userId] !== pc) return; // peer was replaced, abort
         try {
           var offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
+          console.log('[WebRTC] offer sent to', userId);
           Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:userId, sdp:pc.localDescription.toJSON()});
-        } catch(e){ console.warn('[WebRTC] offer failed', e); }
-      }, 50);
+        } catch(e){ console.warn('[WebRTC] offer error', e); }
+      }, 100);
     }
     return pc;
   },
@@ -2302,6 +2308,7 @@ const Channels = {
 
     if (t === 'voice_offer') {
       var uid = data.from_user_id;
+      console.log('[WebRTC] got offer from', uid);
       var pc = this._initPeer(uid, false);
       pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
         var q = self._iceCandidateQueues[uid] || [];
@@ -2310,20 +2317,22 @@ const Channels = {
           .then(function(){ return pc.createAnswer(); });
       }).then(function(ans) {
         return pc.setLocalDescription(ans).then(function() {
+          console.log('[WebRTC] answer sent to', uid);
           Shell.wsSend({type:'voice_answer',room_id:self._voiceRoomId,to_user_id:uid,sdp:pc.localDescription.toJSON()});
         });
-      }).catch(function(){});
+      }).catch(function(e){ console.warn('[WebRTC] answer error', e); });
       return;
     }
 
     if (t === 'voice_answer') {
       var uid2 = data.from_user_id;
+      console.log('[WebRTC] got answer from', uid2);
       var pc2 = this._voicePeers[uid2];
       if (pc2) pc2.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
         var q = self._iceCandidateQueues[uid2] || [];
         self._iceCandidateQueues[uid2] = [];
         q.forEach(function(c){ pc2.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); });
-      }).catch(function(){});
+      }).catch(function(e){ console.warn('[WebRTC] setRemote answer error', e); });
       return;
     }
 
