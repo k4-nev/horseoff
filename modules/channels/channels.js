@@ -1973,7 +1973,10 @@ const Channels = {
       }
       for (var uid in self._voiceRemoteStreams) {
         var v = document.getElementById('chVaVid-' + uid);
-        if (v) v.srcObject = self._voiceRemoteStreams[uid];
+        if (v && v.srcObject !== self._voiceRemoteStreams[uid]) {
+          v.srcObject = self._voiceRemoteStreams[uid];
+          v.play().catch(function(){});
+        }
       }
     }, 30);
 
@@ -2012,7 +2015,20 @@ const Channels = {
       this._voiceVideoMuted = false;
       var self = this;
       for (var uid in this._voicePeers) {
-        try { this._voicePeers[uid].addTrack(vTrack, self._voiceStream); } catch(e){}
+        var peerUid = uid;
+        try {
+          self._voicePeers[peerUid].addTrack(vTrack, self._voiceStream);
+          // Renegotiate so remote sees the new video track
+          (async function(puid) {
+            var pc = self._voicePeers[puid];
+            if (!pc) return;
+            try {
+              var offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:pc.localDescription.toJSON()});
+            } catch(e){ console.warn('[WebRTC] renegotiate error', e); }
+          })(peerUid);
+        } catch(e){}
       }
       Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: false});
       this._updateVoiceControls();
@@ -2348,8 +2364,14 @@ const Channels = {
 
     if (t === 'voice_ice') {
       var uid3 = data.from_user_id;
+      if (!data.candidate) return;
       var pc3 = this._voicePeers[uid3];
-      if (!pc3 || !data.candidate) return;
+      if (!pc3) {
+        // Peer not yet created — queue candidate so it's available when _initPeer runs
+        if (!self._iceCandidateQueues[uid3]) self._iceCandidateQueues[uid3] = [];
+        self._iceCandidateQueues[uid3].push(data.candidate);
+        return;
+      }
       if (pc3.remoteDescription) {
         pc3.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function(){});
       } else {

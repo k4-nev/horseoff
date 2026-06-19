@@ -1542,7 +1542,11 @@ async def handle_ws(websocket):
                             await websocket.send(json.dumps({'type':'servers_update','data':list(srv_mod.cached_data)}))
 
             except json.JSONDecodeError: pass
-    except: pass
+            except Exception as e:
+                print(f"  [WS] Handler error (mt={mt if 'mt' in dir() else '?'}): {e}", flush=True)
+    except Exception as e:
+        if 'ConnectionClosed' not in type(e).__name__:
+            print(f"  [WS] Connection error: {e}", flush=True)
     finally:
         user_id = None
         v_rooms = []
