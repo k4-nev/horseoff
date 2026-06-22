@@ -107,6 +107,34 @@ def handle_get(handler, session, path):
     # Strip query string for matching
     p = path.split('?')[0]
 
+    # GET /api/mod/channels/init — all spaces + channels + voice rooms in one request
+    if p.endswith('/init'):
+        spaces = load_spaces()
+        result_spaces = []
+        channels_by_space = {}
+        for sp in spaces:
+            if not (is_member(sp['id'], session['id']) or sp['owner_id'] == session['id']):
+                continue
+            s = dict(sp)
+            s['photo'] = get_space_photo_b64(sp['id'])
+            result_spaces.append(s)
+            chs = load_channels(sp['id'])
+            for ch in chs:
+                ch['unread'] = get_unread_count(ch['id'], session['id'])
+            channels_by_space[sp['id']] = chs
+        voice_rooms_data = {}
+        try:
+            from server import voice_rooms, voice_rooms_lock
+            with voice_rooms_lock:
+                for rid, room in voice_rooms.items():
+                    voice_rooms_data[rid] = {
+                        'total': len(room['speakers']) + len(room['listeners']),
+                        'speaker_count': len(room['speakers']),
+                        'speakers': [{'user_id': p['user_id'], 'username': p['username'], 'avatar': p.get('avatar')} for p in room['speakers']]
+                    }
+        except: pass
+        return _json(handler, 200, {'spaces': result_spaces, 'channels': channels_by_space, 'voice_rooms': voice_rooms_data})
+
     # GET /api/mod/channels/spaces
     if p.endswith('/spaces'):
         spaces = load_spaces()
@@ -130,17 +158,18 @@ def handle_get(handler, session, path):
     if p.endswith('/members'):
         space_id = _get_param(handler, 'space_id')
         if not space_id: return _json(handler, 400, {'error': 'space_id required'})
-        from server import load_users, get_avatar_b64, get_user_status
+        from server import load_users, get_avatar_b64, ws_clients
         users = load_users()
         members = load_members(space_id)
+        online_ids = set(cl['user_id'] for cl in ws_clients.values())
         result = []
         for m in members:
             u = next((u for u in users if u['id'] == m['user_id']), None)
             if u:
-                st = get_user_status(u['id'])
+                online = u['id'] in online_ids
                 result.append({'user_id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),
                     'role':u['role'],'space_role':m.get('role','member'),'avatar':get_avatar_b64(u['id']),
-                    'online':st != 'offline','status':st})
+                    'online':online,'status':'online' if online else 'offline'})
         return _json(handler, 200, result)
 
     # GET /api/mod/channels/voice_rooms?space_id=xxx

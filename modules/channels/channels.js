@@ -85,19 +85,15 @@ const Channels = {
   },
 
   async loadSpaces() {
-    var d = await Shell.api('/api/mod/channels/spaces');
-    this.spaces = Array.isArray(d) ? d : [];
-    this.channelsBySpace = {};
-    // Load all channels and voice rooms in parallel
-    var self = this;
-    await Promise.all(this.spaces.map(async function(sp) {
-      var ch = await Shell.api('/api/mod/channels/channels?space_id=' + sp.id);
-      self.channelsBySpace[sp.id] = Array.isArray(ch) ? ch : [];
-      if (sp.type === 'voice_group') {
-        var vr = await Shell.api('/api/mod/channels/voice_rooms?space_id=' + sp.id);
-        if (vr) Object.assign(self._voiceRooms, vr);
-      }
-    }));
+    var d = await Shell.api('/api/mod/channels/init');
+    if (d && d.spaces) {
+      this.spaces = d.spaces;
+      this.channelsBySpace = d.channels || {};
+      if (d.voice_rooms) Object.assign(this._voiceRooms, d.voice_rooms);
+    } else {
+      this.spaces = [];
+      this.channelsBySpace = {};
+    }
     this.renderSidebar();
   },
 
@@ -1802,10 +1798,6 @@ const Channels = {
     document.getElementById('chVoiceSettingsBtn').style.display = '';
     var vm = document.getElementById('chVoiceMain');
     if (vm) { vm.style.display = 'flex'; vm.style.flexDirection = 'column'; }
-
-    // Hide minimized bar while on this room
-    var bar = document.getElementById('sidebarVoiceBar');
-    if (bar) bar.style.display = 'none';
 
     await this.loadMembers();
 

@@ -698,7 +698,7 @@ const Shell = {
           '</div>' +
           '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+lastSeen+'</div>' +
         '</div>' +
-        (!s.is_current ? '<button onclick="Shell._revokeSession(\''+s.token_hint+'\')" style="background:rgba(231,76,60,0.12);border:none;color:#e74c3c;padding:5px 10px;border-radius:8px;cursor:pointer;font-size:11px;white-space:nowrap">Завершить</button>' : '') +
+        (!s.is_current ? '<button onclick="Shell._revokeSession(\''+s.hint+'\')" style="background:rgba(231,76,60,0.12);border:none;color:#e74c3c;padding:5px 10px;border-radius:8px;cursor:pointer;font-size:11px;white-space:nowrap">Завершить</button>' : '') +
       '</div>';
     });
     el.innerHTML = html;
