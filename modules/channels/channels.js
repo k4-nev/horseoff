@@ -86,15 +86,27 @@ const Channels = {
 
   async loadSpaces() {
     var d = await Shell.api('/api/mod/channels/init');
-    if (d && d.spaces) {
+    if (d && Array.isArray(d.spaces)) {
       this.spaces = d.spaces;
       this.channelsBySpace = d.channels || {};
       if (d.voice_rooms) Object.assign(this._voiceRooms, d.voice_rooms);
+      this.renderSidebar();
     } else {
-      this.spaces = [];
+      // Fallback: old individual requests (server may not support /init yet)
+      var spaces = await Shell.api('/api/mod/channels/spaces');
+      this.spaces = Array.isArray(spaces) ? spaces : [];
       this.channelsBySpace = {};
+      var self = this;
+      await Promise.all(this.spaces.map(async function(sp) {
+        var ch = await Shell.api('/api/mod/channels/channels?space_id=' + sp.id);
+        self.channelsBySpace[sp.id] = Array.isArray(ch) ? ch : [];
+        if (sp.type === 'voice_group') {
+          var vr = await Shell.api('/api/mod/channels/voice_rooms?space_id=' + sp.id);
+          if (vr) Object.assign(self._voiceRooms, vr);
+        }
+      }));
+      this.renderSidebar();
     }
-    this.renderSidebar();
   },
 
   toggleCollapse(spaceId) {
@@ -1730,7 +1742,7 @@ const Channels = {
   },
 
   _esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; },
-  _fmt(text) { return this._esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/@(\w+)/g, '<span class="ch-mention">@$1</span>'); },
+  _fmt(text) { return this._esc(text).replace(/(https?:\/\/[^\s<]+)/g, function(_, url) { if (/^javascript:/i.test(url)) return url; return '<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+url+'</a>'; }).replace(/@(\w+)/g, '<span class="ch-mention">@$1</span>'); },
 
   // ─── Voice Rooms ───
   _voiceRooms: {},

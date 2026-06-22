@@ -528,10 +528,18 @@ const Shell = {
   async openProfile() {
     var d = await this.api('/api/profile');
     if (!d) return;
-    document.getElementById('profileUsername').textContent = d.username;
-    var prEl=document.getElementById('profileRole');prEl.className='role-badge '+d.role;prEl.textContent=d.role.toUpperCase();
-    document.getElementById('profOldPass').value = '';
-    document.getElementById('profNewPass').value = '';
+    // Username (shown as @login)
+    var unEl = document.getElementById('profileUsername');
+    if (unEl) unEl.textContent = '@' + d.username;
+    // Display name header
+    var dnSpan = document.getElementById('profileDisplayName');
+    if (dnSpan) dnSpan.textContent = d.display_name || d.username;
+    // Role badge
+    var prEl = document.getElementById('profileRole');
+    if (prEl) { prEl.className = 'role-badge ' + d.role; prEl.textContent = d.role.toUpperCase(); }
+    // Password fields
+    var opEl = document.getElementById('profOldPass'); if (opEl) opEl.value = '';
+    var npEl = document.getElementById('profNewPass'); if (npEl) npEl.value = '';
     // Avatar
     var img = document.getElementById('profileAvatarImg');
     var letter = document.getElementById('profileAvatarLetter');
@@ -540,13 +548,14 @@ const Shell = {
       img.src = 'data:image/jpeg;base64,' + d.avatar;
       img.style.display = 'block';
       letter.style.display = 'none';
-      removeBtn.style.display = 'block';
+      if (removeBtn) removeBtn.style.display = 'block';
     } else {
       img.style.display = 'none';
       letter.style.display = 'block';
       letter.textContent = (d.display_name || d.username).charAt(0).toUpperCase();
-      removeBtn.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'none';
     }
+    // Display name input
     var dnInput = document.getElementById('profDisplayName');
     if (dnInput) dnInput.value = d.display_name || '';
     // Sync theme toggle
@@ -554,8 +563,19 @@ const Shell = {
     document.querySelectorAll('.theme-seg-btn').forEach(function(btn) {
       btn.classList.toggle('active', btn.dataset.theme === currentTheme);
     });
+    // Switch to account tab by default
+    this._switchProfileTab('account');
     document.getElementById('profileModal').classList.add('active');
     this._loadSessionsTab();
+  },
+
+  _switchProfileTab(tab) {
+    document.querySelectorAll('.prof-tab').forEach(function(b) {
+      b.classList.toggle('active', b.id === 'profTab-' + tab);
+    });
+    document.querySelectorAll('.prof-pane').forEach(function(p) {
+      p.classList.toggle('active', p.id === 'profPane-' + tab);
+    });
   },
 
   // ── PIN CODE ──────────────────────────────────────────────
@@ -577,7 +597,8 @@ const Shell = {
       '<div id="pinError" style="color:#e74c3c;font-size:13px;min-height:18px"></div>' +
       '<div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px">' +
         [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(function(n){
-          return '<button onclick="Shell._pinKey(\''+n+'\')" style="width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:background 0.12s"'+(n===''?' disabled style="opacity:0;pointer-events:none;width:72px;height:72px;border:none;background:none"':'')+'>'+n+'</button>';
+          if (n === '') return '<div style="width:72px;height:72px"></div>';
+          return '<button ontouchstart="this.style.transform=\'scale(0.88)\';this.style.background=\'var(--surface2)\'" ontouchend="this.style.transform=\'\';this.style.background=\'var(--surface)\'" onmousedown="this.style.transform=\'scale(0.88)\'" onmouseup="this.style.transform=\'\'" onclick="Shell._pinKey(\''+n+'\')" style="-webkit-tap-highlight-color:transparent;outline:none;width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:'+(n==='⌫'?'20':'22')+'px;font-weight:600;cursor:pointer;transition:transform 0.08s,background 0.08s;user-select:none">'+n+'</button>';
         }).join('') +
       '</div>' +
       '<button onclick="Shell.logout()" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;margin-top:8px">Войти с паролем</button>';
@@ -588,6 +609,7 @@ const Shell = {
 
   _pinKey(key) {
     if (key === '') return;
+    try { navigator.vibrate && navigator.vibrate(key === '⌫' ? 30 : 20); } catch(e){}
     var pin = localStorage.getItem('ho_pin');
     if (key === '⌫') {
       this._pinEntered = (this._pinEntered || '').slice(0, -1);
@@ -677,28 +699,32 @@ const Shell = {
     var el = document.getElementById('profileSessions');
     if (!el) return;
     var sessions = await this.api('/api/auth/sessions');
-    if (!sessions) { el.innerHTML = '<div style="color:var(--text-dim);font-size:13px">Не удалось загрузить</div>'; return; }
+    if (!sessions) { el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:16px 0">Не удалось загрузить</div>'; return; }
+    // Update footer session count
+    var countEl = document.getElementById('profSessionCount');
+    if (countEl) countEl.textContent = 'Сессий активно: ' + sessions.length;
+    // Update PIN block in security tab
     var pinEnabled = !!localStorage.getItem('ho_pin');
-    var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
-      '<span style="font-size:13px;font-weight:600;color:var(--text)">PIN-код на этом устройстве</span>' +
-      (pinEnabled
-        ? '<button onclick="Shell._disablePin()" style="background:rgba(231,76,60,0.15);border:none;color:#e74c3c;padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px">Отключить</button>'
-        : '<button onclick="Shell._setPinFlow()" style="background:var(--accent-glow);border:none;color:var(--accent);padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px">Включить</button>') +
-      '</div>';
-    html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Активные сессии</div>';
+    var subEl = document.getElementById('profPinSub');
+    if (subEl) subEl.textContent = pinEnabled ? 'Включён на этом устройстве' : 'Не настроен';
+    var pinBtnEl = document.getElementById('profPinBtn');
+    if (pinBtnEl) pinBtnEl.innerHTML = pinEnabled
+      ? '<button onclick="Shell._disablePin()" style="background:none;border:1px solid rgba(231,76,60,0.5);color:#e74c3c;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap">Отключить</button>'
+      : '<button onclick="Shell._setPinFlow()" style="background:var(--accent-glow);border:none;color:var(--accent);padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap">Включить</button>';
+    var html = '';
     sessions.forEach(function(s) {
       var ua = s.device_info && s.device_info.user_agent || '';
       var device = Shell._deviceName(ua);
       var lastSeen = s.last_seen ? Shell._relTime(s.last_seen) : '—';
-      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">' +
-        '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px">'+device+
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)">' +
+        '<div style="flex:1;min-width:0;overflow:hidden">' +
+          '<div style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+device+
             (s.is_current ? '<span style="font-size:10px;background:var(--accent-glow);color:var(--accent);padding:1px 6px;border-radius:6px;font-weight:600">текущая</span>' : '') +
             (s.pin_enabled ? '<span style="font-size:10px;background:rgba(251,191,36,0.15);color:#fbbf24;padding:1px 6px;border-radius:6px">PIN</span>' : '') +
           '</div>' +
-          '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+lastSeen+'</div>' +
+          '<div style="font-size:11px;color:var(--text-dim);margin-top:1px">'+lastSeen+'</div>' +
         '</div>' +
-        (!s.is_current ? '<button onclick="Shell._revokeSession(\''+s.hint+'\')" style="background:rgba(231,76,60,0.12);border:none;color:#e74c3c;padding:5px 10px;border-radius:8px;cursor:pointer;font-size:11px;white-space:nowrap">Завершить</button>' : '') +
+        (!s.is_current ? '<button onclick="Shell._revokeSession(\''+s.hint+'\')" style="background:rgba(231,76,60,0.1);border:none;color:#e74c3c;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:11px;white-space:nowrap;flex-shrink:0;transition:background 0.15s">Завершить</button>' : '') +
       '</div>';
     });
     el.innerHTML = html;
@@ -742,7 +768,11 @@ const Shell = {
   async saveDisplayName() {
     var dn = document.getElementById('profDisplayName').value.trim();
     var d = await this.api('/api/profile/name', {method:'POST', body:JSON.stringify({display_name: dn})});
-    if (d && d.status === 'ok') { this.toast(dn ? 'Имя сохранено' : 'Имя удалено'); }
+    if (d && d.status === 'ok') {
+      this.toast(dn ? 'Имя сохранено' : 'Имя удалено');
+      var dnSpan = document.getElementById('profileDisplayName');
+      if (dnSpan) { var profile = this.user; dnSpan.textContent = dn || (profile && profile.username) || ''; }
+    }
     else { this.toast(d?.error || 'Ошибка', 'error'); }
   },
 

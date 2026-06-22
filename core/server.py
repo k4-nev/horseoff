@@ -1667,11 +1667,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'version': '?'})
 
         if path.startswith('/locale/'):
-            return self._serve_file(LOCALE_DIR / path.split('/locale/')[1])
+            return self._serve_file(LOCALE_DIR / path.split('/locale/')[1], base_dir=LOCALE_DIR)
 
         if path.startswith('/modules/'):
             parts = path.split('/', 3)
-            if len(parts) >= 4: return self._serve_file(MODULES_DIR / parts[2] / parts[3])
+            if len(parts) >= 4: return self._serve_file(MODULES_DIR / parts[2] / parts[3], base_dir=MODULES_DIR)
 
         if path == '/api/modules':
             s = get_session(self)
@@ -1793,7 +1793,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # SVG icons
         if path.startswith('/svg/'):
-            return self._serve_file(ROOT_DIR / 'svg' / path.split('/svg/')[1])
+            return self._serve_file(ROOT_DIR / 'svg' / path.split('/svg/')[1], base_dir=ROOT_DIR / 'svg')
 
         # PWA files
         if path.startswith('/pwa/'):
@@ -1811,16 +1811,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(avatar_path.read_bytes())
                 return
-            return self._serve_file(ROOT_DIR / 'pwa' / path.split('/pwa/')[1])
+            return self._serve_file(ROOT_DIR / 'pwa' / path.split('/pwa/')[1], base_dir=ROOT_DIR / 'pwa')
         if path == '/sw.js':
-            return self._serve_file(ROOT_DIR / 'pwa' / 'sw.js')
+            return self._serve_file(ROOT_DIR / 'pwa' / 'sw.js', base_dir=ROOT_DIR / 'pwa')
 
         if path.startswith('/stickers/'):
             fname = path.split('/stickers/')[1]
             if fname and '/' not in fname and '..' not in fname:
-                return self._serve_file(ROOT_DIR / 'stickers' / fname)
-        if path in ('/', '/index.html'): return self._serve_file(CORE_DIR / 'shell.html')
-        if path.startswith('/core/'): return self._serve_file(CORE_DIR / path.split('/core/')[1])
+                return self._serve_file(ROOT_DIR / 'stickers' / fname, base_dir=ROOT_DIR / 'stickers')
+        if path in ('/', '/index.html'): return self._serve_file(CORE_DIR / 'shell.html', base_dir=CORE_DIR)
+        if path.startswith('/core/'): return self._serve_file(CORE_DIR / path.split('/core/')[1], base_dir=CORE_DIR)
         self._json(404, {'error': 'Not found'})
 
     def do_POST(self):
@@ -2021,7 +2021,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/auth/revoke_session':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
-            hint = data.get('hint', '')
+            hint = data.get('token_hint', data.get('hint', ''))
             with auth_lock:
                 for tk in list(sessions.keys()):
                     if tk[-6:] == hint and sessions[tk].get('id') == s['id']:
@@ -2032,7 +2032,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/auth/set_pin_flag':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
-            hint = data.get('hint', '')
+            hint = data.get('token_hint', data.get('hint', ''))
             pin_enabled = bool(data.get('pin_enabled', False))
             with auth_lock:
                 for tk in list(sessions.keys()):
@@ -2284,11 +2284,18 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, code, data):
         self.send_response(code)
         self.send_header('Content-Type','application/json')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
-    def _serve_file(self, filepath):
-        filepath = Path(filepath)
+    def _serve_file(self, filepath, base_dir=None):
+        filepath = Path(filepath).resolve()
+        # Path traversal guard: ensure file stays within its base directory
+        if base_dir is not None:
+            base_dir = Path(base_dir).resolve()
+            if not str(filepath).startswith(str(base_dir) + '/') and filepath != base_dir:
+                return self._json(403, {'error': 'Forbidden'})
         if not filepath.exists(): return self._json(404, {'error': 'Not found'})
         ext = filepath.suffix
         mime = MIME.get(ext, 'application/octet-stream')
@@ -2316,6 +2323,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', f'{mime}; charset=utf-8' if ext in ('.html','.css','.js','.json') else mime)
         self.send_header('Content-Length', str(size))
         self.send_header('Accept-Ranges', 'bytes')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
         self.end_headers()
         self.wfile.write(filepath.read_bytes())
 
