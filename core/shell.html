@@ -47,34 +47,63 @@
 </div>
 <!-- PROFILE MODAL -->
 <div class="modal-overlay" id="profileModal">
-<div class="modal">
-<div class="modal-header"><div class="modal-title">Профиль</div><button class="modal-close" onclick="Shell.closeModal('profileModal')"><span class="ico ico-18 ico-close"></span></button></div>
-<div class="profile-avatar-wrap">
-<div class="profile-avatar" id="profileAvatar" onclick="Shell.pickAvatar()" title="Нажмите для загрузки фото">
-<span class="profile-avatar-letter" id="profileAvatarLetter">?</span>
-<img class="profile-avatar-img" id="profileAvatarImg" style="display:none"/>
-<div class="profile-avatar-overlay"><svg width="20" height="20" viewBox="0 0 20 20" fill="#00d4aa"><path d="M10 8a3 3 0 1 0 0 6a3 3 0 0 0 0-6m8-3h-2.4a.89.89 0 0 1-.789-.57l-.621-1.861A.89.89 0 0 0 13.4 2H6.6c-.33 0-.686.256-.789.568L5.189 4.43A.89.89 0 0 1 4.4 5H2C.9 5 0 5.9 0 7v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m-8 11a5 5 0 0 1-5-5a5 5 0 1 1 10 0a5 5 0 0 1-5 5m7.5-7.8a.7.7 0 1 1 0-1.4a.7.7 0 0 1 0 1.4"/></svg></div>
-</div>
-<input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="Shell.uploadAvatar(this)"/>
-<button class="profile-avatar-remove" id="profileAvatarRemove" onclick="Shell.removeAvatar()" style="display:none">Удалить фото</button>
-</div>
-<div class="profile-info">
-<div class="profile-row"><span class="profile-label">Логин</span><span class="profile-value" id="profileUsername">—</span></div>
-<div class="profile-row"><span class="profile-label">Роль</span><span class="profile-value" id="profileRole">—</span></div>
-<div class="profile-row" style="align-items:center"><span class="profile-label">Тема</span>
-  <div class="theme-seg" id="themeSeg">
-    <button class="theme-seg-btn" data-theme="light" onclick="Shell.setTheme('light')">☀ Светлая</button>
-    <button class="theme-seg-btn" data-theme="dark" onclick="Shell.setTheme('dark')">☾ Тёмная</button>
+<div class="modal prof-modal">
+  <div class="modal-header">
+    <div class="modal-title">Профиль</div>
+    <button class="modal-close" onclick="Shell.closeModal('profileModal')"><span class="ico ico-18 ico-close"></span></button>
   </div>
-</div>
-</div>
-<div class="form-group"><label class="form-label">Отображаемое имя</label><div style="display:flex;gap:8px"><input class="form-input" id="profDisplayName" placeholder="Не указано"/><button class="btn btn-secondary" onclick="Shell.saveDisplayName()" style="padding:6px 12px;font-size:12px;white-space:nowrap">Сохранить</button></div><div class="form-hint">Только буквы и пробелы. Если не указано — отображается логин.</div></div>
-<div class="form-group" style="margin-top:16px"><label class="form-label">Текущий пароль</label><div class="input-eye"><input class="form-input" id="profOldPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
-<div class="form-group"><label class="form-label">Новый пароль</label><div class="input-eye"><input class="form-input" id="profNewPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
-<div class="modal-actions"><button class="btn btn-primary" onclick="Shell.changePassword()">Сменить пароль</button><button class="btn btn-danger" onclick="Shell.logout()" style="flex:0">
-<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-Выйти</button></div>
-<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)" id="profileSessions"></div>
+  <!-- Identity block (always visible) -->
+  <div class="prof-identity">
+    <div class="profile-avatar" id="profileAvatar" onclick="Shell.pickAvatar()" title="Загрузить фото">
+      <span class="profile-avatar-letter" id="profileAvatarLetter">?</span>
+      <img class="profile-avatar-img" id="profileAvatarImg" style="display:none"/>
+      <div class="profile-avatar-overlay"><svg width="20" height="20" viewBox="0 0 20 20" fill="#00d4aa"><path d="M10 8a3 3 0 1 0 0 6a3 3 0 0 0 0-6m8-3h-2.4a.89.89 0 0 1-.789-.57l-.621-1.861A.89.89 0 0 0 13.4 2H6.6c-.33 0-.686.256-.789.568L5.189 4.43A.89.89 0 0 1 4.4 5H2C.9 5 0 5.9 0 7v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m-8 11a5 5 0 0 1-5-5a5 5 0 1 1 10 0a5 5 0 0 1-5 5m7.5-7.8a.7.7 0 1 1 0-1.4a.7.7 0 0 1 0 1.4"/></svg></div>
+    </div>
+    <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="Shell.uploadAvatar(this)"/>
+    <div class="prof-identity-info">
+      <div class="prof-identity-name"><span id="profileDisplayName" style="font-size:17px;font-weight:700;color:var(--text)">—</span> <span class="role-badge" id="profileRole">—</span></div>
+      <div class="prof-identity-username" id="profileUsername">@—</div>
+      <button class="prof-avatar-remove" id="profileAvatarRemove" onclick="Shell.removeAvatar()" style="display:none">Удалить фото</button>
+    </div>
+  </div>
+  <!-- Tabs -->
+  <div class="prof-tabs">
+    <button class="prof-tab active" id="profTab-account" onclick="Shell._switchProfileTab('account')">Аккаунт</button>
+    <button class="prof-tab" id="profTab-security" onclick="Shell._switchProfileTab('security')">Безопасность</button>
+    <button class="prof-tab" id="profTab-sessions" onclick="Shell._switchProfileTab('sessions')">Сессии</button>
+  </div>
+  <!-- Tab panes (fixed height container) -->
+  <div class="prof-panes">
+    <div class="prof-pane active" id="profPane-account">
+      <div class="prof-section-lbl">ТЕМА ОФОРМЛЕНИЯ</div>
+      <div class="theme-seg" id="themeSeg" style="width:100%">
+        <button class="theme-seg-btn" data-theme="light" onclick="Shell.setTheme('light')">☀ Светлая</button>
+        <button class="theme-seg-btn" data-theme="dark" onclick="Shell.setTheme('dark')">☾ Тёмная</button>
+      </div>
+      <div class="prof-section-lbl" style="margin-top:20px">ОТОБРАЖАЕМОЕ ИМЯ</div>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="profDisplayName" placeholder="Не указано"/>
+        <button class="btn btn-secondary" onclick="Shell.saveDisplayName()" style="white-space:nowrap">Сохранить</button>
+      </div>
+      <div class="form-hint" style="margin-top:6px">Только буквы и пробелы. Если не указано — отображается логин.</div>
+    </div>
+    <div class="prof-pane" id="profPane-security">
+      <div class="form-group"><label class="form-label">Текущий пароль</label><div class="input-eye"><input class="form-input" id="profOldPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
+      <div class="form-group"><label class="form-label">Новый пароль</label><div class="input-eye"><input class="form-input" id="profNewPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="Shell.changePassword()">Сменить пароль</button>
+    </div>
+    <div class="prof-pane" id="profPane-sessions">
+      <div id="profileSessions"></div>
+    </div>
+  </div>
+  <!-- Footer -->
+  <div class="prof-footer">
+    <span class="prof-session-count" id="profSessionCount"></span>
+    <button class="btn btn-danger" onclick="Shell.logout()" style="gap:6px;flex:0;padding:8px 16px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Выйти
+    </button>
+  </div>
 </div>
 </div>
 
