@@ -2021,7 +2021,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/auth/revoke_session':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
-            hint = data.get('hint', '')
+            hint = data.get('token_hint', data.get('hint', ''))
             with auth_lock:
                 for tk in list(sessions.keys()):
                     if tk[-6:] == hint and sessions[tk].get('id') == s['id']:
@@ -2032,7 +2032,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/auth/set_pin_flag':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
-            hint = data.get('hint', '')
+            hint = data.get('token_hint', data.get('hint', ''))
             pin_enabled = bool(data.get('pin_enabled', False))
             with auth_lock:
                 for tk in list(sessions.keys()):

@@ -577,7 +577,8 @@ const Shell = {
       '<div id="pinError" style="color:#e74c3c;font-size:13px;min-height:18px"></div>' +
       '<div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px">' +
         [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(function(n){
-          return '<button onclick="Shell._pinKey(\''+n+'\')" style="width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:background 0.12s"'+(n===''?' disabled style="opacity:0;pointer-events:none;width:72px;height:72px;border:none;background:none"':'')+'>'+n+'</button>';
+          if (n === '') return '<div style="width:72px;height:72px"></div>';
+          return '<button ontouchstart="this.style.transform=\'scale(0.88)\';this.style.background=\'var(--surface2)\'" ontouchend="this.style.transform=\'\';this.style.background=\'var(--surface)\'" onmousedown="this.style.transform=\'scale(0.88)\'" onmouseup="this.style.transform=\'\'" onclick="Shell._pinKey(\''+n+'\')" style="-webkit-tap-highlight-color:transparent;outline:none;width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:'+(n==='⌫'?'20':'22')+'px;font-weight:600;cursor:pointer;transition:transform 0.08s,background 0.08s;user-select:none">'+n+'</button>';
         }).join('') +
       '</div>' +
       '<button onclick="Shell.logout()" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;margin-top:8px">Войти с паролем</button>';
@@ -588,6 +589,7 @@ const Shell = {
 
   _pinKey(key) {
     if (key === '') return;
+    try { navigator.vibrate && navigator.vibrate(key === '⌫' ? 30 : 20); } catch(e){}
     var pin = localStorage.getItem('ho_pin');
     if (key === '⌫') {
       this._pinEntered = (this._pinEntered || '').slice(0, -1);
