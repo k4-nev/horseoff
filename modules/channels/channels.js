@@ -1949,28 +1949,53 @@ const Channels = {
 
   _expandTile(userId) {
     var existing = document.getElementById('chVaTileOverlay');
-    if (existing) { existing.remove(); return; }
+    if (existing) { existing.remove(); this._expandedUserId = null; return; }
     var self = this;
     var spk = (this._voiceRoomData && this._voiceRoomData.speakers) || [];
     var p = spk.find(function(s){ return s.user_id === userId; });
     if (!p) return;
     var isMe = userId === this._voiceMyId;
-    var av = p.avatar ? '<img src="data:image/png;base64,'+p.avatar+'" class="ch-va-av" style="width:120px;height:120px">' : '<div class="ch-va-av ch-va-av-empty" style="width:120px;height:120px;font-size:48px">'+(p.username||'?')[0].toUpperCase()+'</div>';
+    var av = p.avatar
+      ? '<img src="data:image/png;base64,'+p.avatar+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.3)">'
+      : '<div style="width:40px;height:40px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--text-dim);border:2px solid rgba(255,255,255,0.2)">'+(p.username||'?')[0].toUpperCase()+'</div>';
+    var avBig = p.avatar
+      ? '<img src="data:image/png;base64,'+p.avatar+'" style="width:120px;height:120px;border-radius:50%;object-fit:cover">'
+      : '<div style="width:120px;height:120px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;color:var(--text-dim)">'+(p.username||'?')[0].toUpperCase()+'</div>';
+    var micIco = this._voiceMuted ? '<span class="ico ico-20 ico-mic-off"></span>' : '<span class="ico ico-20 ico-mic"></span>';
+    var camIco = this._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
     var ov = document.createElement('div');
     ov.id = 'chVaTileOverlay';
     ov.style.cssText = 'position:fixed;inset:0;z-index:500;background:#000;display:flex;align-items:center;justify-content:center';
     ov.innerHTML =
       '<video id="chVaTileOvVid" autoplay playsinline '+(isMe?'muted':'')+' style="width:100%;height:100%;object-fit:contain;display:'+(p.video_muted?'none':'block')+'"></video>' +
-      '<div id="chVaTileOvAv" style="position:absolute;display:'+(p.video_muted?'flex':'none')+';align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#fff">'+av+'<div style="font-size:18px;font-weight:600">'+self._esc(p.username)+'</div></div>' +
-      '<button onclick="document.getElementById(\'chVaTileOverlay\').remove()" style="position:absolute;top:16px;right:16px;background:rgba(0,0,0,0.5);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>';
+      '<div id="chVaTileOvAv" style="position:absolute;display:'+(p.video_muted?'flex':'none')+';align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#fff">'+avBig+'<div style="font-size:18px;font-weight:600">'+self._esc(p.username)+'</div></div>' +
+      '<button onclick="Channels._expandTile(\''+userId+'\')" style="position:absolute;top:16px;right:16px;background:rgba(0,0,0,0.5);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>' +
+      '<div id="chVaOvCapsule" style="position:absolute;bottom:28px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:rgba(20,20,30,0.85);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.1);border-radius:40px;padding:8px 16px 8px 10px">' +
+        '<div style="display:flex;align-items:center;gap:8px;padding-right:12px;border-right:1px solid rgba(255,255,255,0.12)">'+av+'<span style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+self._esc(p.username)+'</span></div>' +
+        '<button id="chVaOvMicBtn" onclick="Channels._ovToggleMic()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+micIco+'</button>' +
+        '<button id="chVaOvCamBtn" onclick="Channels._ovToggleCam()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+camIco+'</button>' +
+        '<button onclick="Channels._expandTile(\''+userId+'\');Channels.leaveVoiceRoom()" style="background:rgba(231,76,60,0.2);border:none;color:#e74c3c;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;margin-left:4px" onmouseenter="this.style.background=\'rgba(231,76,60,0.4)\'" onmouseleave="this.style.background=\'rgba(231,76,60,0.2)\'"><span class="ico ico-20 ico-phone-off"></span></button>' +
+      '</div>';
     document.body.appendChild(ov);
-    ov.addEventListener('click', function(e){ if (e.target === ov) ov.remove(); });
     // Attach stream
     var vid = document.getElementById('chVaTileOvVid');
     if (isMe && this._voiceStream) { vid.srcObject = this._voiceStream; }
     else if (this._voiceRemoteStreams[userId]) { vid.srcObject = this._voiceRemoteStreams[userId]; vid.play().catch(function(){}); }
-    // Keep overlay in sync when tile updates
     this._expandedUserId = userId;
+  },
+
+  _ovToggleMic() {
+    this.toggleVoiceMic();
+    var btn = document.getElementById('chVaOvMicBtn');
+    if (btn) btn.innerHTML = this._voiceMuted ? '<span class="ico ico-20 ico-mic-off"></span>' : '<span class="ico ico-20 ico-mic"></span>';
+  },
+
+  _ovToggleCam() {
+    if (this._voiceVideoMuted) this._requestCamera(); else this._disableCamera();
+    setTimeout(function() {
+      var btn = document.getElementById('chVaOvCamBtn');
+      if (btn) btn.innerHTML = Channels._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
+    }, 300);
   },
 
   _renderVoiceGrid() {
