@@ -1744,6 +1744,7 @@ const Channels = {
   _voiceRemoteStreams: {},
   _voiceMuted: true,
   _voiceVideoMuted: true,
+  _voiceScreenSharing: false,
   _voiceHandRaised: false,
   _voiceRoomData: null,
   _voiceMyId: null,
@@ -1941,6 +1942,14 @@ const Channels = {
       camBtn.onclick = this._voiceVideoMuted ? function(){Channels._requestCamera();} : function(){Channels._disableCamera();};
     }
     if (camIco) camIco.innerHTML = this._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
+    var screenBtn = document.getElementById('chVaScreenBtn');
+    var screenIco = document.getElementById('chVaScreenIco');
+    if (screenBtn) {
+      screenBtn.classList.toggle('ch-va-ctrl-off', !this._voiceScreenSharing);
+      screenBtn.classList.toggle('ch-va-ctrl-on', this._voiceScreenSharing);
+      screenBtn.onclick = this._voiceScreenSharing ? function(){Channels._stopScreenShare();} : function(){Channels._requestScreenShare();};
+    }
+    if (screenIco) screenIco.innerHTML = '<span class="ico ico-20 ico-screen"></span>';
     if (handBtn) handBtn.style.display = this._voiceIsSpk ? 'none' : 'flex';
     if (handBtn) handBtn.classList.toggle('ch-va-ctrl-on', this._voiceHandRaised);
     var vbMicIco = document.getElementById('chVbMicIco');
@@ -1979,6 +1988,7 @@ const Channels = {
           '<div style="display:flex;align-items:center;gap:8px;padding-right:12px;border-right:1px solid rgba(255,255,255,0.12)">'+av+'<span style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+self._esc(p.username)+'</span></div>' +
           '<button id="chVaOvMicBtn" onclick="Channels._ovToggleMic()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+micIco+'</button>' +
           '<button id="chVaOvCamBtn" onclick="Channels._ovToggleCam()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+camIco+'</button>' +
+          '<button id="chVaOvScreenBtn" onclick="Channels._ovToggleScreen()" style="background:none;border:none;color:'+(this._voiceScreenSharing?'var(--accent)':'#fff')+';width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'"><span class="ico ico-20 ico-screen"></span></button>' +
           '<button onclick="Channels._expandTile(\''+userId+'\');Channels.leaveVoiceRoom()" style="background:rgba(231,76,60,0.2);border:none;color:#e74c3c;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;margin-left:4px" onmouseenter="this.style.background=\'rgba(231,76,60,0.4)\'" onmouseleave="this.style.background=\'rgba(231,76,60,0.2)\'"><span class="ico ico-20 ico-phone-off"></span></button>' +
         '</div>' +
         (!isMe ? '<div style="position:relative;width:64px;height:64px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.2);background:#111;flex-shrink:0"><video id="chVaOvSelfVid" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:'+(self._voiceVideoMuted?'none':'block')+'"></video><div id="chVaOvSelfAv" style="position:absolute;inset:0;display:'+(self._voiceVideoMuted?'flex':'none')+';align-items:center;justify-content:center">'+myAv+'</div></div>' : '') +
@@ -2000,6 +2010,15 @@ const Channels = {
     this.toggleVoiceMic();
     var btn = document.getElementById('chVaOvMicBtn');
     if (btn) btn.innerHTML = this._voiceMuted ? '<span class="ico ico-20 ico-mic-off"></span>' : '<span class="ico ico-20 ico-mic"></span>';
+  },
+
+  _ovToggleScreen() {
+    if (this._voiceScreenSharing) { this._stopScreenShare(); }
+    else { Shell.closeModal('chCamConfirmModal'); this._startScreenShare(); }
+    setTimeout(function() {
+      var btn = document.getElementById('chVaOvScreenBtn');
+      if (btn) btn.style.color = Channels._voiceScreenSharing ? 'var(--accent)' : '#fff';
+    }, 300);
   },
 
   _ovToggleCam() {
@@ -2149,6 +2168,10 @@ const Channels = {
       var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
       if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; myVid.play().catch(function(){}); }
       if (myWrap) myWrap.style.display = 'none';
+      // Update self-preview bubble in fullscreen overlay
+      var selfVid = document.getElementById('chVaOvSelfVid');
+      var selfAv = document.getElementById('chVaOvSelfAv');
+      if (selfVid && this._voiceStream) { selfVid.srcObject = this._voiceStream; selfVid.style.display = 'block'; if (selfAv) selfAv.style.display = 'none'; }
     } catch(e) { Shell.toast('Нет доступа к камере', 'error'); }
   },
 
@@ -2164,6 +2187,71 @@ const Channels = {
     var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
     if (myVid) { myVid.style.display = 'none'; }
     if (myWrap) myWrap.style.display = 'flex';
+  },
+
+  _requestScreenShare() {
+    document.getElementById('chScreenConfirmModal').classList.add('active');
+  },
+
+  async _startScreenShare() {
+    var self = this;
+    try {
+      if (this._voiceVideoMuted === false) this._disableCamera();
+      var sStream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false});
+      var sTrack = sStream.getVideoTracks()[0];
+      if (!sTrack) return;
+      // Auto-stop when user closes native share dialog
+      sTrack.onended = function() { self._stopScreenShare(); };
+      // Replace video track in all peers
+      if (this._voiceStream) {
+        this._voiceStream.getVideoTracks().forEach(function(t){ self._voiceStream.removeTrack(t); t.stop(); });
+        this._voiceStream.addTrack(sTrack);
+      } else {
+        this._voiceStream = new MediaStream([sTrack]);
+      }
+      for (var uid in this._voicePeers) {
+        var pc = this._voicePeers[uid];
+        var transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+        var vt = transceivers.find(function(tr){
+          return (tr.sender.track && tr.sender.track.kind === 'video') ||
+                 (!tr.sender.track && tr.receiver && tr.receiver.track && tr.receiver.track.kind === 'video');
+        });
+        var peerUid = uid;
+        if (vt) {
+          if (vt.direction === 'recvonly' || vt.direction === 'inactive') vt.direction = 'sendrecv';
+          vt.sender.replaceTrack(sTrack).catch(function(){});
+          (async function(puid) {
+            var p = self._voicePeers[puid]; if (!p) return;
+            try { var offer = await p.createOffer(); await p.setLocalDescription(offer); Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()}); } catch(e){}
+          })(peerUid);
+        } else {
+          try { pc.addTrack(sTrack, self._voiceStream); } catch(e){}
+          (async function(puid) {
+            var p = self._voicePeers[puid]; if (!p) return;
+            try { var offer = await p.createOffer(); await p.setLocalDescription(offer); Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()}); } catch(e){}
+          })(peerUid);
+        }
+      }
+      this._voiceScreenSharing = true;
+      this._voiceVideoMuted = false;
+      Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: false});
+      this._updateVoiceControls();
+      var myVid = document.getElementById('chVaVid-' + this._voiceMyId);
+      var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
+      if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; myVid.play().catch(function(){}); }
+      if (myWrap) myWrap.style.display = 'none';
+      var selfVid = document.getElementById('chVaOvSelfVid');
+      var selfAv = document.getElementById('chVaOvSelfAv');
+      if (selfVid) { selfVid.srcObject = this._voiceStream; selfVid.style.display = 'block'; if (selfAv) selfAv.style.display = 'none'; }
+    } catch(e) { if (e.name !== 'NotAllowedError') Shell.toast('Не удалось показать экран', 'error'); }
+  },
+
+  _stopScreenShare() {
+    if (this._voiceStream) {
+      this._voiceStream.getVideoTracks().forEach(function(t){ t.stop(); });
+    }
+    this._voiceScreenSharing = false;
+    this._disableCamera();
   },
 
   toggleVoiceMic() {

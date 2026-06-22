@@ -299,3 +299,6 @@ body.theme-light .ch-notify-close{color:rgba(0,0,0,0.3)}
 body.theme-light .modal-title{color:#5a6373;font-weight:600}
 body.theme-light .modal-subtitle{color:#6b7484}
 body.theme-light h2{color:#5a6373;font-weight:600}
+
+/* ─── PIN CODE ─── */
+.pin-dot{width:14px;height:14px;border-radius:50%;background:var(--border);transition:background 0.15s}

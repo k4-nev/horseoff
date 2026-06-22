@@ -89,6 +89,9 @@
           <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaCamBtn" onclick="Channels._requestCamera()" title="Камера">
             <span id="chVaCamIco"><span class="ico ico-20 ico-video-off"></span></span>
           </button>
+          <button class="ch-va-ctrl ch-va-ctrl-off" id="chVaScreenBtn" onclick="Channels._requestScreenShare()" title="Показать экран">
+            <span id="chVaScreenIco"><span class="ico ico-20 ico-screen"></span></span>
+          </button>
           <button class="ch-va-ctrl" id="chVaHandBtn" onclick="Channels.toggleVoiceHand()" title="Поднять руку" style="display:none">
             <span class="ico ico-20 ico-hand"></span>
           </button>
@@ -181,4 +184,11 @@
   <div class="modal-header"><div class="modal-title">Включить камеру?</div></div>
   <div style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Ваше изображение станет видно всем участникам комнаты.</div>
   <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chCamConfirmModal')">Отмена</button><button class="btn btn-primary" onclick="Shell.closeModal('chCamConfirmModal');Channels._enableCamera()">Включить</button></div>
+</div></div>
+
+<!-- Screen Share Confirm Modal -->
+<div class="modal-overlay" id="chScreenConfirmModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title">Показать экран?</div></div>
+  <div style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Содержимое вашего экрана будет видно всем участникам комнаты.</div>
+  <div class="modal-actions"><button class="btn btn-secondary" onclick="Shell.closeModal('chScreenConfirmModal')">Отмена</button><button class="btn btn-primary" onclick="Shell.closeModal('chScreenConfirmModal');Channels._startScreenShare()">Показать</button></div>
 </div></div>
