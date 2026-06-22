@@ -250,6 +250,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .ico-video-off{-webkit-mask-image:url(/svg/video-off.svg);mask-image:url(/svg/video-off.svg);background-color:#6b7585}
 .ico-hand{-webkit-mask-image:url(/svg/hand.svg);mask-image:url(/svg/hand.svg);background-color:#6b7585}
 .ico-phone-off{-webkit-mask-image:url(/svg/phone-off.svg);mask-image:url(/svg/phone-off.svg);background-color:#6b7585}
+.ico-screen{-webkit-mask-image:url(/svg/screen.svg);mask-image:url(/svg/screen.svg);background-color:#6b7585}
 .ico-speaker{-webkit-mask-image:url(/svg/speaker.svg);mask-image:url(/svg/speaker.svg);background-color:#6b7585}
 .ico-24{width:24px;height:24px}
 .btn-icon-only{background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:all 0.2s}
