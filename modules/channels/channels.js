@@ -1742,7 +1742,7 @@ const Channels = {
   },
 
   _esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; },
-  _fmt(text) { return this._esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/@(\w+)/g, '<span class="ch-mention">@$1</span>'); },
+  _fmt(text) { return this._esc(text).replace(/(https?:\/\/[^\s<]+)/g, function(_, url) { if (/^javascript:/i.test(url)) return url; return '<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+url+'</a>'; }).replace(/@(\w+)/g, '<span class="ch-mention">@$1</span>'); },
 
   // ─── Voice Rooms ───
   _voiceRooms: {},
