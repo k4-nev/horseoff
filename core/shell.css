@@ -196,7 +196,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .modal{margin:10px;max-width:calc(100vw - 20px)}
 /* Voice bar — mobile: icon only in green circle */
 .sb-voice-bar{flex-direction:column;width:44px;height:44px;border-radius:50%;padding:0;gap:0;align-items:center;justify-content:center;background:rgba(0,212,170,0.2)}
-.sb-voice-bar-ico{width:32px;height:32px;margin:0;flex-shrink:0}
+.sb-voice-bar-ico{width:32px;height:32px;margin:0 !important;flex-shrink:0}
 .sb-vb-img{width:32px;height:32px}
 .sb-vb-icon-circle{width:32px;height:32px}
 .sb-voice-bar-controls{display:none}
@@ -250,6 +250,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .ico-video-off{-webkit-mask-image:url(/svg/video-off.svg);mask-image:url(/svg/video-off.svg);background-color:#6b7585}
 .ico-hand{-webkit-mask-image:url(/svg/hand.svg);mask-image:url(/svg/hand.svg);background-color:#6b7585}
 .ico-phone-off{-webkit-mask-image:url(/svg/phone-off.svg);mask-image:url(/svg/phone-off.svg);background-color:#6b7585}
+.ico-screen{-webkit-mask-image:url(/svg/screen.svg);mask-image:url(/svg/screen.svg);background-color:#6b7585}
 .ico-speaker{-webkit-mask-image:url(/svg/speaker.svg);mask-image:url(/svg/speaker.svg);background-color:#6b7585}
 .ico-24{width:24px;height:24px}
 .btn-icon-only{background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:all 0.2s}
@@ -299,3 +300,6 @@ body.theme-light .ch-notify-close{color:rgba(0,0,0,0.3)}
 body.theme-light .modal-title{color:#5a6373;font-weight:600}
 body.theme-light .modal-subtitle{color:#6b7484}
 body.theme-light h2{color:#5a6373;font-weight:600}
+
+/* ─── PIN CODE ─── */
+.pin-dot{width:14px;height:14px;border-radius:50%;background:var(--border);transition:background 0.15s}

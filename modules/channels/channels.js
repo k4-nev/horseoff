@@ -85,16 +85,14 @@ const Channels = {
   },
 
   async loadSpaces() {
-    var d = await Shell.api('/api/mod/channels/spaces');
-    this.spaces = Array.isArray(d) ? d : [];
-    this.channelsBySpace = {};
-    for (var i = 0; i < this.spaces.length; i++) {
-      var ch = await Shell.api('/api/mod/channels/channels?space_id=' + this.spaces[i].id);
-      this.channelsBySpace[this.spaces[i].id] = Array.isArray(ch) ? ch : [];
-      if (this.spaces[i].type === 'voice_group') {
-        var vr = await Shell.api('/api/mod/channels/voice_rooms?space_id=' + this.spaces[i].id);
-        if (vr) Object.assign(this._voiceRooms, vr);
-      }
+    var d = await Shell.api('/api/mod/channels/init');
+    if (d && d.spaces) {
+      this.spaces = d.spaces;
+      this.channelsBySpace = d.channels || {};
+      if (d.voice_rooms) Object.assign(this._voiceRooms, d.voice_rooms);
+    } else {
+      this.spaces = [];
+      this.channelsBySpace = {};
     }
     this.renderSidebar();
   },
@@ -1744,6 +1742,7 @@ const Channels = {
   _voiceRemoteStreams: {},
   _voiceMuted: true,
   _voiceVideoMuted: true,
+  _voiceScreenSharing: false,
   _voiceHandRaised: false,
   _voiceRoomData: null,
   _voiceMyId: null,
@@ -1758,7 +1757,8 @@ const Channels = {
   _iceServers: [
     {urls: 'stun:stun.l.google.com:19302'},
     {urls: 'stun:stun1.l.google.com:19302'},
-    {urls: ['turn:horseoff-workspace.ru:3478', 'turn:horseoff-workspace.ru:3478?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'}
+    {urls: ['turn:horseoff-workspace.ru:3478', 'turn:horseoff-workspace.ru:3478?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'},
+    {urls: ['turns:horseoff-workspace.ru:5349', 'turns:horseoff-workspace.ru:5349?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'}
   ],
 
   async loadVoiceRooms(spaceId) {
@@ -1798,10 +1798,6 @@ const Channels = {
     document.getElementById('chVoiceSettingsBtn').style.display = '';
     var vm = document.getElementById('chVoiceMain');
     if (vm) { vm.style.display = 'flex'; vm.style.flexDirection = 'column'; }
-
-    // Hide minimized bar while on this room
-    var bar = document.getElementById('sidebarVoiceBar');
-    if (bar) bar.style.display = 'none';
 
     await this.loadMembers();
 
@@ -1940,10 +1936,100 @@ const Channels = {
       camBtn.onclick = this._voiceVideoMuted ? function(){Channels._requestCamera();} : function(){Channels._disableCamera();};
     }
     if (camIco) camIco.innerHTML = this._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
+    var screenBtn = document.getElementById('chVaScreenBtn');
+    var screenIco = document.getElementById('chVaScreenIco');
+    var hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    if (screenBtn) {
+      screenBtn.style.display = hasDisplayMedia ? '' : 'none';
+      screenBtn.classList.toggle('ch-va-ctrl-off', !this._voiceScreenSharing);
+      screenBtn.classList.toggle('ch-va-ctrl-on', this._voiceScreenSharing);
+      screenBtn.onclick = this._voiceScreenSharing ? function(){Channels._stopScreenShare();} : function(){Channels._requestScreenShare();};
+    }
+    if (screenIco) screenIco.innerHTML = '<span class="ico ico-20 ico-screen"></span>';
     if (handBtn) handBtn.style.display = this._voiceIsSpk ? 'none' : 'flex';
     if (handBtn) handBtn.classList.toggle('ch-va-ctrl-on', this._voiceHandRaised);
     var vbMicIco = document.getElementById('chVbMicIco');
     if (vbMicIco) vbMicIco.innerHTML = this._voiceMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic"></span>';
+  },
+
+  _expandTile(userId) {
+    var existing = document.getElementById('chVaTileOverlay');
+    if (existing) { existing.remove(); this._expandedUserId = null; return; }
+    var self = this;
+    var hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    var spk = (this._voiceRoomData && this._voiceRoomData.speakers) || [];
+    var p = spk.find(function(s){ return s.user_id === userId; });
+    if (!p) return;
+    var isMe = userId === this._voiceMyId;
+    var av = p.avatar
+      ? '<img src="data:image/png;base64,'+p.avatar+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.3)">'
+      : '<div style="width:40px;height:40px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--text-dim);border:2px solid rgba(255,255,255,0.2)">'+(p.username||'?')[0].toUpperCase()+'</div>';
+    var avBig = p.avatar
+      ? '<img src="data:image/png;base64,'+p.avatar+'" style="width:120px;height:120px;border-radius:50%;object-fit:cover">'
+      : '<div style="width:120px;height:120px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;color:var(--text-dim)">'+(p.username||'?')[0].toUpperCase()+'</div>';
+    var micIco = this._voiceMuted ? '<span class="ico ico-20 ico-mic-off"></span>' : '<span class="ico ico-20 ico-mic"></span>';
+    var camIco = this._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
+    var mySpk = spk.find(function(s){ return s.user_id === self._voiceMyId; });
+    var myAv = mySpk && mySpk.avatar
+      ? '<img src="data:image/png;base64,'+mySpk.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+      : '<div style="width:100%;height:100%;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--text-dim)">'+(mySpk?mySpk.username||'?':'?')[0].toUpperCase()+'</div>';
+    var ov = document.createElement('div');
+    ov.id = 'chVaTileOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:500;background:#000;display:flex;align-items:center;justify-content:center';
+    ov.innerHTML =
+      '<video id="chVaTileOvVid" autoplay playsinline '+(isMe?'muted':'')+' style="width:100%;height:100%;object-fit:contain;display:'+(p.video_muted?'none':'block')+'"></video>' +
+      '<div id="chVaTileOvAv" style="position:absolute;display:'+(p.video_muted?'flex':'none')+';align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#fff">'+avBig+'<div style="font-size:18px;font-weight:600">'+self._esc(p.username)+'</div></div>' +
+      '<button onclick="Channels._expandTile(\''+userId+'\')" style="position:absolute;top:16px;right:16px;background:rgba(0,0,0,0.5);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>' +
+      '<div style="position:absolute;bottom:28px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px">' +
+        '<div id="chVaOvCapsule" style="display:flex;align-items:center;gap:8px;background:rgba(20,20,30,0.85);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.1);border-radius:40px;padding:8px 16px 8px 10px">' +
+          '<div style="display:flex;align-items:center;gap:8px;padding-right:12px;border-right:1px solid rgba(255,255,255,0.12)">'+av+'<span style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+self._esc(p.username)+'</span></div>' +
+          '<button id="chVaOvMicBtn" onclick="Channels._ovToggleMic()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+micIco+'</button>' +
+          '<button id="chVaOvCamBtn" onclick="Channels._ovToggleCam()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+camIco+'</button>' +
+          (hasDisplayMedia ? '<button id="chVaOvScreenBtn" onclick="Channels._ovToggleScreen()" style="background:none;border:none;color:'+(this._voiceScreenSharing?'var(--accent)':'#fff')+';width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'"><span class="ico ico-20 ico-screen"></span></button>' : '') +
+          '<button onclick="Channels._expandTile(\''+userId+'\');Channels.leaveVoiceRoom()" style="background:rgba(231,76,60,0.2);border:none;color:#e74c3c;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;margin-left:4px" onmouseenter="this.style.background=\'rgba(231,76,60,0.4)\'" onmouseleave="this.style.background=\'rgba(231,76,60,0.2)\'"><span class="ico ico-20 ico-phone-off"></span></button>' +
+        '</div>' +
+        (!isMe ? '<div style="position:relative;width:64px;height:64px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.2);background:#111;flex-shrink:0"><video id="chVaOvSelfVid" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:'+(self._voiceVideoMuted?'none':'block')+'"></video><div id="chVaOvSelfAv" style="position:absolute;inset:0;display:'+(self._voiceVideoMuted?'flex':'none')+';align-items:center;justify-content:center">'+myAv+'</div></div>' : '') +
+      '</div>';
+    document.body.appendChild(ov);
+    // Attach main stream
+    var vid = document.getElementById('chVaTileOvVid');
+    if (isMe && this._voiceStream) { vid.srcObject = this._voiceStream; }
+    else if (this._voiceRemoteStreams[userId]) { vid.srcObject = this._voiceRemoteStreams[userId]; vid.play().catch(function(){}); }
+    // Attach self preview bubble
+    if (!isMe && this._voiceStream && !this._voiceVideoMuted) {
+      var selfVid = document.getElementById('chVaOvSelfVid');
+      if (selfVid) { selfVid.srcObject = this._voiceStream; }
+    }
+    this._expandedUserId = userId;
+  },
+
+  _ovToggleMic() {
+    this.toggleVoiceMic();
+    var btn = document.getElementById('chVaOvMicBtn');
+    if (btn) btn.innerHTML = this._voiceMuted ? '<span class="ico ico-20 ico-mic-off"></span>' : '<span class="ico ico-20 ico-mic"></span>';
+  },
+
+  _ovToggleScreen() {
+    if (this._voiceScreenSharing) { this._stopScreenShare(); }
+    else { Shell.closeModal('chCamConfirmModal'); this._startScreenShare(); }
+    setTimeout(function() {
+      var btn = document.getElementById('chVaOvScreenBtn');
+      if (btn) btn.style.color = Channels._voiceScreenSharing ? 'var(--accent)' : '#fff';
+    }, 300);
+  },
+
+  _ovToggleCam() {
+    if (this._voiceVideoMuted) this._requestCamera(); else this._disableCamera();
+    setTimeout(function() {
+      var btn = document.getElementById('chVaOvCamBtn');
+      if (btn) btn.innerHTML = Channels._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
+      var selfVid = document.getElementById('chVaOvSelfVid');
+      var selfAv = document.getElementById('chVaOvSelfAv');
+      if (selfVid) {
+        if (!Channels._voiceVideoMuted && Channels._voiceStream) { selfVid.srcObject = Channels._voiceStream; selfVid.style.display = 'block'; if(selfAv) selfAv.style.display = 'none'; }
+        else { selfVid.style.display = 'none'; if(selfAv) selfAv.style.display = 'flex'; }
+      }
+    }, 300);
   },
 
   _renderVoiceGrid() {
@@ -1958,7 +2044,7 @@ const Channels = {
       var av = p.avatar ? '<img src="data:image/png;base64,'+p.avatar+'" class="ch-va-av">' : '<div class="ch-va-av ch-va-av-empty">'+(p.username||'?')[0].toUpperCase()+'</div>';
       var muteClass = p.muted ? ' ch-va-muted' : '';
       var micIco = p.muted ? '<span class="ico ico-14 ico-mic-off"></span>' : '';
-      return '<div class="ch-va-tile'+muteClass+'" id="chVaTile-'+p.user_id+'">' +
+      return '<div class="ch-va-tile'+muteClass+'" id="chVaTile-'+p.user_id+'" onclick="Channels._expandTile(\''+p.user_id+'\')">' +
         '<video class="ch-va-video" id="chVaVid-'+p.user_id+'" autoplay playsinline '+(isMe?'muted':'')+' style="display:'+(p.video_muted?'none':'block')+'"></video>' +
         '<div class="ch-va-av-wrap" id="chVaAvWrap-'+p.user_id+'" style="display:'+(p.video_muted?'flex':'none')+'">'+av+'</div>' +
         '<div class="ch-va-tile-name">'+self._esc(p.username)+(micIco?'<span class="ch-va-tile-mico">'+micIco+'</span>':'')+'</div>' +
@@ -1976,6 +2062,16 @@ const Channels = {
         if (v && v.srcObject !== self._voiceRemoteStreams[uid]) {
           v.srcObject = self._voiceRemoteStreams[uid];
           v.play().catch(function(){});
+        }
+      }
+      // Sync overlay if open
+      var ovVid = document.getElementById('chVaTileOvVid');
+      if (ovVid && self._expandedUserId) {
+        var euid = self._expandedUserId;
+        var isMe2 = euid === self._voiceMyId;
+        if (isMe2 && self._voiceStream) { ovVid.srcObject = self._voiceStream; }
+        else if (self._voiceRemoteStreams[euid] && ovVid.srcObject !== self._voiceRemoteStreams[euid]) {
+          ovVid.srcObject = self._voiceRemoteStreams[euid]; ovVid.play().catch(function(){});
         }
       }
     }, 30);
@@ -2004,44 +2100,82 @@ const Channels = {
   },
 
   async _enableCamera() {
+    var self = this;
     var spkCount = this._voiceRoomData ? (this._voiceRoomData.speakers||[]).length : 1;
     var res = spkCount <= 2 ? {width:{ideal:1280},height:{ideal:720}} : {width:{ideal:640},height:{ideal:360}};
     try {
-      var vStream = await navigator.mediaDevices.getUserMedia({video: res});
-      var vTrack = vStream.getVideoTracks()[0];
-      if (!vTrack) return;
-      if (this._voiceStream) { this._voiceStream.addTrack(vTrack); }
-      else { this._voiceStream = new MediaStream([vTrack]); }
-      this._voiceVideoMuted = false;
-      var self = this;
-      for (var uid in this._voicePeers) {
-        var peerUid = uid;
-        try {
-          self._voicePeers[peerUid].addTrack(vTrack, self._voiceStream);
-          // Renegotiate so remote sees the new video track
-          (async function(puid) {
-            var pc = self._voicePeers[puid];
-            if (!pc) return;
-            try {
-              var offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:pc.localDescription.toJSON()});
-            } catch(e){ console.warn('[WebRTC] renegotiate error', e); }
-          })(peerUid);
-        } catch(e){}
+      // Re-enable existing live track if possible (t.enabled=false but not stopped)
+      var existingVT = this._voiceStream ? this._voiceStream.getVideoTracks().find(function(t){ return t.readyState !== 'ended'; }) : null;
+      var vTrack;
+      if (existingVT) {
+        existingVT.enabled = true;
+        vTrack = existingVT;
+      } else {
+        // Track was stopped or never existed — get a new one
+        var vStream = await navigator.mediaDevices.getUserMedia({video: res});
+        vTrack = vStream.getVideoTracks()[0];
+        if (!vTrack) return;
+        if (this._voiceStream) { this._voiceStream.addTrack(vTrack); }
+        else { this._voiceStream = new MediaStream([vTrack]); }
+        // Put the new track into existing peer senders or renegotiate
+        for (var uid in this._voicePeers) {
+          var pc = this._voicePeers[uid];
+          var transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+          // Find video transceiver (sender or receiver track is video)
+          var vt = transceivers.find(function(tr){
+            return (tr.sender.track && tr.sender.track.kind === 'video') ||
+                   (!tr.sender.track && tr.receiver && tr.receiver.track && tr.receiver.track.kind === 'video');
+          });
+          var peerUid = uid;
+          if (vt) {
+            // Change direction if needed and replace track (renegotiation via _enableCamera offer)
+            if (vt.direction === 'recvonly' || vt.direction === 'inactive') {
+              vt.direction = 'sendrecv';
+            }
+            vt.sender.replaceTrack(vTrack).catch(function(){});
+            // Renegotiate so remote sees direction change
+            (async function(puid) {
+              var p = self._voicePeers[puid];
+              if (!p) return;
+              try {
+                var offer = await p.createOffer();
+                await p.setLocalDescription(offer);
+                Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()});
+              } catch(e){ console.warn('[WebRTC] renegotiate', e); }
+            })(peerUid);
+          } else {
+            // No video transceiver — addTrack + renegotiate
+            try { pc.addTrack(vTrack, self._voiceStream); } catch(e){}
+            (async function(puid) {
+              var p = self._voicePeers[puid];
+              if (!p) return;
+              try {
+                var offer = await p.createOffer();
+                await p.setLocalDescription(offer);
+                Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()});
+              } catch(e){ console.warn('[WebRTC] renegotiate', e); }
+            })(peerUid);
+          }
+        }
       }
+      this._voiceVideoMuted = false;
       Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: false});
       this._updateVoiceControls();
       var myVid = document.getElementById('chVaVid-' + this._voiceMyId);
       var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
-      if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; }
+      if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; myVid.play().catch(function(){}); }
       if (myWrap) myWrap.style.display = 'none';
+      // Update self-preview bubble in fullscreen overlay
+      var selfVid = document.getElementById('chVaOvSelfVid');
+      var selfAv = document.getElementById('chVaOvSelfAv');
+      if (selfVid && this._voiceStream) { selfVid.srcObject = this._voiceStream; selfVid.style.display = 'block'; if (selfAv) selfAv.style.display = 'none'; }
     } catch(e) { Shell.toast('Нет доступа к камере', 'error'); }
   },
 
   _disableCamera() {
+    // Use enabled=false (not stop) so track can be re-enabled without renegotiation
     if (this._voiceStream) {
-      this._voiceStream.getVideoTracks().forEach(function(t){t.enabled=false;t.stop();});
+      this._voiceStream.getVideoTracks().forEach(function(t){ t.enabled = false; });
     }
     this._voiceVideoMuted = true;
     Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: true});
@@ -2050,6 +2184,71 @@ const Channels = {
     var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
     if (myVid) { myVid.style.display = 'none'; }
     if (myWrap) myWrap.style.display = 'flex';
+  },
+
+  _requestScreenShare() {
+    document.getElementById('chScreenConfirmModal').classList.add('active');
+  },
+
+  async _startScreenShare() {
+    var self = this;
+    try {
+      if (this._voiceVideoMuted === false) this._disableCamera();
+      var sStream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false});
+      var sTrack = sStream.getVideoTracks()[0];
+      if (!sTrack) return;
+      // Auto-stop when user closes native share dialog
+      sTrack.onended = function() { self._stopScreenShare(); };
+      // Replace video track in all peers
+      if (this._voiceStream) {
+        this._voiceStream.getVideoTracks().forEach(function(t){ self._voiceStream.removeTrack(t); t.stop(); });
+        this._voiceStream.addTrack(sTrack);
+      } else {
+        this._voiceStream = new MediaStream([sTrack]);
+      }
+      for (var uid in this._voicePeers) {
+        var pc = this._voicePeers[uid];
+        var transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+        var vt = transceivers.find(function(tr){
+          return (tr.sender.track && tr.sender.track.kind === 'video') ||
+                 (!tr.sender.track && tr.receiver && tr.receiver.track && tr.receiver.track.kind === 'video');
+        });
+        var peerUid = uid;
+        if (vt) {
+          if (vt.direction === 'recvonly' || vt.direction === 'inactive') vt.direction = 'sendrecv';
+          vt.sender.replaceTrack(sTrack).catch(function(){});
+          (async function(puid) {
+            var p = self._voicePeers[puid]; if (!p) return;
+            try { var offer = await p.createOffer(); await p.setLocalDescription(offer); Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()}); } catch(e){}
+          })(peerUid);
+        } else {
+          try { pc.addTrack(sTrack, self._voiceStream); } catch(e){}
+          (async function(puid) {
+            var p = self._voicePeers[puid]; if (!p) return;
+            try { var offer = await p.createOffer(); await p.setLocalDescription(offer); Shell.wsSend({type:'voice_offer', room_id:self._voiceRoomId, to_user_id:puid, sdp:p.localDescription.toJSON()}); } catch(e){}
+          })(peerUid);
+        }
+      }
+      this._voiceScreenSharing = true;
+      this._voiceVideoMuted = false;
+      Shell.wsSend({type:'voice_mute', room_id: this._voiceRoomId, muted: this._voiceMuted, video_muted: false});
+      this._updateVoiceControls();
+      var myVid = document.getElementById('chVaVid-' + this._voiceMyId);
+      var myWrap = document.getElementById('chVaAvWrap-' + this._voiceMyId);
+      if (myVid) { myVid.srcObject = this._voiceStream; myVid.style.display = 'block'; myVid.play().catch(function(){}); }
+      if (myWrap) myWrap.style.display = 'none';
+      var selfVid = document.getElementById('chVaOvSelfVid');
+      var selfAv = document.getElementById('chVaOvSelfAv');
+      if (selfVid) { selfVid.srcObject = this._voiceStream; selfVid.style.display = 'block'; if (selfAv) selfAv.style.display = 'none'; }
+    } catch(e) { if (e.name !== 'NotAllowedError') Shell.toast('Не удалось показать экран', 'error'); }
+  },
+
+  _stopScreenShare() {
+    if (this._voiceStream) {
+      this._voiceStream.getVideoTracks().forEach(function(t){ t.stop(); });
+    }
+    this._voiceScreenSharing = false;
+    this._disableCamera();
   },
 
   toggleVoiceMic() {
@@ -2137,16 +2336,19 @@ const Channels = {
     bar.style.display = 'flex';
     bar.classList.remove('sb-vb-exit');
     bar.classList.add('sb-vb-enter');
+    var isMobile = window.innerWidth <= 768;
     bar.innerHTML =
       '<div class="sb-voice-bar-ico" onclick="Channels._returnToVoiceRoom()" title="' + (ch ? ch.name : 'Голосовая') + '">' + icoHtml + '</div>' +
-      '<div class="sb-voice-bar-controls">' +
-        '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
-        '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
-      '</div>';
+      (isMobile ? '' :
+        '<div class="sb-voice-bar-controls">' +
+          '<button class="sb-vb-btn" id="chVbMicBtn" onclick="event.stopPropagation();Channels.toggleVoiceMic()" title="Микрофон"><span id="chVbMicIco">' + micIcoHtml + '</span></button>' +
+          '<button class="sb-vb-btn sb-vb-leave" onclick="event.stopPropagation();Channels.leaveVoiceRoom()" title="Выйти"><span class="ico ico-14 ico-phone-off"></span></button>' +
+        '</div>');
   },
 
-  _returnToVoiceRoom() {
+  async _returnToVoiceRoom() {
     if (!this._voiceRoomId || !this._voiceSpaceId) return;
+    await Shell.switchModule('channels');
     this.openChannel(this._voiceSpaceId, this._voiceRoomId);
   },
 
@@ -2188,9 +2390,14 @@ const Channels = {
     // Add local tracks or transceivers for receiving
     if (this._voiceStream) {
       this._voiceStream.getTracks().forEach(function(t){ pc.addTrack(t, self._voiceStream); });
+      // If no video track locally, still add recvonly transceiver so remote can send video
+      if (!self._voiceStream.getVideoTracks().length) {
+        try { pc.addTransceiver('video', {direction: 'recvonly'}); } catch(e){}
+      }
     } else {
-      // Listener: no local stream — request recv-only so remote can send
+      // Listener: no local stream
       try { pc.addTransceiver('audio', {direction: 'recvonly'}); } catch(e){}
+      try { pc.addTransceiver('video', {direction: 'recvonly'}); } catch(e){}
     }
 
     if (isInitiator) {
@@ -2335,7 +2542,15 @@ const Channels = {
     if (t === 'voice_offer') {
       var uid = data.from_user_id;
       console.log('[WebRTC] got offer from', uid);
-      var pc = this._initPeer(uid, false);
+      var existingPc = this._voicePeers[uid];
+      var pc;
+      // Renegotiation: reuse existing connected peer instead of destroying it
+      if (existingPc && (existingPc.connectionState === 'connected' || existingPc.connectionState === 'connecting')) {
+        pc = existingPc;
+        console.log('[WebRTC] renegotiation offer from', uid);
+      } else {
+        pc = this._initPeer(uid, false);
+      }
       pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
         var q = self._iceCandidateQueues[uid] || [];
         self._iceCandidateQueues[uid] = [];

@@ -206,6 +206,15 @@ const Shell = {
     this.setTheme(theme);
   },
 
+  _getDeviceId() {
+    let did = localStorage.getItem('ho_device_id');
+    if (!did) {
+      did = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2)+Date.now().toString(36);
+      localStorage.setItem('ho_device_id', did);
+    }
+    return did;
+  },
+
   async init() {
     this._loadTheme();
     await this.loadLocale();
@@ -213,7 +222,11 @@ const Shell = {
     if (token) {
       this.token = token;
       const ok = await this.verifyToken();
-      if (ok) { this.showApp(); return; }
+      if (ok) {
+        const pin = localStorage.getItem('ho_pin');
+        if (pin) { this._showPinScreen(); return; }
+        this.showApp(); return;
+      }
       localStorage.removeItem('ho_token');
     }
     const r = await this.api('/api/auth/status');
@@ -262,7 +275,7 @@ const Shell = {
     const err = document.getElementById('authError');
     err.style.display = 'none';
     if (!u || !p) { err.textContent = this.t('fill_fields'); err.style.display = 'block'; return; }
-    const d = await this.api('/api/auth/login', {method:'POST', body:JSON.stringify({username:u,password:p})});
+    const d = await this.api('/api/auth/login', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId(),user_agent:navigator.userAgent,platform:navigator.platform||''})});
     if (d && d.token) { this.token = d.token; localStorage.setItem('ho_token', this.token); await this.verifyToken(); this.showApp(); }
     else { err.textContent = d?.error || this.t('auth_error'); err.style.display = 'block'; }
   },
@@ -276,7 +289,7 @@ const Shell = {
     if (!u || !p) { err.textContent = this.t('fill_fields'); err.style.display = 'block'; return; }
     if (p !== p2) { err.textContent = this.t('passwords_mismatch'); err.style.display = 'block'; return; }
     if (p.length < 6) { err.textContent = this.t('pass_min'); err.style.display = 'block'; return; }
-    const d = await this.api('/api/auth/setup', {method:'POST', body:JSON.stringify({username:u,password:p})});
+    const d = await this.api('/api/auth/setup', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId(),user_agent:navigator.userAgent,platform:navigator.platform||''})});
     if (d && d.token) { this.token = d.token; localStorage.setItem('ho_token', this.token); await this.verifyToken(); this.showApp(); }
     else { err.textContent = d?.error || this.t('auth_error'); err.style.display = 'block'; }
   },
@@ -307,9 +320,10 @@ const Shell = {
 
   _initSwUpdateCheck() {
     if (!('serviceWorker' in navigator)) return;
-    // Reload when a new SW takes control
+    // Show update banner when a new SW takes control (don't force-reload)
+    var self = this;
     navigator.serviceWorker.addEventListener('controllerchange', function() {
-      window.location.reload();
+      self._showUpdateBanner();
     });
     // Force SW update check every 5 minutes
     var self = this;
@@ -405,6 +419,7 @@ const Shell = {
   },
 
   logout() {
+    if (this.token) this.api('/api/auth/logout', {method:'POST'}).catch(function(){});
     localStorage.removeItem('ho_token');
     this.token = null; this.user = null;
     this.activeModule = null;
@@ -540,6 +555,188 @@ const Shell = {
       btn.classList.toggle('active', btn.dataset.theme === currentTheme);
     });
     document.getElementById('profileModal').classList.add('active');
+    this._loadSessionsTab();
+  },
+
+  // ── PIN CODE ──────────────────────────────────────────────
+  _showPinScreen() {
+    var self = this;
+    var entered = '';
+    var overlay = document.getElementById('pinScreen');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'pinScreen';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg,#0f0f17);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML =
+      '<div style="font-size:22px;font-weight:700;color:var(--text)">Введите PIN-код</div>' +
+      '<div id="pinDots" style="display:flex;gap:16px">' +
+        '<div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>' +
+      '</div>' +
+      '<div id="pinError" style="color:#e74c3c;font-size:13px;min-height:18px"></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px">' +
+        [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(function(n){
+          return '<button onclick="Shell._pinKey(\''+n+'\')" style="width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:background 0.12s"'+(n===''?' disabled style="opacity:0;pointer-events:none;width:72px;height:72px;border:none;background:none"':'')+'>'+n+'</button>';
+        }).join('') +
+      '</div>' +
+      '<button onclick="Shell.logout()" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;margin-top:8px">Войти с паролем</button>';
+    overlay.style.display = 'flex';
+    this._pinAttempts = 0;
+    this._pinEntered = '';
+  },
+
+  _pinKey(key) {
+    if (key === '') return;
+    var pin = localStorage.getItem('ho_pin');
+    if (key === '⌫') {
+      this._pinEntered = (this._pinEntered || '').slice(0, -1);
+    } else {
+      this._pinEntered = (this._pinEntered || '') + key;
+    }
+    var dots = document.querySelectorAll('.pin-dot');
+    dots.forEach(function(d, i) { d.style.background = i < (Shell._pinEntered||'').length ? 'var(--accent)' : 'var(--border)'; });
+    if ((this._pinEntered || '').length === 4) {
+      if (this._pinEntered === pin) {
+        document.getElementById('pinScreen').style.display = 'none';
+        this.showApp();
+      } else {
+        this._pinAttempts = (this._pinAttempts || 0) + 1;
+        document.getElementById('pinError').textContent = 'Неверный PIN (' + (3 - this._pinAttempts) + ' попытки осталось)';
+        this._pinEntered = '';
+        document.querySelectorAll('.pin-dot').forEach(function(d){ d.style.background = 'var(--border)'; });
+        if (this._pinAttempts >= 3) {
+          localStorage.removeItem('ho_pin');
+          this.logout();
+        }
+      }
+    }
+  },
+
+  async _setPinFlow() {
+    var self = this;
+    var first = await this._pinDialog('Введите новый PIN');
+    if (!first) return;
+    var second = await this._pinDialog('Повторите PIN');
+    if (!second) return;
+    if (first !== second) { this.toast('PIN-коды не совпадают', 'error'); return; }
+    localStorage.setItem('ho_pin', first);
+    // Mark session as pin-enabled on server
+    var hint = this.token ? this.token.slice(-6) : '';
+    await this.api('/api/auth/set_pin_flag', {method:'POST', body:JSON.stringify({token_hint: hint, pin_enabled: true})});
+    this.toast('PIN-код установлен');
+    this._loadSessionsTab();
+  },
+
+  _pinDialog(title) {
+    return new Promise(function(resolve) {
+      var entered = '';
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px';
+      function update() {
+        dots.forEach(function(d, i){ d.style.background = i < entered.length ? 'var(--accent)' : 'var(--border)'; });
+        if (entered.length === 4) { document.body.removeChild(overlay); resolve(entered); }
+      }
+      overlay.innerHTML =
+        '<div style="background:var(--surface);border-radius:20px;padding:32px;display:flex;flex-direction:column;align-items:center;gap:20px;min-width:280px">' +
+        '<div style="font-size:18px;font-weight:700;color:var(--text)">'+title+'</div>' +
+        '<div id="pinDlgDots" style="display:flex;gap:16px">' +
+          '<div class="pin-dot" style="width:14px;height:14px;border-radius:50%;background:var(--border)"></div>'.repeat(4) +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(3,64px);gap:10px">' +
+          [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(function(n){
+            return '<button class="pin-dlg-btn" data-key="'+n+'" style="width:64px;height:64px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:20px;font-weight:600;cursor:pointer"'+(n===''?' disabled style="opacity:0;pointer-events:none;border:none;background:none"':'')+'>'+n+'</button>';
+          }).join('') +
+        '</div>' +
+        '<button id="pinDlgCancel" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer">Отмена</button>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      var dots = overlay.querySelectorAll('.pin-dot');
+      overlay.querySelectorAll('.pin-dlg-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var k = btn.dataset.key;
+          if (k === '⌫') { entered = entered.slice(0, -1); }
+          else if (k) { entered += k; }
+          update();
+        });
+      });
+      overlay.querySelector('#pinDlgCancel').addEventListener('click', function(){ document.body.removeChild(overlay); resolve(null); });
+    });
+  },
+
+  async _disablePin() {
+    localStorage.removeItem('ho_pin');
+    var hint = this.token ? this.token.slice(-6) : '';
+    await this.api('/api/auth/set_pin_flag', {method:'POST', body:JSON.stringify({token_hint: hint, pin_enabled: false})});
+    this.toast('PIN-код отключён');
+    this._loadSessionsTab();
+  },
+
+  // ── SESSIONS ──────────────────────────────────────────────
+  async _loadSessionsTab() {
+    var el = document.getElementById('profileSessions');
+    if (!el) return;
+    var sessions = await this.api('/api/auth/sessions');
+    if (!sessions) { el.innerHTML = '<div style="color:var(--text-dim);font-size:13px">Не удалось загрузить</div>'; return; }
+    var pinEnabled = !!localStorage.getItem('ho_pin');
+    var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+      '<span style="font-size:13px;font-weight:600;color:var(--text)">PIN-код на этом устройстве</span>' +
+      (pinEnabled
+        ? '<button onclick="Shell._disablePin()" style="background:rgba(231,76,60,0.15);border:none;color:#e74c3c;padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px">Отключить</button>'
+        : '<button onclick="Shell._setPinFlow()" style="background:var(--accent-glow);border:none;color:var(--accent);padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px">Включить</button>') +
+      '</div>';
+    html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Активные сессии</div>';
+    sessions.forEach(function(s) {
+      var ua = s.device_info && s.device_info.user_agent || '';
+      var device = Shell._deviceName(ua);
+      var lastSeen = s.last_seen ? Shell._relTime(s.last_seen) : '—';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px">'+device+
+            (s.is_current ? '<span style="font-size:10px;background:var(--accent-glow);color:var(--accent);padding:1px 6px;border-radius:6px;font-weight:600">текущая</span>' : '') +
+            (s.pin_enabled ? '<span style="font-size:10px;background:rgba(251,191,36,0.15);color:#fbbf24;padding:1px 6px;border-radius:6px">PIN</span>' : '') +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+lastSeen+'</div>' +
+        '</div>' +
+        (!s.is_current ? '<button onclick="Shell._revokeSession(\''+s.hint+'\')" style="background:rgba(231,76,60,0.12);border:none;color:#e74c3c;padding:5px 10px;border-radius:8px;cursor:pointer;font-size:11px;white-space:nowrap">Завершить</button>' : '') +
+      '</div>';
+    });
+    el.innerHTML = html;
+  },
+
+  _relTime(ts) {
+    var diff = Math.floor(Date.now()/1000 - ts);
+    if (diff < 60) return 'только что';
+    if (diff < 3600) return Math.floor(diff/60) + ' мин. назад';
+    if (diff < 86400) return Math.floor(diff/3600) + ' ч. назад';
+    return Math.floor(diff/86400) + ' дн. назад';
+  },
+
+  _deviceName(ua) {
+    if (!ua) return '💻 Устройство';
+    // iOS devices
+    if (/iPhone/.test(ua)) {
+      var m = ua.match(/iPhone OS ([\d_]+)/); var v = m ? ' ' + m[1].replace(/_/g,'.') : '';
+      return '📱 iPhone' + v;
+    }
+    if (/iPad/.test(ua)) return '📱 iPad';
+    // Android
+    if (/Android/.test(ua)) {
+      var m2 = ua.match(/Android [^;]+;\s*([^)]+)/); var model = m2 ? m2[1].trim() : 'Android';
+      if (model.length > 28) model = model.slice(0,28) + '…';
+      return '📱 ' + model;
+    }
+    // Desktop OS
+    if (/Windows NT 10/.test(ua)) return '💻 Windows 10/11';
+    if (/Windows NT 6/.test(ua)) return '💻 Windows';
+    if (/Macintosh/.test(ua)) { var mv = ua.match(/Mac OS X ([\d_]+)/); return '💻 macOS' + (mv ? ' ' + mv[1].replace(/_/g,'.') : ''); }
+    if (/Linux/.test(ua)) return '💻 Linux';
+    return '💻 Устройство';
+  },
+
+  async _revokeSession(hint) {
+    await this.api('/api/auth/revoke_session', {method:'POST', body:JSON.stringify({token_hint: hint})});
+    this._loadSessionsTab();
   },
 
   async saveDisplayName() {

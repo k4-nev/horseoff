@@ -30,7 +30,7 @@ except ImportError:
 
 WEB_PORT = 8550
 WS_PORT = 8551
-SESSION_TTL = 30 * 86400  # 30 days
+SESSION_TTL = 7 * 86400  # 7 days
 SCRIPT_DIR = Path(__file__).parent
 ROOT_DIR = SCRIPT_DIR.parent
 DATA_DIR = ROOT_DIR / "data"
@@ -39,6 +39,7 @@ MODULES_DIR = ROOT_DIR / "modules"
 CORE_DIR = SCRIPT_DIR
 USERS_FILE = DATA_DIR / "users.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
+SESSIONS_FILE = DATA_DIR / "sessions.json"
 
 DATA_DIR.mkdir(exist_ok=True)
 AVATARS_DIR = DATA_DIR / 'avatars'
@@ -202,8 +203,28 @@ def get_remaining_block(ip):
 # ============================================================
 # USERS & AUTH
 # ============================================================
-sessions = {}
 auth_lock = threading.Lock()
+sessions = {}
+
+def load_sessions():
+    try:
+        if SESSIONS_FILE.exists():
+            with open(SESSIONS_FILE) as f:
+                data = json.load(f)
+            now = time.time()
+            return {k: v for k, v in data.items() if v.get('expires', 0) > now}
+    except Exception:
+        pass
+    return {}
+
+def save_sessions():
+    try:
+        with open(SESSIONS_FILE, 'w') as f:
+            json.dump(sessions, f)
+    except Exception as e:
+        print(f'[sessions] save error: {e}')
+
+sessions = load_sessions()
 
 def _hash(pw, salt=None):
     if not salt: salt = secrets.token_hex(16)
@@ -536,28 +557,46 @@ def change_password(username, old_pw, new_pw):
     save_users(users)
     return True, "OK"
 
-def create_session(user):
+def get_token_from_handler(handler):
+    h = handler.headers.get('Authorization', '')
+    if not h.startswith('Bearer '): return None
+    return h[7:]
+
+def create_session(user, device_info=None):
     token = secrets.token_urlsafe(32)
+    now = time.time()
     with auth_lock:
-        sessions[token] = {'username': user['username'], 'role': user['role'], 'id': user['id'], 'expires': time.time() + SESSION_TTL}
+        sessions[token] = {
+            'username': user['username'], 'role': user['role'], 'id': user['id'],
+            'expires': now + SESSION_TTL,
+            'device_info': device_info or {},
+            'created_at': now,
+            'last_seen': now,
+            'pin_enabled': False,
+            'device_id': device_info.get('device_id', '') if device_info else ''
+        }
+    save_sessions()
     return token
 
 def get_session(handler):
-    h = handler.headers.get('Authorization', '')
-    if not h.startswith('Bearer '): return None
-    token = h[7:]
+    token = get_token_from_handler(handler)
+    if not token: return None
     with auth_lock:
         s = sessions.get(token)
         if not s: return None
-        if time.time() > s['expires']: del sessions[token]; return None
-        return s
+        if time.time() > s['expires']: del sessions[token]; save_sessions(); return None
+        s['last_seen'] = time.time()
+    save_sessions()
+    return s
 
 def get_session_by_token(token):
     with auth_lock:
         s = sessions.get(token)
         if not s: return None
-        if time.time() > s['expires']: del sessions[token]; return None
-        return s
+        if time.time() > s['expires']: del sessions[token]; save_sessions(); return None
+        s['last_seen'] = time.time()
+    save_sessions()
+    return s
 
 def require_role(handler, min_role):
     s = get_session(handler)
@@ -1601,6 +1640,24 @@ class Handler(BaseHTTPRequestHandler):
             if s: resp.update({'username': s['username'], 'role': s['role']})
             return self._json(200, resp)
 
+        if path == '/api/auth/sessions':
+            s = get_session(self)
+            if not s: return self._json(401, {'error': 'Unauthorized'})
+            current_token = get_token_from_handler(self)
+            result = []
+            with auth_lock:
+                for tk, sess in list(sessions.items()):
+                    if sess.get('id') == s['id']:
+                        result.append({
+                            'hint': tk[-6:],
+                            'device_info': sess.get('device_info', {}),
+                            'created_at': sess.get('created_at', 0),
+                            'last_seen': sess.get('last_seen', 0),
+                            'pin_enabled': sess.get('pin_enabled', False),
+                            'is_current': tk == current_token
+                        })
+            return self._json(200, result)
+
         # Version
         if path == '/api/version':
             vf = CORE_DIR / 'version.json'
@@ -1945,12 +2002,44 @@ class Handler(BaseHTTPRequestHandler):
             user = verify_pw(u, p)
             if user:
                 record_success_login(client_ip)
-                return self._json(200, {'token': create_session(user)})
+                device_info = {k: data.get(k, '') for k in ('device_id', 'user_agent', 'platform')}
+                return self._json(200, {'token': create_session(user, device_info)})
             record_failed_login(client_ip)
             remaining = get_remaining_block(client_ip)
             if remaining > 0:
                 return self._json(429, {'error': f'Слишком много попыток. Подождите {remaining} сек.'})
             return self._json(401, {'error': 'Неверный логин или пароль'})
+
+        if path == '/api/auth/logout':
+            token = get_token_from_handler(self)
+            if token:
+                with auth_lock:
+                    if token in sessions: del sessions[token]
+                save_sessions()
+            return self._json(200, {'status': 'ok'})
+
+        if path == '/api/auth/revoke_session':
+            s = get_session(self)
+            if not s: return self._json(401, {'error': 'Unauthorized'})
+            hint = data.get('hint', '')
+            with auth_lock:
+                for tk in list(sessions.keys()):
+                    if tk[-6:] == hint and sessions[tk].get('id') == s['id']:
+                        del sessions[tk]; break
+            save_sessions()
+            return self._json(200, {'status': 'ok'})
+
+        if path == '/api/auth/set_pin_flag':
+            s = get_session(self)
+            if not s: return self._json(401, {'error': 'Unauthorized'})
+            hint = data.get('hint', '')
+            pin_enabled = bool(data.get('pin_enabled', False))
+            with auth_lock:
+                for tk in list(sessions.keys()):
+                    if tk[-6:] == hint and sessions[tk].get('id') == s['id']:
+                        sessions[tk]['pin_enabled'] = pin_enabled; break
+            save_sessions()
+            return self._json(200, {'status': 'ok'})
 
         if path == '/api/profile/name':
             s = get_session(self)
