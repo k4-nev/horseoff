@@ -8,7 +8,7 @@ Rate-limited auth, persistent sessions (30 days), global settings.
 import json, time, threading, os, hashlib, secrets, base64, io, asyncio, re, subprocess, sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 # Register this module so servers_api can import from it
 sys.modules['server'] = sys.modules[__name__]
@@ -911,15 +911,21 @@ async def _voice_notify_space(space_id):
 
 async def handle_ws(websocket):
     token = None
+    ip = websocket.remote_address[0] if websocket.remote_address else '0.0.0.0'
     try:
         raw = await websocket.recv()
         data = json.loads(raw)
         if data.get('type') != 'auth' or not data.get('token'):
             await websocket.close(); return
 
+        if not check_rate_limit(ip):
+            await websocket.send(json.dumps({'type':'error','msg':'Too many attempts'}))
+            await websocket.close(); return
+
         t = data['token']
         s = get_session_by_token(t)
         if not s:
+            record_failed_login(ip)
             await websocket.send(json.dumps({'type':'error','msg':'Unauthorized'}))
             await websocket.close(); return
 
@@ -1734,8 +1740,16 @@ class Handler(BaseHTTPRequestHandler):
             uid = path.split('/api/avatar/')[1]
             return self._json(200, {'avatar': get_avatar_b64(uid)})
 
-        # Serve attachment files (no auth - ID is secret)
+        # Serve attachment files (requires valid session)
         if path.startswith('/api/msg/file/'):
+            tok = None
+            auth_hdr = self.headers.get('Authorization', '')
+            if auth_hdr.startswith('Bearer '):
+                tok = auth_hdr[7:]
+            if not tok:
+                tok = parse_qs(urlparse(self.path).query).get('token', [None])[0]
+            if not tok or not get_session_by_token(tok):
+                return self._json(401, {'error': 'Unauthorized'})
             parts = path.split('/api/msg/file/')[1].split('/')
             att_id = parts[0]
             thumb = len(parts) > 1 and parts[1] == 'thumb'
