@@ -88,14 +88,16 @@ const Channels = {
     var d = await Shell.api('/api/mod/channels/spaces');
     this.spaces = Array.isArray(d) ? d : [];
     this.channelsBySpace = {};
-    for (var i = 0; i < this.spaces.length; i++) {
-      var ch = await Shell.api('/api/mod/channels/channels?space_id=' + this.spaces[i].id);
-      this.channelsBySpace[this.spaces[i].id] = Array.isArray(ch) ? ch : [];
-      if (this.spaces[i].type === 'voice_group') {
-        var vr = await Shell.api('/api/mod/channels/voice_rooms?space_id=' + this.spaces[i].id);
-        if (vr) Object.assign(this._voiceRooms, vr);
+    // Load all channels and voice rooms in parallel
+    var self = this;
+    await Promise.all(this.spaces.map(async function(sp) {
+      var ch = await Shell.api('/api/mod/channels/channels?space_id=' + sp.id);
+      self.channelsBySpace[sp.id] = Array.isArray(ch) ? ch : [];
+      if (sp.type === 'voice_group') {
+        var vr = await Shell.api('/api/mod/channels/voice_rooms?space_id=' + sp.id);
+        if (vr) Object.assign(self._voiceRooms, vr);
       }
-    }
+    }));
     this.renderSidebar();
   },
 
@@ -1944,7 +1946,9 @@ const Channels = {
     if (camIco) camIco.innerHTML = this._voiceVideoMuted ? '<span class="ico ico-20 ico-video-off"></span>' : '<span class="ico ico-20 ico-video"></span>';
     var screenBtn = document.getElementById('chVaScreenBtn');
     var screenIco = document.getElementById('chVaScreenIco');
+    var hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     if (screenBtn) {
+      screenBtn.style.display = hasDisplayMedia ? '' : 'none';
       screenBtn.classList.toggle('ch-va-ctrl-off', !this._voiceScreenSharing);
       screenBtn.classList.toggle('ch-va-ctrl-on', this._voiceScreenSharing);
       screenBtn.onclick = this._voiceScreenSharing ? function(){Channels._stopScreenShare();} : function(){Channels._requestScreenShare();};
@@ -1960,6 +1964,7 @@ const Channels = {
     var existing = document.getElementById('chVaTileOverlay');
     if (existing) { existing.remove(); this._expandedUserId = null; return; }
     var self = this;
+    var hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     var spk = (this._voiceRoomData && this._voiceRoomData.speakers) || [];
     var p = spk.find(function(s){ return s.user_id === userId; });
     if (!p) return;
@@ -1988,7 +1993,7 @@ const Channels = {
           '<div style="display:flex;align-items:center;gap:8px;padding-right:12px;border-right:1px solid rgba(255,255,255,0.12)">'+av+'<span style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+self._esc(p.username)+'</span></div>' +
           '<button id="chVaOvMicBtn" onclick="Channels._ovToggleMic()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+micIco+'</button>' +
           '<button id="chVaOvCamBtn" onclick="Channels._ovToggleCam()" style="background:none;border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'">'+camIco+'</button>' +
-          '<button id="chVaOvScreenBtn" onclick="Channels._ovToggleScreen()" style="background:none;border:none;color:'+(this._voiceScreenSharing?'var(--accent)':'#fff')+';width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'"><span class="ico ico-20 ico-screen"></span></button>' +
+          (hasDisplayMedia ? '<button id="chVaOvScreenBtn" onclick="Channels._ovToggleScreen()" style="background:none;border:none;color:'+(this._voiceScreenSharing?'var(--accent)':'#fff')+';width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseleave="this.style.background=\'none\'"><span class="ico ico-20 ico-screen"></span></button>' : '') +
           '<button onclick="Channels._expandTile(\''+userId+'\');Channels.leaveVoiceRoom()" style="background:rgba(231,76,60,0.2);border:none;color:#e74c3c;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;margin-left:4px" onmouseenter="this.style.background=\'rgba(231,76,60,0.4)\'" onmouseleave="this.style.background=\'rgba(231,76,60,0.2)\'"><span class="ico ico-20 ico-phone-off"></span></button>' +
         '</div>' +
         (!isMe ? '<div style="position:relative;width:64px;height:64px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.2);background:#111;flex-shrink:0"><video id="chVaOvSelfVid" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:'+(self._voiceVideoMuted?'none':'block')+'"></video><div id="chVaOvSelfAv" style="position:absolute;inset:0;display:'+(self._voiceVideoMuted?'flex':'none')+';align-items:center;justify-content:center">'+myAv+'</div></div>' : '') +
@@ -2349,8 +2354,9 @@ const Channels = {
         '</div>');
   },
 
-  _returnToVoiceRoom() {
+  async _returnToVoiceRoom() {
     if (!this._voiceRoomId || !this._voiceSpaceId) return;
+    await Shell.switchModule('channels');
     this.openChannel(this._voiceSpaceId, this._voiceRoomId);
   },
 

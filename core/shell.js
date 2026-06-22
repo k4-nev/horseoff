@@ -275,7 +275,7 @@ const Shell = {
     const err = document.getElementById('authError');
     err.style.display = 'none';
     if (!u || !p) { err.textContent = this.t('fill_fields'); err.style.display = 'block'; return; }
-    const d = await this.api('/api/auth/login', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId()})});
+    const d = await this.api('/api/auth/login', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId(),user_agent:navigator.userAgent,platform:navigator.platform||''})});
     if (d && d.token) { this.token = d.token; localStorage.setItem('ho_token', this.token); await this.verifyToken(); this.showApp(); }
     else { err.textContent = d?.error || this.t('auth_error'); err.style.display = 'block'; }
   },
@@ -289,7 +289,7 @@ const Shell = {
     if (!u || !p) { err.textContent = this.t('fill_fields'); err.style.display = 'block'; return; }
     if (p !== p2) { err.textContent = this.t('passwords_mismatch'); err.style.display = 'block'; return; }
     if (p.length < 6) { err.textContent = this.t('pass_min'); err.style.display = 'block'; return; }
-    const d = await this.api('/api/auth/setup', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId()})});
+    const d = await this.api('/api/auth/setup', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId(),user_agent:navigator.userAgent,platform:navigator.platform||''})});
     if (d && d.token) { this.token = d.token; localStorage.setItem('ho_token', this.token); await this.verifyToken(); this.showApp(); }
     else { err.textContent = d?.error || this.t('auth_error'); err.style.display = 'block'; }
   },
@@ -688,9 +688,7 @@ const Shell = {
     html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Активные сессии</div>';
     sessions.forEach(function(s) {
       var ua = s.device_info && s.device_info.user_agent || '';
-      var isMobile = /Mobile|Android|iPhone/i.test(ua);
-      var browser = /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Браузер';
-      var device = (isMobile ? '📱 ' : '💻 ') + browser;
+      var device = Shell._deviceName(ua);
       var lastSeen = s.last_seen ? Shell._relTime(s.last_seen) : '—';
       html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">' +
         '<div style="flex:1;min-width:0">' +
@@ -712,6 +710,28 @@ const Shell = {
     if (diff < 3600) return Math.floor(diff/60) + ' мин. назад';
     if (diff < 86400) return Math.floor(diff/3600) + ' ч. назад';
     return Math.floor(diff/86400) + ' дн. назад';
+  },
+
+  _deviceName(ua) {
+    if (!ua) return '💻 Устройство';
+    // iOS devices
+    if (/iPhone/.test(ua)) {
+      var m = ua.match(/iPhone OS ([\d_]+)/); var v = m ? ' ' + m[1].replace(/_/g,'.') : '';
+      return '📱 iPhone' + v;
+    }
+    if (/iPad/.test(ua)) return '📱 iPad';
+    // Android
+    if (/Android/.test(ua)) {
+      var m2 = ua.match(/Android [^;]+;\s*([^)]+)/); var model = m2 ? m2[1].trim() : 'Android';
+      if (model.length > 28) model = model.slice(0,28) + '…';
+      return '📱 ' + model;
+    }
+    // Desktop OS
+    if (/Windows NT 10/.test(ua)) return '💻 Windows 10/11';
+    if (/Windows NT 6/.test(ua)) return '💻 Windows';
+    if (/Macintosh/.test(ua)) { var mv = ua.match(/Mac OS X ([\d_]+)/); return '💻 macOS' + (mv ? ' ' + mv[1].replace(/_/g,'.') : ''); }
+    if (/Linux/.test(ua)) return '💻 Linux';
+    return '💻 Устройство';
   },
 
   async _revokeSession(hint) {
