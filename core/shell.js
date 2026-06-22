@@ -703,13 +703,15 @@ const Shell = {
     // Update footer session count
     var countEl = document.getElementById('profSessionCount');
     if (countEl) countEl.textContent = 'Сессий активно: ' + sessions.length;
+    // Update PIN block in security tab
     var pinEnabled = !!localStorage.getItem('ho_pin');
-    var html = '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 12px">' +
-      '<span style="font-size:13px;font-weight:600;color:var(--text)">PIN-код</span>' +
-      (pinEnabled
-        ? '<button onclick="Shell._disablePin()" style="background:rgba(231,76,60,0.12);border:none;color:#e74c3c;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px;transition:background 0.15s">Отключить</button>'
-        : '<button onclick="Shell._setPinFlow()" style="background:var(--accent-glow);border:none;color:var(--accent);padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px;transition:background 0.15s">Включить</button>') +
-      '</div>';
+    var subEl = document.getElementById('profPinSub');
+    if (subEl) subEl.textContent = pinEnabled ? 'Включён на этом устройстве' : 'Не настроен';
+    var pinBtnEl = document.getElementById('profPinBtn');
+    if (pinBtnEl) pinBtnEl.innerHTML = pinEnabled
+      ? '<button onclick="Shell._disablePin()" style="background:none;border:1px solid rgba(231,76,60,0.5);color:#e74c3c;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap">Отключить</button>'
+      : '<button onclick="Shell._setPinFlow()" style="background:var(--accent-glow);border:none;color:var(--accent);padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap">Включить</button>';
+    var html = '';
     sessions.forEach(function(s) {
       var ua = s.device_info && s.device_info.user_agent || '';
       var device = Shell._deviceName(ua);

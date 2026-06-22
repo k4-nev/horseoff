@@ -88,9 +88,17 @@
       <div class="form-hint" style="margin-top:6px">Только буквы и пробелы. Если не указано — отображается логин.</div>
     </div>
     <div class="prof-pane" id="profPane-security">
-      <div class="form-group"><label class="form-label">Текущий пароль</label><div class="input-eye"><input class="form-input" id="profOldPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
-      <div class="form-group"><label class="form-label">Новый пароль</label><div class="input-eye"><input class="form-input" id="profNewPass" type="password"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
-      <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="Shell.changePassword()">Сменить пароль</button>
+      <div class="form-group"><label class="prof-section-lbl">ТЕКУЩИЙ ПАРОЛЬ</label><div class="input-eye"><input class="form-input prof-pass-input" id="profOldPass" type="password" placeholder="••••••••"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
+      <div class="form-group"><label class="prof-section-lbl">НОВЫЙ ПАРОЛЬ</label><div class="input-eye"><input class="form-input prof-pass-input" id="profNewPass" type="password" placeholder="••••••••"/><button class="eye-btn" onclick="Shell.toggleEye(this)" type="button"><span class="ico ico-16 ico-eye-open"></span></button></div></div>
+      <button class="btn btn-primary prof-btn-pill" onclick="Shell.changePassword()">Сменить пароль</button>
+      <div class="prof-pin-row" id="profPinRow">
+        <div class="prof-pin-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="prof-pin-info">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">PIN-код</div>
+          <div class="prof-pin-sub" id="profPinSub">Не настроен</div>
+        </div>
+        <div id="profPinBtn"></div>
+      </div>
     </div>
     <div class="prof-pane" id="profPane-sessions">
       <div id="profileSessions"></div>

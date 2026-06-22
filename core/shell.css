@@ -137,15 +137,28 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .prof-tab:hover:not(.active){color:var(--text)}
 .prof-tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,0.18)}
 
-.prof-panes{height:220px;position:relative;overflow:hidden}
+.prof-panes{height:260px;position:relative;overflow:hidden}
 .prof-pane{position:absolute;inset:0;overflow-y:auto;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity 0.2s ease,transform 0.2s ease;scrollbar-width:thin;scrollbar-color:var(--scrollbar) transparent}
 .prof-pane::-webkit-scrollbar{width:3px}
 .prof-pane::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:3px}
 .prof-pane.active{opacity:1;transform:translateY(0);pointer-events:auto}
 
-.prof-section-lbl{font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:8px}
+.prof-section-lbl{display:block;font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:8px}
 .prof-footer{display:flex;align-items:center;justify-content:space-between;padding-top:16px;margin-top:16px;border-top:1px solid var(--border)}
 .prof-session-count{font-size:12px;color:var(--text-dim)}
+
+/* Password fields — bigger */
+.prof-pass-input{padding:13px 42px 13px 16px !important;font-size:16px !important;border-radius:12px !important;letter-spacing:0.1em}
+.prof-pass-input::placeholder{letter-spacing:0.05em;font-size:14px;opacity:0.35}
+
+/* Pill button */
+.prof-btn-pill{width:100%;margin-top:8px;padding:13px;border-radius:50px;font-size:15px;font-weight:700}
+
+/* PIN row in security tab */
+.prof-pin-row{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border)}
+.prof-pin-icon{width:36px;height:36px;border-radius:10px;background:var(--accent-glow);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.prof-pin-info{flex:1;min-width:0}
+.prof-pin-sub{font-size:11px;color:var(--text-dim);margin-top:1px}
 
 /* USERS LIST */
 .user-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
@@ -300,9 +313,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:live-pulse var(--pulse-speed) infinite}
 
 /* ─── THEME SWITCH ─── */
-.theme-seg{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
-.theme-seg-btn{font-family:'Inter',sans-serif;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.18s;border:none;background:transparent;color:var(--text-dim);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.theme-seg-btn.active{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,0.15);color:var(--text);font-weight:600}
+.theme-seg{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:4px;gap:4px}
+.theme-seg-btn{flex:1;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;padding:11px 8px;border-radius:9px;cursor:pointer;transition:all 0.2s;border:none;background:transparent;color:var(--text-dim);display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.theme-seg-btn.active{background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,0.14);color:var(--text);font-weight:700}
 .theme-seg-btn:hover:not(.active){color:var(--text)}
 
 /* ─── LIGHT THEME NOTIFICATIONS ─── */
