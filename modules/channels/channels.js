@@ -1758,7 +1758,8 @@ const Channels = {
   _iceServers: [
     {urls: 'stun:stun.l.google.com:19302'},
     {urls: 'stun:stun1.l.google.com:19302'},
-    {urls: ['turn:horseoff-workspace.ru:3478', 'turn:horseoff-workspace.ru:3478?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'}
+    {urls: ['turn:horseoff-workspace.ru:3478', 'turn:horseoff-workspace.ru:3478?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'},
+    {urls: ['turns:horseoff-workspace.ru:5349', 'turns:horseoff-workspace.ru:5349?transport=tcp'], username: 'horseoffturnvoice', credential: 'VLjNdf[8h%QYBGy'}
   ],
 
   async loadVoiceRooms(spaceId) {
