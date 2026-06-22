@@ -1947,6 +1947,32 @@ const Channels = {
     if (vbMicIco) vbMicIco.innerHTML = this._voiceMuted ? '<span class="ico ico-14 ico-mic-off"></span>' : '<span class="ico ico-14 ico-mic"></span>';
   },
 
+  _expandTile(userId) {
+    var existing = document.getElementById('chVaTileOverlay');
+    if (existing) { existing.remove(); return; }
+    var self = this;
+    var spk = (this._voiceRoomData && this._voiceRoomData.speakers) || [];
+    var p = spk.find(function(s){ return s.user_id === userId; });
+    if (!p) return;
+    var isMe = userId === this._voiceMyId;
+    var av = p.avatar ? '<img src="data:image/png;base64,'+p.avatar+'" class="ch-va-av" style="width:120px;height:120px">' : '<div class="ch-va-av ch-va-av-empty" style="width:120px;height:120px;font-size:48px">'+(p.username||'?')[0].toUpperCase()+'</div>';
+    var ov = document.createElement('div');
+    ov.id = 'chVaTileOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:500;background:#000;display:flex;align-items:center;justify-content:center';
+    ov.innerHTML =
+      '<video id="chVaTileOvVid" autoplay playsinline '+(isMe?'muted':'')+' style="width:100%;height:100%;object-fit:contain;display:'+(p.video_muted?'none':'block')+'"></video>' +
+      '<div id="chVaTileOvAv" style="position:absolute;display:'+(p.video_muted?'flex':'none')+';align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#fff">'+av+'<div style="font-size:18px;font-weight:600">'+self._esc(p.username)+'</div></div>' +
+      '<button onclick="document.getElementById(\'chVaTileOverlay\').remove()" style="position:absolute;top:16px;right:16px;background:rgba(0,0,0,0.5);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(e){ if (e.target === ov) ov.remove(); });
+    // Attach stream
+    var vid = document.getElementById('chVaTileOvVid');
+    if (isMe && this._voiceStream) { vid.srcObject = this._voiceStream; }
+    else if (this._voiceRemoteStreams[userId]) { vid.srcObject = this._voiceRemoteStreams[userId]; vid.play().catch(function(){}); }
+    // Keep overlay in sync when tile updates
+    this._expandedUserId = userId;
+  },
+
   _renderVoiceGrid() {
     var grid = document.getElementById('chVaGrid');
     if (!grid) return;
@@ -1959,7 +1985,7 @@ const Channels = {
       var av = p.avatar ? '<img src="data:image/png;base64,'+p.avatar+'" class="ch-va-av">' : '<div class="ch-va-av ch-va-av-empty">'+(p.username||'?')[0].toUpperCase()+'</div>';
       var muteClass = p.muted ? ' ch-va-muted' : '';
       var micIco = p.muted ? '<span class="ico ico-14 ico-mic-off"></span>' : '';
-      return '<div class="ch-va-tile'+muteClass+'" id="chVaTile-'+p.user_id+'">' +
+      return '<div class="ch-va-tile'+muteClass+'" id="chVaTile-'+p.user_id+'" onclick="Channels._expandTile(\''+p.user_id+'\')">' +
         '<video class="ch-va-video" id="chVaVid-'+p.user_id+'" autoplay playsinline '+(isMe?'muted':'')+' style="display:'+(p.video_muted?'none':'block')+'"></video>' +
         '<div class="ch-va-av-wrap" id="chVaAvWrap-'+p.user_id+'" style="display:'+(p.video_muted?'flex':'none')+'">'+av+'</div>' +
         '<div class="ch-va-tile-name">'+self._esc(p.username)+(micIco?'<span class="ch-va-tile-mico">'+micIco+'</span>':'')+'</div>' +
@@ -1977,6 +2003,16 @@ const Channels = {
         if (v && v.srcObject !== self._voiceRemoteStreams[uid]) {
           v.srcObject = self._voiceRemoteStreams[uid];
           v.play().catch(function(){});
+        }
+      }
+      // Sync overlay if open
+      var ovVid = document.getElementById('chVaTileOvVid');
+      if (ovVid && self._expandedUserId) {
+        var euid = self._expandedUserId;
+        var isMe2 = euid === self._voiceMyId;
+        if (isMe2 && self._voiceStream) { ovVid.srcObject = self._voiceStream; }
+        else if (self._voiceRemoteStreams[euid] && ovVid.srcObject !== self._voiceRemoteStreams[euid]) {
+          ovVid.srcObject = self._voiceRemoteStreams[euid]; ovVid.play().catch(function(){});
         }
       }
     }, 30);
