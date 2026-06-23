@@ -254,10 +254,13 @@ var Bots = {
     const qEl = document.getElementById('btOfflineQueue');
     qEl.style.display = q ? 'flex' : 'none';
     document.getElementById('btOfflineQueueText').textContent = q + ' ' + this._plural(q, 'команда', 'команды', 'команд') + ' в очереди';
-    // Mark non-settings tabs as disabled
     document.querySelectorAll('.bt-tab').forEach(t => {
       t.classList.toggle('bt-tab-disabled', t.id !== 'btTab-settings');
     });
+    // Disable edit button, exit edit mode if active
+    const editBtn = document.getElementById('btEditBtn');
+    if (editBtn) { editBtn.disabled = true; editBtn.title = 'Недоступно офлайн'; }
+    if (this._editMode) { this._editMode = false; if (editBtn) editBtn.classList.remove('btn-icon-only--active'); }
   },
 
   _showOnlineState(b) {
@@ -268,6 +271,8 @@ var Bots = {
     document.getElementById('btPanes').style.position = 'relative';
     document.getElementById('btPanes').style.flex = '1';
     document.getElementById('btPanes').style.overflow = 'hidden';
+    const editBtn = document.getElementById('btEditBtn');
+    if (editBtn) { editBtn.disabled = false; editBtn.title = 'Редактировать'; }
   },
 
   async _loadBotDetails(id) {
@@ -397,9 +402,8 @@ var Bots = {
       const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
       const h = ctrl._h || this._defHeight(ctrl.type);
       el.style.gridColumn = `span ${w}`;
+      el.style.gridRow = `span ${h}`;
       el.style.minHeight = '';
-      // sections use natural height (they're just visual dividers)
-      el.style.gridRow = ctrl.type === 'section' ? '' : `span ${h}`;
       if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, h, cols);
       grid.appendChild(el);
     });
