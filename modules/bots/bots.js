@@ -336,16 +336,16 @@ var Bots = {
   _ROW_PX: 90,  // one row unit height in px (excl. gap)
   _GAP_PX: 10,
 
-  _defWidth(type) {
-    return {section:8,input:8,textarea:8,slider:8,progress:8,table:8,code:8,stats:8}[type] || 4;
+  _defHeight(type) {
+    return {textarea:2,table:3,code:2,image:2,section:1,stat:1}[type] || 1;
   },
 
-  _defHeight(type) {
-    return {textarea:3,table:4,code:3,image:2,stats:2,section:1}[type] || 1;
+  _defWidth(type) {
+    return {section:8,input:8,textarea:8,slider:8,progress:8,table:8,code:8,stat:4}[type] || 4;
   },
 
   _minWidth(type) {
-    return {section:2,input:4,textarea:4,slider:4,progress:4,table:4,code:4}[type] || 2;
+    return {section:2,input:4,textarea:4,slider:4,progress:4,table:4,code:4,stat:2}[type] || 2;
   },
 
   _minHeight(type) {
@@ -354,7 +354,19 @@ var Bots = {
 
   // ─── Render controls (flat 8-col grid with explicit placement) ─
   renderControls(controls) {
+    // Assign IDs then expand stats → individual stat items
     controls.forEach((ctrl, i) => { if (!ctrl.id) ctrl.id = ctrl.type + '_' + i; });
+    const flat = [];
+    controls.forEach(ctrl => {
+        if (ctrl.type === 'stats') {
+            (ctrl.items || []).forEach((item, j) => {
+                flat.push({ type: 'stat', id: ctrl.id + '__' + (item.id || j), _item: item });
+            });
+        } else {
+            flat.push(ctrl);
+        }
+    });
+    controls = flat;
 
     const b = this._bots.find(x => x.id === this._selected);
     const savedLayout = b && b.layout && b.layout.length ? b.layout : null;
@@ -442,14 +454,21 @@ var Bots = {
     badge.textContent = `${w}×${h}`;
     el.appendChild(badge);
 
-    // Resize handle: right edge = width only (section dividers); corner = width+height (others)
-    const rh = document.createElement('div');
-    rh.className = type === 'section' ? 'bt-resize-handle bt-resize-w-only' : 'bt-resize-handle';
-    rh.innerHTML = type === 'section'
-      ? '<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="2" x2="10" y2="10"/><polyline points="7,5 10,2 13,5"/><polyline points="7,7 10,10 13,7"/></svg>'
-      : '<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,11 11,11 11,4"/></svg>';
-    rh.addEventListener('pointerdown', e => this._startResize(e, ctrlId, type === 'section'));
-    el.appendChild(rh);
+    // Right edge: width resize
+    const rw = document.createElement('div');
+    rw.className = 'bt-resize-handle bt-rh-w';
+    rw.innerHTML = '<svg width="6" height="14" viewBox="0 0 6 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="2" y2="18"/><line x1="5" y1="2" x2="5" y2="18"/></svg>';
+    rw.addEventListener('pointerdown', e => this._startResize(e, ctrlId, 'w'));
+    el.appendChild(rw);
+
+    // Bottom edge: height resize (not for sections)
+    if (type !== 'section') {
+        const rh = document.createElement('div');
+        rh.className = 'bt-resize-handle bt-rh-h';
+        rh.innerHTML = '<svg width="14" height="6" viewBox="0 0 20 6" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="18" y2="2"/><line x1="2" y1="5" x2="18" y2="5"/></svg>';
+        rh.addEventListener('pointerdown', e => this._startResize(e, ctrlId, 'h'));
+        el.appendChild(rh);
+    }
   },
 
   _startDrag(e, ctrlId) {
@@ -536,7 +555,7 @@ var Bots = {
     document.addEventListener('pointerup', onUp);
   },
 
-  _startResize(e, ctrlId, widthOnly) {
+  _startResize(e, ctrlId, dir) {
     e.preventDefault(); e.stopPropagation();
     const card = document.querySelector(`[data-ctrl-id="${ctrlId}"]`);
     if (!card) return;
@@ -545,35 +564,33 @@ var Bots = {
 
     const grid = document.getElementById('btControlsGrid');
     const cols = this._getGridCols();
-    const cs = window.getComputedStyle(card);
-    const startCol = parseInt(cs.gridColumnStart) || 1;
-    const startRow = parseInt(cs.gridRowStart) || 1;
     const startW = ctrl._w;
     const startH = ctrl._h || this._defHeight(ctrl.type);
     const minW = this._minWidth(ctrl.type);
-    const minH = this._minHeight(ctrl.type);
     const startX = e.clientX, startY = e.clientY;
     const cellW = (grid.clientWidth - this._GAP_PX * (cols - 1)) / cols;
-    const cellH = this._ROW_PX + this._GAP_PX;
 
     card.classList.add('bt-resizing');
-    card.style.gridColumn = `${startCol} / span ${startW}`;
-    if (!widthOnly) card.style.gridRow = `${startRow} / span ${startH}`;
-    document.body.style.cursor = widthOnly ? 'ew-resize' : 'nwse-resize';
+    document.body.style.cursor = dir === 'w' ? 'ew-resize' : 'ns-resize';
 
     const onMove = ev => {
-      const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      const newW = Math.max(minW, Math.min(cols - startCol + 1, startW + Math.round(dx / cellW)));
-      const newH = widthOnly ? startH : Math.max(minH, startH + Math.round(dy / cellH));
-
-      if (newW !== ctrl._w || newH !== ctrl._h) {
-        ctrl._w = newW;
-        ctrl._h = newH;
-        card.style.gridColumn = `${startCol} / span ${newW}`;
-        if (!widthOnly) card.style.gridRow = `${startRow} / span ${newH}`;
-        const badge = card.querySelector('.bt-edit-size-badge');
-        if (badge) badge.textContent = `${newW}×${newH}`;
-      }
+        if (dir === 'w') {
+            const newW = Math.max(minW, Math.min(cols, startW + Math.round((ev.clientX - startX) / cellW)));
+            if (newW !== ctrl._w) {
+                ctrl._w = newW;
+                card.style.gridColumn = `span ${newW}`;
+                const badge = card.querySelector('.bt-edit-size-badge');
+                if (badge) badge.textContent = `${newW}×${ctrl._h || startH}`;
+            }
+        } else {
+            const newH = Math.max(1, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
+            if (newH !== ctrl._h) {
+                ctrl._h = newH;
+                card.style.gridRow = `span ${newH}`;
+                const badge = card.querySelector('.bt-edit-size-badge');
+                if (badge) badge.textContent = `${ctrl._w || startW}×${newH}`;
+            }
+        }
     };
 
     const onUp = () => {
@@ -581,8 +598,6 @@ var Bots = {
       document.removeEventListener('pointerup', onUp);
       card.classList.remove('bt-resizing');
       document.body.style.cursor = '';
-      card.style.gridColumn = `span ${ctrl._w}`;
-      if (!widthOnly) card.style.gridRow = `span ${ctrl._h}`;
       if (navigator.vibrate) navigator.vibrate(10);
     };
 
@@ -644,9 +659,7 @@ var Bots = {
         wrap.className = 'bt-ctrl-card bt-ctrl--textarea';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <textarea class="bt-textarea" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}">${this._esc(ctrl.value || '')}</textarea>
-          <div style="margin-top:8px;display:flex;justify-content:flex-end">
-            <button class="btn btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Сохранить')}</button>
-          </div>`;
+          <button class="btn btn-secondary" style="align-self:flex-end;margin-top:6px" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Сохранить')}</button>`;
         return wrap;
 
       case 'stepper':
@@ -716,18 +729,19 @@ var Bots = {
           <div class="bt-filelist-status" id="btFileStatus_${ctrl.id}">${ctrl.list_count ? ctrl.list_count + ' строк загружено' : ''}</div>`;
         return wrap;
 
-      case 'stats':
-        wrap.className = 'bt-ctrl-card bt-ctrl--stats';
-        wrap.innerHTML = `<div class="bt-stat-row">${(ctrl.items || []).map((s, i) => `
-          <div class="bt-stat-card" style="animation-delay:${i * 0.05}s">
-            <div class="bt-stat-val">${this._esc(String(s.value))}</div>
-            <div class="bt-stat-label">${this._esc(s.label)}</div>
+      case 'stat': {
+        wrap.className = 'bt-ctrl-card bt-ctrl--stat';
+        const s = ctrl._item || {};
+        wrap.innerHTML = `
+            <div class="bt-stat-val">${this._esc(String(s.value || '—'))}</div>
+            <div class="bt-stat-label">${this._esc(s.label || '')}</div>
             ${s.delta ? `<div class="bt-stat-delta ${s.trend || 'up'}">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <polyline points="${s.trend === 'down' ? '6 9 12 15 18 9' : '18 15 12 9 6 15'}"/>
-              </svg>${this._esc(s.delta)}</div>` : ''}
-          </div>`).join('')}</div>`;
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="${s.trend === 'down' ? '6 9 12 15 18 9' : '18 15 12 9 6 15'}"/>
+                </svg>${this._esc(s.delta)}</div>` : ''}
+        `;
         return wrap;
+      }
 
       case 'badges':
         wrap.className = 'bt-ctrl-card bt-ctrl--badges';
