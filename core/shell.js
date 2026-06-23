@@ -452,7 +452,8 @@ const Shell = {
       users:'<span class="ico ico-18 ico-users"></span>',
       messenger:'<span class="ico ico-18 ico-messenger"></span>',
       channels:'<span class="ico ico-18 ico-channels"></span>',
-      valentine:'<span class="ico ico-18 ico-valentine"></span>'
+      valentine:'<span class="ico ico-18 ico-valentine"></span>',
+      bots:'<span class="ico ico-18 ico-bots"></span>'
     };
     const el = document.getElementById('sidebarModules');
     var visibleMods = mods.filter(m => {
@@ -886,7 +887,8 @@ const Shell = {
       users:'<span class="ico ico-18 ico-users"></span>',
       messenger:'<span class="ico ico-18 ico-messenger"></span>',
       channels:'<span class="ico ico-18 ico-channels"></span>',
-      valentine:'<span class="ico ico-18 ico-valentine"></span>'
+      valentine:'<span class="ico ico-18 ico-valentine"></span>',
+      bots:'<span class="ico ico-18 ico-bots"></span>'
     };
     var badge = id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
     var btn = document.createElement('button');

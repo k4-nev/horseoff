@@ -1005,6 +1005,7 @@ const Messenger = {
 
 
   escapeHtml(t){var d=document.createElement('div');d.textContent=t;return d.innerHTML},
+  _attUrl(id,suffix){var tk=(Shell&&Shell.token)?'?token='+encodeURIComponent(Shell.token):'';return'/api/msg/file/'+id+(suffix||'')+tk;},
 
   formatText(text) {
     var s = this.escapeHtml(text);
@@ -1163,7 +1164,7 @@ const Messenger = {
       return;
     }
     this._stopAudio();
-    var audio = new Audio('/api/msg/file/' + attId);
+    var audio = new Audio(Messenger._attUrl(attId));
     this._activeAudio = audio;
     this._activeAudioId = attId;
     audio.play();
@@ -1379,12 +1380,12 @@ const Messenger = {
     if (images.length > 0 || videos.length > 0) {
       html += '<div class="msg-att-grid">';
       images.forEach(function(a) {
-        var src = a._localUrl || '/api/msg/file/' + a.id + '/thumb';
-        var full = '/api/msg/file/' + a.id;
+        var src = a._localUrl || Messenger._attUrl(a.id, '/thumb');
+        var full = Messenger._attUrl(a.id);
         html += '<div class="msg-att-thumb" onclick="Messenger.openGallery(\''+full+'\')"><img src="'+src+'" loading="lazy"/></div>';
       });
       videos.forEach(function(a) {
-        var thumb = '/api/msg/file/' + a.id + '/thumb';
+        var thumb = Messenger._attUrl(a.id, '/thumb');
         var dur = a.duration ? Messenger._fmtDuration(a.duration) : '';
         html += '<div class="msg-att-thumb msg-att-video" onclick="Messenger.playVideo(\''+a.id+'\')" data-vid="'+a.id+'">'
           + '<img src="'+thumb+'" loading="lazy"/>'
@@ -1419,7 +1420,7 @@ const Messenger = {
     });
     // Files
     files.forEach(function(a) {
-      var url = '/api/msg/file/' + a.id;
+      var url = Messenger._attUrl(a.id);
       html += '<a class="msg-att-file" href="'+url+'" download="'+Messenger.escapeHtml(a.name)+'" onclick="event.stopPropagation()">'
         + '<span class="msg-att-file-icon"><span class="ico ico-18 ico-file"></span></span>'
         + '<div class="msg-att-file-info"><div class="msg-att-file-name">'+Messenger.escapeHtml(a.name)+'</div><div class="msg-att-file-size">'+Messenger._fmtSize(a.size)+'</div></div></a>';
@@ -1484,9 +1485,9 @@ const Messenger = {
         groups[date].forEach(function(a) {
           if (a.type === 'video') {
             html += '<div class="msg-profile-attach-item" onclick="Messenger.playVideo(\''+a.id+'\')" oncontextmenu="event.preventDefault();Messenger.goToAttachMsg(\''+a.msg_id+'\')" data-msgid="'+a.msg_id+'">'
-              + '<img src="/api/msg/file/'+a.id+'/thumb" loading="lazy"/><div class="msg-profile-video-badge">▶</div></div>';
+              + '<img src="'+Messenger._attUrl(a.id,'/thumb')+'" loading="lazy"/><div class="msg-profile-video-badge">▶</div></div>';
           } else {
-            html += '<div class="msg-profile-attach-item" onclick="Messenger.openGallery(\'/api/msg/file/'+a.id+'\')" oncontextmenu="event.preventDefault();Messenger.goToAttachMsg(\''+a.msg_id+'\')" data-msgid="'+a.msg_id+'"><img src="/api/msg/file/'+a.id+'/thumb" loading="lazy"/></div>';
+            html += '<div class="msg-profile-attach-item" onclick="Messenger.openGallery(Messenger._attUrl(\''+a.id+'\'))" oncontextmenu="event.preventDefault();Messenger.goToAttachMsg(\''+a.msg_id+'\')" data-msgid="'+a.msg_id+'"><img src="'+Messenger._attUrl(a.id,'/thumb')+'" loading="lazy"/></div>';
           }
         });
         html += '</div>';
@@ -1522,7 +1523,7 @@ const Messenger = {
           var ext = name.split('.').pop().toUpperCase();
           var size = a.size ? Messenger._fmtSize(a.size) : '';
           var displayName = name.length > 20 ? name.substring(0, 18) + '...' : name;
-          html += '<a class="msg-profile-attach-file" href="/api/msg/file/'+a.id+'" download="'+(a.name||'')+'" data-msgid="'+a.msg_id+'" oncontextmenu="event.preventDefault();Messenger.goToAttachMsg(\''+a.msg_id+'\')">'
+          html += '<a class="msg-profile-attach-file" href="'+Messenger._attUrl(a.id)+'" download="'+(a.name||'')+'" data-msgid="'+a.msg_id+'" oncontextmenu="event.preventDefault();Messenger.goToAttachMsg(\''+a.msg_id+'\')">'
             + '<span class="ico ico-14 ico-file"></span>'
             + '<div class="msg-profile-file-info"><div class="msg-profile-file-name">'+Messenger.escapeHtml(displayName)+'</div><div class="msg-profile-file-meta">'+ext+(size?' · '+size:'')+'</div></div></a>';
         });
@@ -1720,7 +1721,7 @@ const Messenger = {
     this._stopAudio();
     // Loading state
     icon.innerHTML = this._loadIco;
-    var audio = new Audio('/api/msg/file/' + attId);
+    var audio = new Audio(Messenger._attUrl(attId));
     audio.preload = 'auto';
     this._activeAudio = audio;
     this._activeAudioId = attId;
@@ -1774,7 +1775,7 @@ const Messenger = {
     var oldVid = el.querySelector('video');
     if (oldVid) oldVid.remove();
     var video = document.createElement('video');
-    video.src = '/api/msg/file/' + attId;
+    video.src = Messenger._attUrl(attId);
     video.controls = true;
     video.autoplay = true;
     video.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:8px';
