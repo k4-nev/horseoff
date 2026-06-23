@@ -35,9 +35,10 @@
 .bt-group.collapsed .bt-group-bots{max-height:0!important}
 
 /* ── Bot row ── */
-.bt-bot-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;transition:background 0.15s,transform 0.12s;position:relative;margin-bottom:1px}
+.bt-bot-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;transition:background 0.15s,transform 0.12s,color 0.12s,border-color 0.12s;position:relative;margin-bottom:1px;border-left:2px solid transparent}
 .bt-bot-row:hover{background:var(--surface2)}
-.bt-bot-row.active{background:var(--accent-glow);outline:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.bt-bot-row.active{color:var(--accent);background:var(--accent-glow);border-left-color:var(--accent)}
+.bt-bot-row.active .bt-bot-row-name{color:var(--accent)}
 .bt-bot-row:active{transform:scale(0.98)}
 
 .bt-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;transition:background 0.3s}
@@ -46,6 +47,8 @@
 .bt-dot.offline{background:#e23355}
 @keyframes bt-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,201,107,0.5)}60%{box-shadow:0 0 0 5px rgba(59,201,107,0)}}
 
+.bt-bot-ava{width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2)}
+.bt-bot-ava img{width:100%;height:100%;object-fit:cover}
 .bt-bot-info{flex:1;min-width:0}
 .bt-bot-row-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.2s}
 .bt-bot-row.offline-bot .bt-bot-row-name{color:var(--text-dim)}
@@ -129,16 +132,44 @@
 /* ════════════════════════════════════════
    CONTROLS TAB — all control components
    ════════════════════════════════════════ */
-.bt-controls-grid{display:flex;flex-direction:column;gap:12px;max-width:680px}
+/* ── Controls outer layout ── */
+.bt-controls-grid{display:flex;flex-direction:column;gap:20px}
+
+/* Section group — divider + its cards */
+.bt-section-group{display:flex;flex-direction:column;gap:10px}
 
 /* Section header / divider */
-.bt-section-divider{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
+.bt-section-divider{display:flex;align-items:center;gap:10px;margin:0}
 .bt-section-divider-line{flex:1;height:1px;background:var(--border)}
 .bt-section-divider-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.9px;color:var(--text-dim);white-space:nowrap}
+
+/* 2-column card grid */
+.bt-section-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* Control card wrapper */
 .bt-ctrl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow 0.2s}
 .bt-ctrl-card:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+
+/* Per-type grid sizing */
+/* span 1 (half width, compact) */
+.bt-ctrl--toggle{grid-column:span 1}
+.bt-ctrl--stepper{grid-column:span 1}
+.bt-ctrl--buttons{grid-column:span 1}
+.bt-ctrl--select{grid-column:span 1}
+.bt-ctrl--badges{grid-column:span 1}
+.bt-ctrl--label{grid-column:span 1}
+.bt-ctrl--image{grid-column:span 1}
+.bt-ctrl--filelist{grid-column:span 1}
+/* span 2 (full width) */
+.bt-ctrl--input{grid-column:span 2}
+.bt-ctrl--textarea{grid-column:span 2}
+.bt-ctrl--slider{grid-column:span 2}
+.bt-ctrl--progress{grid-column:span 2}
+.bt-ctrl--table{grid-column:span 2}
+.bt-ctrl--code{grid-column:span 2}
+/* stats has no card */
+.bt-ctrl--toggle{min-height:72px;display:flex;align-items:center}
+.bt-ctrl--stepper{display:flex;flex-direction:column;justify-content:space-between}
 .bt-ctrl-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-dim);margin-bottom:10px}
 .bt-ctrl-sub{font-size:11px;color:var(--text-dim);margin-top:4px}
 
@@ -320,9 +351,26 @@
 .bt-modal{padding:24px;width:480px;max-width:calc(100vw - 32px)}
 .bt-modal-field{margin-bottom:14px}
 .bt-field-label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-dim);margin-bottom:6px}
-/* datalist styling hint */
-.bt-modal-field input[list]{cursor:pointer}
 .bt-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* Modal avatar row */
+.bt-modal-avatar-row{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px}
+.bt-modal-ava-wrap{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;flex-shrink:0}
+.bt-modal-ava{width:60px;height:60px;border-radius:50%;background:var(--surface2);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;transition:border-color 0.18s}
+.bt-modal-ava-wrap:hover .bt-modal-ava{border-color:var(--accent)}
+.bt-modal-ava-hint{font-size:10px;color:var(--text-dim);font-weight:500}
+
+/* Group chips */
+.bt-group-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.bt-group-chip{padding:5px 13px;border-radius:99px;border:1px solid var(--border);background:var(--surface2);font-size:12px;color:var(--text-dim);cursor:pointer;transition:all 0.15s}
+.bt-group-chip:hover{border-color:var(--accent);color:var(--accent)}
+.bt-group-chip.active{border-color:var(--accent);background:var(--accent-glow);color:var(--accent);font-weight:600}
+
+/* Settings avatar */
+.bt-avatar-settings-row{display:flex;align-items:center;gap:16px}
+.bt-avatar-preview-wrap{}
+.bt-avatar-preview{width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.bt-avatar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 .bt-created-msg{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text);margin-bottom:16px;background:rgba(59,201,107,0.1);border:1px solid rgba(59,201,107,0.25);border-radius:10px;padding:10px 14px}
 
@@ -440,7 +488,8 @@
 
   /* Pane content */
   .bt-pane{padding:14px}
-  .bt-controls-grid{max-width:100%}
+  .bt-section-cards{grid-template-columns:1fr!important}
+  .bt-ctrl--input,.bt-ctrl--textarea,.bt-ctrl--slider,.bt-ctrl--progress,.bt-ctrl--table,.bt-ctrl--code{grid-column:span 1}
 
   /* Buttons in groups wrap */
   .bt-btn-group{flex-wrap:wrap}

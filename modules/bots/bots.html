@@ -140,6 +140,20 @@
         <!-- SETTINGS TAB -->
         <div class="bt-pane" id="btPane-settings">
           <div class="bt-settings-wrap">
+            <!-- Avatar -->
+            <div class="bt-settings-section">
+              <div class="bt-settings-label">Фото бота</div>
+              <div class="bt-avatar-settings-row">
+                <div class="bt-avatar-preview-wrap">
+                  <div class="bt-avatar-preview" id="btSettingsAvaPreview"></div>
+                </div>
+                <div class="bt-avatar-actions">
+                  <button class="btn btn-secondary" onclick="document.getElementById('btSettingsAvaInput').click()">Изменить фото</button>
+                  <button class="btn btn-danger" id="btAvaDeleteBtn" onclick="Bots.deleteAvatar()" style="display:none">Удалить</button>
+                </div>
+                <input type="file" id="btSettingsAvaInput" accept="image/*" style="display:none" onchange="Bots._onSettingsAvaSelect(this)"/>
+              </div>
+            </div>
             <!-- Name -->
             <div class="bt-settings-section">
               <div class="bt-settings-label">Название бота</div>
@@ -208,18 +222,29 @@
       </button>
     </div>
 
-    <!-- Step 1: name input -->
+    <!-- Step 1: name + avatar + group -->
     <div id="btAddStep1">
-      <div class="bt-modal-field">
-        <label class="bt-field-label">Название бота</label>
-        <input class="bt-input" id="btNewBotName" placeholder="Например: IG Parser v2" autocomplete="off"
-          onkeydown="if(event.key==='Enter')Bots.createBot()"/>
+      <div class="bt-modal-avatar-row">
+        <div class="bt-modal-ava-wrap" onclick="document.getElementById('btNewBotAvaInput').click()" title="Добавить фото">
+          <div class="bt-modal-ava" id="btNewBotAvaPreview">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" opacity="0.35"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          <div class="bt-modal-ava-hint">Фото</div>
+        </div>
+        <div style="flex:1">
+          <div class="bt-modal-field" style="margin:0 0 10px">
+            <label class="bt-field-label">Название бота</label>
+            <input class="bt-input" id="btNewBotName" placeholder="Например: IG Parser v2" autocomplete="off"
+              onkeydown="if(event.key==='Enter')Bots.createBot()"/>
+          </div>
+          <div class="bt-modal-field" style="margin:0">
+            <label class="bt-field-label">Группа</label>
+            <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off"/>
+          </div>
+        </div>
       </div>
-      <div class="bt-modal-field">
-        <label class="bt-field-label">Группа</label>
-        <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off" list="btGroupList"/>
-        <datalist id="btGroupList"></datalist>
-      </div>
+      <input type="file" id="btNewBotAvaInput" accept="image/*" style="display:none" onchange="Bots._onAvaSelect(this)"/>
+      <div class="bt-group-chips" id="btGroupChips" style="display:none"></div>
       <div class="bt-modal-actions">
         <button class="btn btn-secondary" onclick="Bots.closeAddModal()">Отмена</button>
         <button class="btn btn-primary" onclick="Bots.createBot()">Создать</button>

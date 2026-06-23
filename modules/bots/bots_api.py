@@ -139,6 +139,7 @@ def handle_post(handler, session, path, data=None):
             'api_key': api_key, 'api_key_hint': api_key[-6:],
             'owner_id': session['id'], 'access_ids': [],
             'command_queue': [], 'controls': None, 'stats': None,
+            'avatar': data.get('avatar', ''),
             'created_at': int(time.time()),
         }
         _save_bot(bot)
@@ -234,6 +235,7 @@ def handle_put(handler, session, path):
         if 'group' in data: bot['group'] = data['group']
         if 'sub' in data: bot['sub'] = data['sub']
         if 'version' in data: bot['version'] = data['version']
+        if 'avatar' in data: bot['avatar'] = data['avatar']
         _save_bot(bot)
         return _json(handler, 200, {'ok': True})
     return _json(handler, 404, {'error': 'Not found'})

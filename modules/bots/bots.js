@@ -151,9 +151,12 @@ var Bots = {
     const badge = b.badge ? `<div class="bt-badge">${b.badge}</div>` : '';
     const activeCls = b.id === this._selected ? ' active' : '';
     const offlineCls = b.status === 'offline' ? ' offline-bot' : '';
+    const ava = b.avatar
+      ? `<div class="bt-bot-ava"><img src="${this._esc(b.avatar)}" /></div>`
+      : `<div class="bt-dot ${b.status}"></div>`;
     return `<div class="bt-bot-row${activeCls}${offlineCls}" onclick="Bots._openBot('${b.id}')"
       style="animation-delay:${delay}s" data-bot-id="${b.id}">
-      <div class="bt-dot ${b.status}"></div>
+      ${ava}
       <div class="bt-bot-info">
         <div class="bt-bot-row-name">${this._esc(b.name)}</div>
         <div class="bt-bot-row-sub">${this._esc(b.sub || '')}</div>
@@ -323,9 +326,28 @@ var Bots = {
     const grid = document.getElementById('btControlsGrid');
     if (!grid) return;
     grid.innerHTML = '';
+    let sectionEl = null;
+    let cardsEl = null;
+
+    const startSection = (dividerEl) => {
+      sectionEl = document.createElement('div');
+      sectionEl.className = 'bt-section-group';
+      if (dividerEl) sectionEl.appendChild(dividerEl);
+      cardsEl = document.createElement('div');
+      cardsEl.className = 'bt-section-cards';
+      sectionEl.appendChild(cardsEl);
+      grid.appendChild(sectionEl);
+    };
+
     controls.forEach(ctrl => {
-      const el = this._buildControl(ctrl);
-      if (el) grid.appendChild(el);
+      if (ctrl.type === 'section') {
+        const divider = this._buildControl(ctrl);
+        startSection(divider);
+      } else {
+        if (!cardsEl) startSection(null);
+        const el = this._buildControl(ctrl);
+        if (el) cardsEl.appendChild(el);
+      }
     });
   },
 
@@ -340,7 +362,7 @@ var Bots = {
         return wrap;
 
       case 'buttons':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--buttons';
         if (ctrl.label) wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>`;
         const btnGroup = document.createElement('div');
         btnGroup.className = 'bt-btn-group';
@@ -356,7 +378,7 @@ var Bots = {
         return wrap;
 
       case 'input':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--input';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-input-row">
             <input class="bt-input" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}" value="${this._esc(ctrl.value || '')}"/>
@@ -365,7 +387,7 @@ var Bots = {
         return wrap;
 
       case 'textarea':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--textarea';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <textarea class="bt-textarea" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}">${this._esc(ctrl.value || '')}</textarea>
           <div style="margin-top:8px;display:flex;justify-content:flex-end">
@@ -374,7 +396,7 @@ var Bots = {
         return wrap;
 
       case 'stepper':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--stepper';
         const sv = ctrl.value || ctrl.min || 1;
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-stepper" id="btStepperWrap_${ctrl.id}">
@@ -385,7 +407,7 @@ var Bots = {
         return wrap;
 
       case 'slider':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--slider';
         const slv = ctrl.value !== undefined ? ctrl.value : ctrl.min || 0;
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-slider-header">
@@ -399,7 +421,7 @@ var Bots = {
         return wrap;
 
       case 'toggle':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--toggle';
         const tv = ctrl.value ? 'checked' : '';
         wrap.innerHTML = `<label class="bt-toggle-wrap" onclick="if(navigator.vibrate)navigator.vibrate(18)">
             <input type="checkbox" ${tv} id="btCtrl_${ctrl.id}" onchange="Bots._sendCommand('${ctrl.id}', 'set', this.checked)"/>
@@ -409,7 +431,7 @@ var Bots = {
         return wrap;
 
       case 'select':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--select';
         const opts = (ctrl.options || []).map(o =>
           `<option value="${this._esc(o.value)}" ${o.value === ctrl.value ? 'selected' : ''}>${this._esc(o.label)}</option>`
         ).join('');
@@ -421,7 +443,7 @@ var Bots = {
         return wrap;
 
       case 'progress':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--progress';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-progress-header">
             <span style="font-size:12px;color:var(--text-dim)">${this._esc(ctrl.total || '')}</span>
@@ -431,7 +453,7 @@ var Bots = {
         return wrap;
 
       case 'filelist':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--filelist';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <button class="bt-filelist-btn" onclick="Bots._uploadList('${ctrl.id}', this)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
@@ -454,7 +476,7 @@ var Bots = {
         return wrap;
 
       case 'badges':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--badges';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label || 'Статус')}</div>
           <div class="bt-badges-row">${(ctrl.items || []).map(bd =>
             `<span class="bt-badge-status ${bd.style || ''}">${this._esc(bd.label)}</span>`
@@ -462,14 +484,14 @@ var Bots = {
         return wrap;
 
       case 'label':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--label';
         wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
         wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
           <div class="bt-label-ctrl ${ctrl.style || ''}" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.text || ctrl.value || '')}</div>`;
         return wrap;
 
       case 'image':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--image';
         wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
         const hasImg = ctrl.value || ctrl.src;
         wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
@@ -483,7 +505,7 @@ var Bots = {
         return wrap;
 
       case 'table': {
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--table';
         wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
         const cols = ctrl.columns || [];
         const rows = ctrl.rows || [];
@@ -503,7 +525,7 @@ var Bots = {
       }
 
       case 'code':
-        wrap.className = 'bt-ctrl-card';
+        wrap.className = 'bt-ctrl-card bt-ctrl--code';
         wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
         wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
           <div style="position:relative">
@@ -794,6 +816,18 @@ var Bots = {
 
   // ─── Settings tab ────────────────────────────────────────────
   _renderSettings(b) {
+    // Avatar
+    const avaPreview = document.getElementById('btSettingsAvaPreview');
+    const avaDeleteBtn = document.getElementById('btAvaDeleteBtn');
+    if (avaPreview) {
+      if (b.avatar) {
+        avaPreview.innerHTML = `<img src="${this._esc(b.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+        if (avaDeleteBtn) avaDeleteBtn.style.display = '';
+      } else {
+        avaPreview.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+        if (avaDeleteBtn) avaDeleteBtn.style.display = 'none';
+      }
+    }
     const nameEl = document.getElementById('btSettingsName');
     if (nameEl) nameEl.value = b.name || '';
     // API key (masked)
@@ -934,15 +968,72 @@ var Bots = {
     document.getElementById('btAddStep2').style.display = 'none';
     document.getElementById('btNewBotName').value = '';
     document.getElementById('btNewBotGroup').value = '';
-    // Populate group datalist from existing bots
-    const dl = document.getElementById('btGroupList');
-    if (dl) {
-      const groups = [...new Set(this._bots.map(b => b.group).filter(g => g && g !== 'Без группы'))];
-      dl.innerHTML = groups.map(g => `<option value="${this._esc(g)}">`).join('');
+    this._newBotAvatar = '';
+    const avaPreview = document.getElementById('btNewBotAvaPreview');
+    if (avaPreview) avaPreview.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" opacity="0.35"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+    // Group chips
+    const groups = [...new Set(this._bots.map(b => b.group).filter(g => g && g !== 'Без группы'))];
+    const chipsEl = document.getElementById('btGroupChips');
+    if (chipsEl) {
+      if (groups.length) {
+        chipsEl.style.display = 'flex';
+        chipsEl.innerHTML = groups.map(g =>
+          `<div class="bt-group-chip" onclick="Bots._selectGroupChip(this,'${this._esc(g)}')">${this._esc(g)}</div>`
+        ).join('');
+      } else {
+        chipsEl.style.display = 'none';
+        chipsEl.innerHTML = '';
+      }
     }
     document.getElementById('btAddModal').classList.add('active');
     setTimeout(() => document.getElementById('btNewBotName').focus(), 80);
     if (navigator.vibrate) navigator.vibrate(15);
+  },
+
+  _selectGroupChip(el, group) {
+    document.getElementById('btNewBotGroup').value = group;
+    document.querySelectorAll('.bt-group-chip').forEach(c => c.classList.toggle('active', c === el));
+    if (navigator.vibrate) navigator.vibrate(8);
+  },
+
+  _onAvaSelect(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      this._newBotAvatar = e.target.result;
+      const prev = document.getElementById('btNewBotAvaPreview');
+      if (prev) prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _onSettingsAvaSelect(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const avatar = e.target.result;
+      const d = await Shell.api(`/api/mod/bots/${this._selected}`, {
+        method: 'PUT', body: JSON.stringify({ avatar })
+      });
+      if (!d || !d.ok) { Shell.toast('Ошибка сохранения фото', 'error'); return; }
+      const b = this._bots.find(x => x.id === this._selected);
+      if (b) { b.avatar = avatar; this._renderSettings(b); this._renderList(); }
+      Shell.toast('Фото обновлено');
+    };
+    reader.readAsDataURL(file);
+  },
+
+  async deleteAvatar() {
+    if (!this._selected) return;
+    const d = await Shell.api(`/api/mod/bots/${this._selected}`, {
+      method: 'PUT', body: JSON.stringify({ avatar: '' })
+    });
+    if (!d || !d.ok) { Shell.toast('Ошибка', 'error'); return; }
+    const b = this._bots.find(x => x.id === this._selected);
+    if (b) { b.avatar = ''; this._renderSettings(b); this._renderList(); }
+    Shell.toast('Фото удалено');
   },
 
   closeAddModal() {
@@ -956,7 +1047,7 @@ var Bots = {
     if (navigator.vibrate) navigator.vibrate(20);
     const d = await Shell.api('/api/mod/bots/create', {
       method: 'POST',
-      body: JSON.stringify({ name, group: group || 'Без группы' })
+      body: JSON.stringify({ name, group: group || 'Без группы', avatar: this._newBotAvatar || '' })
     });
     if (!d || !d.bot) { Shell.toast('Ошибка создания бота', 'error'); return; }
     this._bots.push(d.bot);
