@@ -47,8 +47,12 @@
 .bt-dot.offline{background:#e23355}
 @keyframes bt-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,201,107,0.5)}60%{box-shadow:0 0 0 5px rgba(59,201,107,0)}}
 
-.bt-bot-ava{width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--surface2)}
-.bt-bot-ava img{width:100%;height:100%;object-fit:cover}
+.bt-bot-ava{width:28px;height:28px;border-radius:50%;overflow:visible;flex-shrink:0;background:var(--surface2);position:relative}
+.bt-bot-ava img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.bt-ava-dot{position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;border:2px solid var(--surface);z-index:1}
+.bt-ava-dot.online{background:#3bc96b;box-shadow:0 0 0 0 rgba(59,201,107,0.5);animation:bt-pulse 2.2s infinite}
+.bt-ava-dot.idle{background:#f0b429}
+.bt-ava-dot.offline{background:#e23355}
 .bt-bot-info{flex:1;min-width:0}
 .bt-bot-row-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.2s}
 .bt-bot-row.offline-bot .bt-bot-row-name{color:var(--text-dim)}
@@ -137,13 +141,13 @@
 /* Flat 8-col grid (columns set dynamically in JS) */
 .bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1;align-items:start}
 
-/* Section divider — draggable, not full-width forced */
-.bt-section-divider{display:flex;align-items:center;gap:10px;padding:4px 0;position:relative;min-height:36px}
+/* Section divider — draggable, width-adjustable; overrides auto-rows min */
+.bt-section-divider{display:flex;align-items:center;gap:10px;padding:4px 0;position:relative;height:36px;align-self:center}
 .bt-section-divider-line{flex:1;height:1px;background:var(--border)}
 .bt-section-divider-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.9px;color:var(--text-dim);white-space:nowrap}
 
 /* Control card */
-.bt-ctrl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow 0.2s,border-color 0.2s;min-width:0;box-sizing:border-box;position:relative}
+.bt-ctrl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow 0.2s,border-color 0.2s;min-width:0;box-sizing:border-box;position:relative;min-height:80px}
 .bt-ctrl-card:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
 .bt-ctrl--toggle{display:flex;align-items:center}
 .bt-ctrl--stepper{display:flex;flex-direction:column;justify-content:space-between}
@@ -154,7 +158,7 @@
 /* ── Edit mode ── */
 .bt-edit-mode .bt-ctrl-card{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 50%,var(--border));cursor:default;user-select:none;overflow:visible}
 .bt-edit-mode .bt-ctrl--stats{border-style:dashed!important;border-color:color-mix(in srgb,var(--accent) 50%,var(--border))!important;background:var(--surface)!important;padding:8px!important}
-.bt-edit-mode .bt-section-divider{border:1.5px dashed color-mix(in srgb,var(--accent) 50%,var(--border));border-radius:10px;background:var(--surface2);padding:6px 12px;overflow:visible}
+.bt-edit-mode .bt-section-divider{outline:1.5px dashed color-mix(in srgb,var(--accent) 50%,var(--border));outline-offset:6px;border-radius:4px;overflow:visible}
 
 /* Drag handle (top-left) */
 .bt-edit-handle{position:absolute;top:-8px;left:8px;width:24px;height:24px;border-radius:7px;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:20;opacity:0;transition:opacity 0.18s;box-shadow:0 2px 8px rgba(0,0,0,0.2)}

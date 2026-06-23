@@ -156,7 +156,7 @@ var Bots = {
     const activeCls = b.id === this._selected ? ' active' : '';
     const offlineCls = b.status === 'offline' ? ' offline-bot' : '';
     const ava = b.avatar
-      ? `<div class="bt-bot-ava"><img src="${this._esc(b.avatar)}" /></div>`
+      ? `<div class="bt-bot-ava"><img src="${this._esc(b.avatar)}" /><div class="bt-ava-dot ${b.status}"></div></div>`
       : `<div class="bt-dot ${b.status}"></div>`;
     return `<div class="bt-bot-row${activeCls}${offlineCls}" onclick="Bots._openBot('${b.id}')"
       style="animation-delay:${delay}s" data-bot-id="${b.id}">
@@ -397,8 +397,9 @@ var Bots = {
       const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
       const h = ctrl._h || this._defHeight(ctrl.type);
       el.style.gridColumn = `span ${w}`;
-      el.style.minHeight = `${h * this._ROW_PX + (h - 1) * this._GAP_PX}px`;
-      el.style.gridRow = ''; // let auto-flow handle rows
+      el.style.minHeight = '';
+      // sections use natural height (they're just visual dividers)
+      el.style.gridRow = ctrl.type === 'section' ? '' : `span ${h}`;
       if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, h, cols);
       grid.appendChild(el);
     });
@@ -540,9 +541,9 @@ var Bots = {
 
     const grid = document.getElementById('btControlsGrid');
     const cols = this._getGridCols();
-    // Capture current starting column to prevent element jumping during resize
-    const computedCol = window.getComputedStyle(card).gridColumnStart;
-    const startCol = parseInt(computedCol) || 1;
+    const cs = window.getComputedStyle(card);
+    const startCol = parseInt(cs.gridColumnStart) || 1;
+    const startRow = parseInt(cs.gridRowStart) || 1;
     const startW = ctrl._w;
     const startH = ctrl._h || this._defHeight(ctrl.type);
     const minW = this._minWidth(ctrl.type);
@@ -552,8 +553,8 @@ var Bots = {
     const cellH = this._ROW_PX + this._GAP_PX;
 
     card.classList.add('bt-resizing');
-    // Fix column start so it doesn't jump
     card.style.gridColumn = `${startCol} / span ${startW}`;
+    if (!widthOnly) card.style.gridRow = `${startRow} / span ${startH}`;
     document.body.style.cursor = widthOnly ? 'ew-resize' : 'nwse-resize';
 
     const onMove = ev => {
@@ -565,7 +566,7 @@ var Bots = {
         ctrl._w = newW;
         ctrl._h = newH;
         card.style.gridColumn = `${startCol} / span ${newW}`;
-        card.style.minHeight = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
+        if (!widthOnly) card.style.gridRow = `${startRow} / span ${newH}`;
         const badge = card.querySelector('.bt-edit-size-badge');
         if (badge) badge.textContent = `${newW}×${newH}`;
       }
@@ -576,8 +577,8 @@ var Bots = {
       document.removeEventListener('pointerup', onUp);
       card.classList.remove('bt-resizing');
       document.body.style.cursor = '';
-      // Release explicit column start - let flow handle it
       card.style.gridColumn = `span ${ctrl._w}`;
+      if (!widthOnly) card.style.gridRow = `span ${ctrl._h}`;
       if (navigator.vibrate) navigator.vibrate(10);
     };
 
@@ -1245,7 +1246,7 @@ var Bots = {
     if (navigator.vibrate) navigator.vibrate(8);
   },
 
-  _compressImage(dataURL, maxPx = 256) {
+  _compressImage(dataURL, maxPx = 96) {
     return new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
@@ -1254,7 +1255,8 @@ var Bots = {
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
+        const webp = canvas.toDataURL('image/webp', 0.7);
+        resolve(webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.65));
       };
       img.onerror = () => resolve(dataURL);
       img.src = dataURL;
