@@ -57,6 +57,8 @@ def _bot_summary(bot):
         'badge': bot.get('badge', 0),
         'last_seen': bot.get('last_seen'),
         'queue_count': len(bot.get('command_queue', [])),
+        'avatar': bot.get('avatar', ''),
+        'layout': bot.get('layout', None),
     }
 
 def _bot_detail(bot, session):
@@ -185,6 +187,12 @@ def handle_post(handler, session, path, data=None):
                 bot.setdefault('command_queue', []).append(cmd)
                 _save_bot(bot)
                 return _json(handler, 200, {'queued': True})
+
+        # POST /api/mod/bots/:id/layout
+        if sub == 'layout':
+            bot['layout'] = data.get('layout', [])
+            _save_bot(bot)
+            return _json(handler, 200, {'ok': True})
 
         # POST /api/mod/bots/:id/regen_key
         if sub == 'regen_key':

@@ -12,6 +12,10 @@ var Bots = {
   _logMax: 500,
   _snippetMode: 'cs',
   _testBotEnabled: false,
+  _editMode: false,
+  _orderedControls: [],
+  _dragState: null,
+  _newBotAvatar: '',
 
   _TEST_BOT: {
     id: '__test__', name: 'Demo Bot', group: 'Demo',
@@ -322,33 +326,243 @@ var Bots = {
     ];
   },
 
+  // ─── Grid layout constants ───────────────────────────────────
+  _getGridCols() { return window.innerWidth <= 768 ? 2 : 8; },
+
+  _defWidth(type) {
+    return {section:8,input:8,textarea:8,slider:8,progress:8,table:8,code:8,stats:8}[type] || 4;
+  },
+
+  _minWidth(type) {
+    return {section:8,input:4,textarea:4,slider:4,progress:4,table:4,code:4}[type] || 2;
+  },
+
+  // ─── Render controls (flat 8-col grid) ───────────────────────
   renderControls(controls) {
+    // Assign stable IDs to controls missing them
+    controls.forEach((ctrl, i) => { if (!ctrl.id) ctrl.id = ctrl.type + '_' + i; });
+
+    const b = this._bots.find(x => x.id === this._selected);
+    const savedLayout = b && b.layout && b.layout.length ? b.layout : null;
+
+    if (savedLayout) {
+      const byId = {};
+      controls.forEach(c => { byId[c.id] = c; });
+      this._orderedControls = [];
+      savedLayout.forEach(l => {
+        if (byId[l.id]) { this._orderedControls.push({...byId[l.id], _w: l.w}); delete byId[l.id]; }
+      });
+      Object.values(byId).forEach(c => this._orderedControls.push({...c, _w: this._defWidth(c.type)}));
+    } else {
+      this._orderedControls = controls.map(c => ({...c, _w: this._defWidth(c.type)}));
+    }
+
+    this._renderControlsDOM(true);
+  },
+
+  _renderControlsDOM(rebuild) {
     const grid = document.getElementById('btControlsGrid');
     if (!grid) return;
-    grid.innerHTML = '';
-    let sectionEl = null;
-    let cardsEl = null;
+    const cols = this._getGridCols();
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    grid.classList.toggle('bt-edit-mode', this._editMode);
 
-    const startSection = (dividerEl) => {
-      sectionEl = document.createElement('div');
-      sectionEl.className = 'bt-section-group';
-      if (dividerEl) sectionEl.appendChild(dividerEl);
-      cardsEl = document.createElement('div');
-      cardsEl.className = 'bt-section-cards';
-      sectionEl.appendChild(cardsEl);
-      grid.appendChild(sectionEl);
+    // Reuse or create DOM elements
+    const existing = {};
+    grid.querySelectorAll('[data-ctrl-id]').forEach(el => { existing[el.dataset.ctrlId] = el; });
+
+    this._orderedControls.forEach(ctrl => {
+      let el = existing[ctrl.id];
+      if (!el || rebuild) {
+        if (el) el.remove();
+        el = this._buildControl(ctrl);
+        if (!el) return;
+        el.dataset.ctrlId = ctrl.id;
+        existing[ctrl.id] = el;
+      }
+      // Remove old handles
+      el.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-w-badge').forEach(h => h.remove());
+      const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
+      el.style.gridColumn = `span ${w}`;
+      if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, cols);
+      grid.appendChild(el);
+    });
+
+    // Remove stale elements
+    Object.keys(existing).forEach(id => {
+      if (!this._orderedControls.find(c => c.id === id)) { if (existing[id].parentNode) existing[id].remove(); }
+    });
+  },
+
+  // ─── Edit mode ───────────────────────────────────────────────
+  toggleEditMode() {
+    if (!this._orderedControls.length) return;
+    this._editMode = !this._editMode;
+    const btn = document.getElementById('btEditBtn');
+    if (btn) btn.classList.toggle('btn-icon-only--active', this._editMode);
+    if (this._editMode) {
+      Shell.toast('Перетаскивайте элементы, тяните за угол для изменения размера');
+      if (navigator.vibrate) navigator.vibrate([8, 40, 8]);
+    } else {
+      this._saveLayout();
+    }
+    this._renderControlsDOM(false);
+  },
+
+  _addEditHandles(el, ctrlId, type, w, cols) {
+    el.style.position = 'relative';
+    // Drag grip
+    const grip = document.createElement('div');
+    grip.className = 'bt-edit-handle';
+    grip.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
+    grip.addEventListener('pointerdown', e => this._startDrag(e, ctrlId));
+    el.appendChild(grip);
+    // Width badge
+    const badge = document.createElement('div');
+    badge.className = 'bt-edit-w-badge';
+    badge.textContent = `${w}/${cols}`;
+    el.appendChild(badge);
+    // Resize handle (not on section dividers)
+    if (type !== 'section') {
+      const rh = document.createElement('div');
+      rh.className = 'bt-resize-handle';
+      rh.innerHTML = '<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,11 11,11 11,4"/></svg>';
+      rh.addEventListener('pointerdown', e => this._startResize(e, ctrlId));
+      el.appendChild(rh);
+    }
+  },
+
+  _startDrag(e, ctrlId) {
+    if (e.button && e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const card = document.querySelector(`[data-ctrl-id="${ctrlId}"]`);
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    // Ghost
+    const ghost = card.cloneNode(true);
+    ghost.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-w-badge').forEach(h => h.remove());
+    Object.assign(ghost.style, {
+      position:'fixed', left:rect.left+'px', top:rect.top+'px',
+      width:rect.width+'px', height:rect.height+'px',
+      pointerEvents:'none', zIndex:'9999', margin:'0',
+      opacity:'0.85', boxShadow:'0 8px 32px rgba(0,0,0,0.25)',
+      transition:'box-shadow 0.15s', transform:'scale(1.02)',
+    });
+    document.body.appendChild(ghost);
+    card.classList.add('bt-drag-source');
+
+    let targetCtrlId = null, targetBefore = true;
+
+    const onMove = ev => {
+      ghost.style.transform = `translate(${ev.clientX-e.clientX}px,${ev.clientY-e.clientY}px) scale(1.02)`;
+      ghost.style.pointerEvents = 'none';
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      ghost.style.pointerEvents = '';
+      const tc = under && under.closest('[data-ctrl-id]');
+      const newId = tc ? tc.dataset.ctrlId : null;
+      if (newId && newId !== ctrlId) {
+        const tr = tc.getBoundingClientRect();
+        const before = ev.clientX < tr.left + tr.width / 2;
+        if (newId !== targetCtrlId || before !== targetBefore) {
+          targetCtrlId = newId; targetBefore = before;
+          document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
+          tc.classList.add(before ? 'bt-drop-before' : 'bt-drop-after');
+        }
+      } else if (!newId) {
+        document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
+        targetCtrlId = null;
+      }
     };
 
-    controls.forEach(ctrl => {
-      if (ctrl.type === 'section') {
-        const divider = this._buildControl(ctrl);
-        startSection(divider);
-      } else {
-        if (!cardsEl) startSection(null);
-        const el = this._buildControl(ctrl);
-        if (el) cardsEl.appendChild(el);
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      ghost.remove();
+      card.classList.remove('bt-drag-source');
+      document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
+
+      if (targetCtrlId && targetCtrlId !== ctrlId) {
+        // FLIP — snapshot before
+        const snap = new Map();
+        document.querySelectorAll('[data-ctrl-id]').forEach(el => snap.set(el.dataset.ctrlId, el.getBoundingClientRect()));
+        // Reorder
+        const fi = this._orderedControls.findIndex(c => c.id === ctrlId);
+        const [item] = this._orderedControls.splice(fi, 1);
+        let ti = this._orderedControls.findIndex(c => c.id === targetCtrlId);
+        if (!targetBefore) ti++;
+        this._orderedControls.splice(ti, 0, item);
+        this._renderControlsDOM(false);
+        // FLIP — play
+        requestAnimationFrame(() => {
+          document.querySelectorAll('[data-ctrl-id]').forEach(el => {
+            const old = snap.get(el.dataset.ctrlId);
+            if (!old) return;
+            const cur = el.getBoundingClientRect();
+            const dx = old.left - cur.left, dy = old.top - cur.top;
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+            el.style.transition = 'none';
+            el.style.transform = `translate(${dx}px,${dy}px)`;
+            requestAnimationFrame(() => {
+              el.style.transition = 'transform 0.32s cubic-bezier(.4,0,.2,1)';
+              el.style.transform = '';
+              el.addEventListener('transitionend', () => { el.style.transition=''; el.style.transform=''; }, {once:true});
+            });
+          });
+        });
       }
+      if (navigator.vibrate) navigator.vibrate(15);
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  },
+
+  _startResize(e, ctrlId) {
+    e.preventDefault(); e.stopPropagation();
+    const card = document.querySelector(`[data-ctrl-id="${ctrlId}"]`);
+    if (!card) return;
+    const ctrl = this._orderedControls.find(c => c.id === ctrlId);
+    if (!ctrl) return;
+    const grid = document.getElementById('btControlsGrid');
+    const cols = this._getGridCols();
+    const cellW = (grid.clientWidth + 10) / cols; // approx including gap
+    const startX = e.clientX;
+    const startW = ctrl._w;
+    const minW = this._minWidth(ctrl.type);
+    card.classList.add('bt-resizing');
+    document.body.style.cursor = 'ew-resize';
+
+    const onMove = ev => {
+      const newW = Math.max(minW, Math.min(cols, startW + Math.round((ev.clientX - startX) / cellW)));
+      if (newW !== ctrl._w) {
+        ctrl._w = newW;
+        card.style.gridColumn = `span ${newW}`;
+        const badge = card.querySelector('.bt-edit-w-badge');
+        if (badge) badge.textContent = `${newW}/${cols}`;
+      }
+    };
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      card.classList.remove('bt-resizing');
+      document.body.style.cursor = '';
+      if (navigator.vibrate) navigator.vibrate(10);
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  },
+
+  async _saveLayout() {
+    if (!this._selected || this._selected === '__test__' || !this._orderedControls.length) return;
+    const layout = this._orderedControls.map(c => ({id: c.id, w: c._w || this._defWidth(c.type)}));
+    const b = this._bots.find(x => x.id === this._selected);
+    if (b) b.layout = layout;
+    const d = await Shell.api(`/api/mod/bots/${this._selected}/layout`, {
+      method: 'POST', body: JSON.stringify({layout})
     });
+    if (d && d.ok) Shell.toast('Расположение сохранено');
   },
 
   _buildControl(ctrl) {
@@ -996,14 +1210,31 @@ var Bots = {
     if (navigator.vibrate) navigator.vibrate(8);
   },
 
+  _compressImage(dataURL, maxPx = 256) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => resolve(dataURL);
+      img.src = dataURL;
+    });
+  },
+
   _onAvaSelect(input) {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      this._newBotAvatar = e.target.result;
+    reader.onload = async e => {
+      const compressed = await this._compressImage(e.target.result);
+      this._newBotAvatar = compressed;
       const prev = document.getElementById('btNewBotAvaPreview');
-      if (prev) prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      if (prev) prev.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
     };
     reader.readAsDataURL(file);
   },
@@ -1013,7 +1244,7 @@ var Bots = {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async e => {
-      const avatar = e.target.result;
+      const avatar = await this._compressImage(e.target.result);
       const d = await Shell.api(`/api/mod/bots/${this._selected}`, {
         method: 'PUT', body: JSON.stringify({ avatar })
       });
