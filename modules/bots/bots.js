@@ -1170,3 +1170,5 @@ End If`;
     return f5;
   }
 };
+
+window.Bots = Bots; Bots.init();
