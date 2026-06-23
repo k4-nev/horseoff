@@ -239,7 +239,7 @@ var Bots = {
 
   _showOfflineState(b) {
     document.getElementById('btOfflineState').style.display = 'flex';
-    document.getElementById('btTabs').style.display = 'none';
+    document.getElementById('btTabs').style.display = 'flex';
     document.getElementById('btPanes').style.display = 'none';
     document.getElementById('btOfflineName').textContent = b.name;
     document.getElementById('btOfflineSeen').textContent = b.last_seen ? 'Последний раз онлайн: ' + this._relTime(b.last_seen) : 'Статус неизвестен';
@@ -247,12 +247,17 @@ var Bots = {
     const qEl = document.getElementById('btOfflineQueue');
     qEl.style.display = q ? 'flex' : 'none';
     document.getElementById('btOfflineQueueText').textContent = q + ' ' + this._plural(q, 'команда', 'команды', 'команд') + ' в очереди';
+    // Mark non-settings tabs as disabled
+    document.querySelectorAll('.bt-tab').forEach(t => {
+      t.classList.toggle('bt-tab-disabled', t.id !== 'btTab-settings');
+    });
   },
 
   _showOnlineState(b) {
     document.getElementById('btOfflineState').style.display = 'none';
     document.getElementById('btTabs').style.display = 'flex';
     document.getElementById('btPanes').style.display = 'block';
+    document.querySelectorAll('.bt-tab').forEach(t => t.classList.remove('bt-tab-disabled'));
     document.getElementById('btPanes').style.position = 'relative';
     document.getElementById('btPanes').style.flex = '1';
     document.getElementById('btPanes').style.overflow = 'hidden';
@@ -884,12 +889,21 @@ var Bots = {
 
   // ─── Tab switching ───────────────────────────────────────────
   switchTab(tab) {
+    const b = this._bots.find(x => x.id === this._selected);
+    const isOffline = b && b.status === 'offline';
+    if (isOffline && tab !== 'settings') return;
     document.querySelectorAll('.bt-tab').forEach(t => t.classList.toggle('active', t.id === 'btTab-' + tab));
     document.querySelectorAll('.bt-pane').forEach(p => p.classList.toggle('active', p.id === 'btPane-' + tab));
+    if (isOffline && tab === 'settings') {
+      document.getElementById('btOfflineState').style.display = 'none';
+      document.getElementById('btPanes').style.display = 'block';
+      document.getElementById('btPanes').style.position = 'relative';
+      document.getElementById('btPanes').style.flex = '1';
+      document.getElementById('btPanes').style.overflow = 'hidden';
+    }
     if (navigator.vibrate) navigator.vibrate(8);
     if (tab === 'stats') {
       setTimeout(() => {
-        const b = this._bots.find(x => x.id === this._selected);
         this._drawCharts(b && b.stats ? b.stats : null);
       }, 50);
     }
@@ -900,7 +914,6 @@ var Bots = {
       }, 50);
     }
     if (tab === 'settings') {
-      const b = this._bots.find(x => x.id === this._selected);
       if (b) this._renderSettings(b);
     }
   },
