@@ -11,6 +11,55 @@ var Bots = {
   _logLines: [],
   _logMax: 500,
   _snippetMode: 'cs',
+  _testBotEnabled: false,
+
+  _TEST_BOT: {
+    id: '__test__', name: 'Demo Bot', group: 'Demo',
+    status: 'online', version: '1.0', sub: 'Все элементы управления',
+    badge: 0, last_seen: null, api_key: 'hb_demo_not_real',
+    access: [],
+    controls: [
+      { type: 'section', label: 'Управление потоком' },
+      { type: 'buttons', id: 'flow', buttons: [
+        { label: 'Запустить', action: 'start', style: 'primary' },
+        { label: 'Стоп', action: 'stop', style: 'danger' },
+        { label: 'Сброс', action: 'reset', style: 'secondary' }
+      ]},
+      { type: 'section', label: 'Параметры' },
+      { type: 'input', id: 'target', label: 'Целевой аккаунт', placeholder: '@username', apply_label: 'Применить' },
+      { type: 'textarea', id: 'notes', label: 'Заметки', placeholder: 'Произвольный текст...' },
+      { type: 'stepper', id: 'threads', label: 'Потоки', value: 3, min: 1, max: 20 },
+      { type: 'slider', id: 'delay', label: 'Задержка (сек)', value: 5, min: 1, max: 60 },
+      { type: 'select', id: 'mode', label: 'Режим работы', value: 'soft', options: [
+        { value: 'soft', label: 'Мягкий' },
+        { value: 'normal', label: 'Стандартный' },
+        { value: 'aggressive', label: 'Агрессивный' }
+      ]},
+      { type: 'toggle', id: 'auto_restart', label: 'Авто-рестарт при ошибке', value: true },
+      { type: 'section', label: 'Данные' },
+      { type: 'filelist', id: 'accounts', label: 'Список аккаунтов', list_count: 120 },
+      { type: 'section', label: 'Состояние' },
+      { type: 'progress', id: 'prog', label: 'Прогресс задачи', value: 62, total: 'Обработано 620 из 1000' },
+      { type: 'stats', items: [
+        { id: 's1', label: 'Обработано', value: '1 248', delta: '+84', trend: 'up' },
+        { id: 's2', label: 'Успешно', value: '1 102', delta: '+78', trend: 'up' },
+        { id: 's3', label: 'Ошибки', value: '146', delta: '-6', trend: 'down' }
+      ]},
+      { type: 'badges', label: 'Статус', items: [
+        { label: 'Running', style: 'running' },
+        { label: 'Online', style: 'online' }
+      ]}
+    ],
+    stats: {
+      kpi: [
+        { label: 'Обработано', value: '1 248', delta: '+84', trend: 'up' },
+        { label: 'Успешно', value: '1 102', delta: '+78', trend: 'up' },
+        { label: 'Ошибки', value: '146', delta: '-6', trend: 'down' }
+      ],
+      hourly: Array.from({length: 24}, (_, i) => ({ label: String(i).padStart(2,'0'), v: Math.floor(Math.random()*80+10) })),
+      daily: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => ({ label: d, v: Math.floor(Math.random()*200+50) }))
+    }
+  },
 
   // ─── Init ───────────────────────────────────────────────────
   async init() {
@@ -145,7 +194,9 @@ var Bots = {
     const dot = document.getElementById('btTopDot');
     dot.className = 'bt-bot-dot ' + b.status;
     document.getElementById('btTopName').textContent = b.name;
-    document.getElementById('btTopVersion').textContent = b.version ? 'v' + b.version : '';
+    const verEl = document.getElementById('btTopVersion');
+    verEl.textContent = b.version ? 'v' + b.version : '';
+    verEl.style.display = b.version ? '' : 'none';
     const pill = document.getElementById('btStatusPill');
     const labels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
     pill.className = 'bt-status-pill ' + b.status;
@@ -280,7 +331,7 @@ var Bots = {
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-input-row">
             <input class="bt-input" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}" value="${this._esc(ctrl.value || '')}"/>
-            <button class="bt-btn bt-btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Применить')}</button>
+            <button class="btn btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Применить')}</button>
           </div>`;
         return wrap;
 
@@ -289,7 +340,7 @@ var Bots = {
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <textarea class="bt-textarea" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}">${this._esc(ctrl.value || '')}</textarea>
           <div style="margin-top:8px;display:flex;justify-content:flex-end">
-            <button class="bt-btn bt-btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Сохранить')}</button>
+            <button class="btn btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Сохранить')}</button>
           </div>`;
         return wrap;
 
@@ -714,6 +765,12 @@ var Bots = {
     document.getElementById('btAddStep2').style.display = 'none';
     document.getElementById('btNewBotName').value = '';
     document.getElementById('btNewBotGroup').value = '';
+    // Populate group datalist from existing bots
+    const dl = document.getElementById('btGroupList');
+    if (dl) {
+      const groups = [...new Set(this._bots.map(b => b.group).filter(g => g && g !== 'Без группы'))];
+      dl.innerHTML = groups.map(g => `<option value="${this._esc(g)}">`).join('');
+    }
     document.getElementById('btAddModal').classList.add('active');
     setTimeout(() => document.getElementById('btNewBotName').focus(), 80);
     if (navigator.vibrate) navigator.vibrate(15);
@@ -863,6 +920,74 @@ End If`;
     });
     this.closeAccessModal();
     await this._loadBotDetails(this._selected);
+  },
+
+  // ─── Test bot ────────────────────────────────────────────────
+  toggleTestBot() {
+    this._testBotEnabled = !this._testBotEnabled;
+    const btn = document.getElementById('btDemoToggle');
+    if (btn) btn.classList.toggle('demo-on', this._testBotEnabled);
+    if (navigator.vibrate) navigator.vibrate(20);
+    if (this._testBotEnabled) {
+      this._bots.unshift(Object.assign({}, this._TEST_BOT));
+      this._renderList();
+      this._openBot('__test__');
+      // Inject some demo log lines after a short delay
+      setTimeout(() => {
+        if (this._selected === '__test__') this.switchTab('log');
+        const levels = ['INFO','INFO','WARN','INFO','INFO','ERROR','INFO'];
+        const msgs = [
+          'Бот запущен, подключение к API...',
+          'Авторизация прошла успешно',
+          'Задержка API > 500ms, переключаюсь на резервный',
+          'Обработано 100 аккаунтов',
+          'Успешно: 94 / Ошибки: 6',
+          'Connection timeout — retry 1/3',
+          'Задача завершена, ожидаю следующую итерацию'
+        ];
+        levels.forEach((l, i) => setTimeout(() => this.addLogLine(l, msgs[i]), i * 300));
+      }, 300);
+    } else {
+      this._bots = this._bots.filter(b => b.id !== '__test__');
+      this._renderList();
+      if (this._selected === '__test__') {
+        this._selected = null;
+        document.getElementById('btEmpty').style.display = 'flex';
+        document.getElementById('btWorkspace').style.display = 'none';
+      }
+    }
+  },
+
+  // ─── WebSocket messages from Shell ────────────────────────────
+  onWS(data) {
+    if (data.type === 'bot_update') {
+      const { bot_id, status, controls, version, sub } = data;
+      const idx = this._bots.findIndex(b => b.id === bot_id);
+      if (idx >= 0) {
+        if (status !== undefined) this._bots[idx].status = status;
+        if (version !== undefined) this._bots[idx].version = version;
+        if (sub !== undefined) this._bots[idx].sub = sub;
+        // Update dot in list
+        const row = document.querySelector(`.bt-bot-row[data-bot-id="${bot_id}"]`);
+        if (row) {
+          const dot = row.querySelector('.bt-dot');
+          if (dot) dot.className = 'bt-dot ' + (status || 'offline');
+          row.classList.toggle('offline-bot', status === 'offline');
+        }
+        // If this bot is open, refresh workspace
+        if (this._selected === bot_id) {
+          this._openBot(bot_id);
+          if (controls && status === 'online') {
+            this._bots[idx].controls = controls;
+            this.renderControls(controls);
+          }
+        }
+      }
+    } else if (data.type === 'bot_log') {
+      if (this._selected === data.bot_id) {
+        this.addLogLine(data.level || 'INFO', data.msg || '');
+      }
+    }
   },
 
   // ─── Helpers ─────────────────────────────────────────────────

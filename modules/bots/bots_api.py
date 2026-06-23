@@ -1,5 +1,5 @@
 """Bots module API — v1.0"""
-import json, secrets, time
+import json, secrets, time, asyncio, threading
 from pathlib import Path
 
 BOTS_DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data' / 'bots'
@@ -7,6 +7,18 @@ BOTS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 BOTS_INDEX = BOTS_DATA_DIR / 'index.json'
 
 _OWNER_ROLES = {'arcana', 'immortal'}
+
+# ── Bot WebSocket connections (bot_id → websocket) ───────────────────────────
+bot_ws_connections = {}
+_bws_lock = threading.Lock()
+
+def _broadcast_bot(data):
+    """Broadcast bot update to all management UI clients via Shell WS queue."""
+    try:
+        from server import _ws_broadcast_all
+        _ws_broadcast_all(data)
+    except Exception as e:
+        print(f"[BOTS WS] Broadcast error: {e}")
 
 
 # ── Persistence ──────────────────────────────────────────────────────────────
@@ -150,12 +162,23 @@ def handle_post(handler, session, path, data=None):
                 'ts': int(time.time()),
                 'user_id': session['id'],
             }
-            if bot.get('status') == 'offline':
+            with _bws_lock:
+                ws = bot_ws_connections.get(bot_id)
+            if ws:
+                # Deliver in real-time via bot's WebSocket
+                async def _send():
+                    try: await ws.send(json.dumps({'type': 'command', 'cmd': cmd}))
+                    except: pass
+                try:
+                    from server import ws_loop
+                    if ws_loop:
+                        asyncio.run_coroutine_threadsafe(_send(), ws_loop)
+                except: pass
+                return _json(handler, 200, {'ok': True, 'cmd': cmd})
+            else:
                 bot.setdefault('command_queue', []).append(cmd)
                 _save_bot(bot)
                 return _json(handler, 200, {'queued': True})
-            # Etap 2: deliver via WebSocket
-            return _json(handler, 200, {'ok': True, 'cmd': cmd})
 
         # POST /api/mod/bots/:id/regen_key
         if sub == 'regen_key':
@@ -244,6 +267,92 @@ def handle_delete(handler, session, path):
             return _json(handler, 200, {'ok': True})
 
     return _json(handler, 404, {'error': 'Not found'})
+
+
+# ── Bot WebSocket handler ─────────────────────────────────────────────────────
+async def handle_bot_ws(websocket):
+    """Handle WebSocket connection from a bot (ZennoPoster / C# client)."""
+    bot_id = None
+    try:
+        raw = await asyncio.wait_for(websocket.recv(), timeout=15)
+        data = json.loads(raw)
+        if data.get('type') != 'auth' or not data.get('api_key'):
+            await websocket.close(); return
+
+        # Find bot by API key
+        bot = None
+        for entry in _load_index():
+            b = _load_bot(entry['id'])
+            if b and b.get('api_key') == data['api_key']:
+                bot = b; break
+
+        if not bot:
+            await websocket.send(json.dumps({'type': 'error', 'msg': 'Invalid API key'}))
+            await websocket.close(); return
+
+        bot_id = bot['id']
+        with _bws_lock:
+            bot_ws_connections[bot_id] = websocket
+
+        # Mark online + flush queued commands
+        bot['status'] = 'online'
+        bot['last_seen'] = int(time.time())
+        queued = bot.get('command_queue', [])
+        bot['command_queue'] = []
+        _save_bot(bot)
+
+        await websocket.send(json.dumps({'type': 'auth_ok', 'bot_id': bot_id, 'name': bot['name']}))
+        for cmd in queued:
+            await websocket.send(json.dumps({'type': 'command', 'cmd': cmd}))
+
+        _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'online',
+                        'version': bot.get('version', ''), 'sub': bot.get('sub', '')})
+
+        # Message loop
+        async for raw in websocket:
+            try:
+                msg = json.loads(raw)
+                mt = msg.get('type')
+
+                if mt == 'ping':
+                    await websocket.send(json.dumps({'type': 'pong'}))
+
+                elif mt == 'manifest':
+                    bot = _load_bot(bot_id)
+                    if bot:
+                        for field in ('name', 'version', 'sub', 'controls'):
+                            if msg.get(field) is not None:
+                                bot[field] = msg[field]
+                        _save_bot(bot)
+                        _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id,
+                                        'status': 'online', 'version': bot.get('version', ''),
+                                        'sub': bot.get('sub', ''), 'controls': bot.get('controls')})
+
+                elif mt == 'log':
+                    _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
+                                    'level': msg.get('level', 'INFO'), 'msg': msg.get('msg', '')})
+
+                elif mt == 'stats':
+                    bot = _load_bot(bot_id)
+                    if bot:
+                        bot['stats'] = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
+                        _save_bot(bot)
+
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+    except Exception as e:
+        print(f"[BOT WS] {e}")
+    finally:
+        if bot_id:
+            with _bws_lock:
+                bot_ws_connections.pop(bot_id, None)
+            bot = _load_bot(bot_id)
+            if bot:
+                bot['status'] = 'offline'
+                bot['last_seen'] = int(time.time())
+                _save_bot(bot)
+                _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline'})
 
 
 # ── Registration ──────────────────────────────────────────────────────────────

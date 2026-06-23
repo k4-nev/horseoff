@@ -910,6 +910,17 @@ async def _voice_notify_space(space_id):
         except: pass
 
 async def handle_ws(websocket):
+    # Route bot connections to bots_api handler
+    try:
+        ws_path = websocket.request.path
+    except AttributeError:
+        ws_path = getattr(websocket, 'path', '/')
+    if ws_path.startswith('/ws/bots'):
+        bots_mod = _loaded_modules.get('bots_api')
+        if bots_mod and hasattr(bots_mod, 'handle_bot_ws'):
+            return await bots_mod.handle_bot_ws(websocket)
+        return
+
     token = None
     ip = websocket.remote_address[0] if websocket.remote_address else '0.0.0.0'
     try:
