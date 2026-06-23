@@ -134,7 +134,7 @@
               <div class="bt-settings-label">Название бота</div>
               <div class="bt-settings-row">
                 <input class="bt-input" id="btSettingsName" placeholder="Имя бота"/>
-                <button class="bt-btn bt-btn-secondary" onclick="Bots.saveBotName()">Сохранить</button>
+                <button class="btn btn-secondary" onclick="Bots.saveBotName()">Сохранить</button>
               </div>
             </div>
 
@@ -151,7 +151,7 @@
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   </button>
                 </div>
-                <button class="bt-btn bt-btn-secondary bt-regen-btn" onclick="Bots.regenApiKey()">
+                <button class="btn btn-secondary bt-regen-btn" onclick="Bots.regenApiKey()">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                   Перегенерировать
                 </button>
@@ -162,7 +162,7 @@
             <div class="bt-settings-section">
               <div class="bt-settings-label">Доступ</div>
               <div class="bt-access-list" id="btAccessList"></div>
-              <button class="bt-btn bt-btn-secondary bt-add-access-btn" onclick="Bots.openAccessModal()">
+              <button class="btn btn-secondary bt-add-access-btn" onclick="Bots.openAccessModal()">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Добавить пользователя
               </button>
@@ -176,7 +176,7 @@
                   <div class="bt-danger-title">Удалить бота</div>
                   <div class="bt-danger-sub">Все данные и API-ключ будут удалены безвозвратно</div>
                 </div>
-                <button class="bt-btn bt-btn-danger" onclick="Bots.confirmDeleteBot()">Удалить</button>
+                <button class="btn btn-danger" onclick="Bots.confirmDeleteBot()">Удалить</button>
               </div>
             </div>
           </div>
@@ -210,8 +210,8 @@
         <datalist id="btGroupList"></datalist>
       </div>
       <div class="bt-modal-actions">
-        <button class="bt-btn bt-btn-secondary" onclick="Bots.closeAddModal()">Отмена</button>
-        <button class="bt-btn bt-btn-create" onclick="Bots.createBot()">Создать</button>
+        <button class="btn btn-secondary" onclick="Bots.closeAddModal()">Отмена</button>
+        <button class="btn btn-primary" onclick="Bots.createBot()">Создать</button>
       </div>
     </div>
 
@@ -237,7 +237,7 @@
       <pre class="bt-code" id="btSnippetCs"></pre>
       <pre class="bt-code" id="btSnippetZp" style="display:none"></pre>
       <div class="bt-modal-actions">
-        <button class="bt-btn bt-btn-create" onclick="Bots.closeAddModal()">Готово</button>
+        <button class="btn btn-primary" onclick="Bots.closeAddModal()">Готово</button>
       </div>
     </div>
   </div>
@@ -254,7 +254,7 @@
     </div>
     <div class="bt-access-user-list" id="btAccessUserList"></div>
     <div class="bt-modal-actions">
-      <button class="bt-btn bt-btn-secondary" onclick="Bots.closeAccessModal()">Закрыть</button>
+      <button class="btn btn-secondary" onclick="Bots.closeAccessModal()">Закрыть</button>
     </div>
   </div>
 </div>

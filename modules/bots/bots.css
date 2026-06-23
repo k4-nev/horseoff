@@ -156,18 +156,9 @@
 .bt-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 .bt-textarea::placeholder{color:var(--text-dim);opacity:0.5}
 
-/* Buttons — match shell .btn style */
+/* Buttons */
 .bt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;border:1px solid var(--border);color:var(--text);transition:all 0.2s;white-space:nowrap}
 .bt-btn:active{transform:scale(0.95)}
-.bt-btn-primary{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700}
-.bt-btn-primary:hover{background:var(--accent-dark)}
-.bt-btn-secondary{background:var(--surface2);border-color:var(--border);color:var(--text)}
-.bt-btn-secondary:hover{border-color:var(--accent);background:var(--accent-glow)}
-.bt-btn-danger{background:transparent;border-color:var(--danger);color:var(--danger)}
-.bt-btn-danger:hover{background:var(--danger-glow)}
-.bt-btn-create{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700;padding:10px 24px}
-.bt-btn-create:hover{background:var(--accent-dark)}
-.bt-btn-create:active{transform:scale(0.95)}
 
 /* Icon-only button */
 .bt-icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.18s}

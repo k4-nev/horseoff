@@ -282,7 +282,7 @@ var Bots = {
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-input-row">
             <input class="bt-input" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}" value="${this._esc(ctrl.value || '')}"/>
-            <button class="bt-btn bt-btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Применить')}</button>
+            <button class="btn btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Применить')}</button>
           </div>`;
         return wrap;
 
@@ -291,7 +291,7 @@ var Bots = {
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <textarea class="bt-textarea" id="btCtrl_${ctrl.id}" placeholder="${this._esc(ctrl.placeholder || '')}">${this._esc(ctrl.value || '')}</textarea>
           <div style="margin-top:8px;display:flex;justify-content:flex-end">
-            <button class="bt-btn bt-btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Сохранить')}</button>
+            <button class="btn btn-secondary" onclick="Bots._applyInput('${ctrl.id}', this)">${this._esc(ctrl.apply_label || 'Сохранить')}</button>
           </div>`;
         return wrap;
 
