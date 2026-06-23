@@ -337,7 +337,7 @@ var Bots = {
   _GAP_PX: 10,
 
   _defHeight(type) {
-    return {textarea:2,table:3,code:2,image:2,section:1,stat:1}[type] || 1;
+    return {textarea:2,table:3,code:2,image:2,section:3,stat:1}[type] || 1;
   },
 
   _defWidth(type) {
@@ -345,11 +345,29 @@ var Bots = {
   },
 
   _minWidth(type) {
-    return {section:2,input:4,textarea:4,slider:4,progress:4,table:4,code:4,stat:2}[type] || 2;
+    return {section:2,input:2,textarea:2,slider:2,progress:2,table:4,code:4,stat:1,image:2}[type] || 2;
   },
 
   _minHeight(type) {
-    return type === 'section' ? 1 : 1;
+    return {textarea:2,image:1}[type] || 1;
+  },
+
+  // Groups flat _orderedControls into [{section, children}] for rendering
+  _groupControls() {
+    const groups = [];
+    let cur = null;
+    this._orderedControls.forEach(ctrl => {
+      if (ctrl.type === 'section') {
+        cur = { section: ctrl, children: [] };
+        groups.push(cur);
+      } else if (cur) {
+        cur.children.push(ctrl);
+      } else {
+        if (!groups.length || groups[groups.length-1].section) groups.push({ section: null, children: [] });
+        groups[groups.length-1].children.push(ctrl);
+      }
+    });
+    return groups;
   },
 
   // ─── Render controls (flat 8-col grid with explicit placement) ─
@@ -398,30 +416,85 @@ var Bots = {
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     grid.classList.toggle('bt-edit-mode', this._editMode);
 
-    const existing = {};
-    grid.querySelectorAll('[data-ctrl-id]').forEach(el => { existing[el.dataset.ctrlId] = el; });
+    grid.innerHTML = '';
 
-    this._orderedControls.forEach(ctrl => {
-      let el = existing[ctrl.id];
-      if (!el || rebuild) {
-        if (el) el.remove();
-        el = this._buildControl(ctrl);
-        if (!el) return;
-        el.dataset.ctrlId = ctrl.id;
-        existing[ctrl.id] = el;
+    const groups = this._groupControls();
+
+    groups.forEach(group => {
+      if (group.section) {
+        const sect = group.section;
+        const sw = Math.min(sect._w || this._defWidth('section'), cols);
+        const sh = sect._h || this._defHeight('section');
+
+        const wrap = document.createElement('div');
+        wrap.className = 'bt-section-wrap';
+        wrap.dataset.ctrlId = sect.id;
+        wrap.style.gridColumn = `span ${sw}`;
+        wrap.style.gridRow = `span ${sh}`;
+
+        const header = document.createElement('div');
+        header.className = 'bt-section-divider';
+        header.innerHTML = `<div class="bt-section-divider-line"></div>
+          <span class="bt-section-divider-label">${this._esc(sect.label)}</span>
+          <div class="bt-section-divider-line"></div>`;
+        wrap.appendChild(header);
+
+        const innerGrid = document.createElement('div');
+        innerGrid.className = 'bt-section-inner-grid';
+        innerGrid.style.gridTemplateColumns = `repeat(${sw}, 1fr)`;
+
+        group.children.forEach(ctrl => {
+          const el = this._buildControl(ctrl);
+          if (!el) return;
+          el.dataset.ctrlId = ctrl.id;
+          el.dataset.parentSection = sect.id;
+          const cw = Math.min(ctrl._w || this._defWidth(ctrl.type), sw);
+          const ch = ctrl._h || this._defHeight(ctrl.type);
+          el.style.gridColumn = `span ${cw}`;
+          el.style.gridRow = `span ${ch}`;
+          if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, cw, ch, sw);
+          innerGrid.appendChild(el);
+        });
+
+        wrap.appendChild(innerGrid);
+
+        if (this._editMode) {
+          wrap.style.position = 'relative';
+          const grip = document.createElement('div');
+          grip.className = 'bt-edit-handle';
+          grip.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
+          grip.addEventListener('pointerdown', ev => this._startDrag(ev, sect.id));
+          wrap.appendChild(grip);
+          const badge = document.createElement('div');
+          badge.className = 'bt-edit-size-badge';
+          badge.textContent = `${sw}×${sh}`;
+          wrap.appendChild(badge);
+          const rw = document.createElement('div');
+          rw.className = 'bt-resize-handle bt-rh-w';
+          rw.innerHTML = '<svg width="6" height="14" viewBox="0 0 6 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="2" y2="18"/><line x1="5" y1="2" x2="5" y2="18"/></svg>';
+          rw.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'w'));
+          wrap.appendChild(rw);
+          const rh = document.createElement('div');
+          rh.className = 'bt-resize-handle bt-rh-h';
+          rh.innerHTML = '<svg width="14" height="6" viewBox="0 0 20 6" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="18" y2="2"/><line x1="2" y1="5" x2="18" y2="5"/></svg>';
+          rh.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'h'));
+          wrap.appendChild(rh);
+        }
+
+        grid.appendChild(wrap);
+      } else {
+        group.children.forEach(ctrl => {
+          const el = this._buildControl(ctrl);
+          if (!el) return;
+          el.dataset.ctrlId = ctrl.id;
+          const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
+          const h = ctrl._h || this._defHeight(ctrl.type);
+          el.style.gridColumn = `span ${w}`;
+          el.style.gridRow = `span ${h}`;
+          if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, h, cols);
+          grid.appendChild(el);
+        });
       }
-      el.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-size-badge').forEach(h => h.remove());
-      const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
-      const h = ctrl._h || this._defHeight(ctrl.type);
-      el.style.gridColumn = `span ${w}`;
-      el.style.gridRow = `span ${h}`;
-      el.style.minHeight = '';
-      if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, h, cols);
-      grid.appendChild(el);
-    });
-
-    Object.keys(existing).forEach(id => {
-      if (!this._orderedControls.find(c => c.id === id) && existing[id].parentNode) existing[id].remove();
     });
   },
 
@@ -474,9 +547,14 @@ var Bots = {
   _startDrag(e, ctrlId) {
     if (e.button && e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
+    const ctrl = this._orderedControls.find(c => c.id === ctrlId);
+    if (!ctrl) return;
+    const isSection = ctrl.type === 'section';
+
     const card = document.querySelector(`[data-ctrl-id="${ctrlId}"]`);
     if (!card) return;
     const rect = card.getBoundingClientRect();
+    const parentSect = card.dataset.parentSection || null;
 
     const ghost = card.cloneNode(true);
     ghost.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-size-badge').forEach(h => h.remove());
@@ -498,16 +576,25 @@ var Bots = {
       const under = document.elementFromPoint(ev.clientX, ev.clientY);
       ghost.style.pointerEvents = '';
       const tc = under && under.closest('[data-ctrl-id]');
-      const newId = tc ? tc.dataset.ctrlId : null;
-      if (newId && newId !== ctrlId) {
-        const tr = tc.getBoundingClientRect();
-        const before = ev.clientY < tr.top + tr.height / 2; // vertical split for row-based reorder
+      let newId = null;
+      if (tc && tc.dataset.ctrlId !== ctrlId) {
+        if (isSection) {
+          const tcCtrl = this._orderedControls.find(c => c.id === tc.dataset.ctrlId);
+          if (tcCtrl && tcCtrl.type === 'section') newId = tc.dataset.ctrlId;
+        } else {
+          if (tc.dataset.parentSection === parentSect) newId = tc.dataset.ctrlId;
+        }
+      }
+      if (newId) {
+        const tcEl = document.querySelector(`[data-ctrl-id="${newId}"]`);
+        const tr = tcEl.getBoundingClientRect();
+        const before = ev.clientY < tr.top + tr.height / 2;
         if (newId !== targetCtrlId || before !== targetBefore) {
           targetCtrlId = newId; targetBefore = before;
           document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
-          tc.classList.add(before ? 'bt-drop-before' : 'bt-drop-after');
+          tcEl.classList.add(before ? 'bt-drop-before' : 'bt-drop-after');
         }
-      } else if (!newId) {
+      } else {
         document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
         targetCtrlId = null;
       }
@@ -524,12 +611,33 @@ var Bots = {
         const snap = new Map();
         document.querySelectorAll('[data-ctrl-id]').forEach(el => snap.set(el.dataset.ctrlId, el.getBoundingClientRect()));
 
-        const fi = this._orderedControls.findIndex(c => c.id === ctrlId);
-        const [item] = this._orderedControls.splice(fi, 1);
-        let ti = this._orderedControls.findIndex(c => c.id === targetCtrlId);
-        if (!targetBefore) ti++;
-        this._orderedControls.splice(Math.max(0, ti), 0, item);
-        this._renderControlsDOM(false);
+        if (isSection) {
+          const groups = this._groupControls();
+          const dragGroup = groups.find(g => g.section && g.section.id === ctrlId);
+          const targetGroup = groups.find(g => g.section && g.section.id === targetCtrlId);
+          if (dragGroup && targetGroup) {
+            const dragItems = [dragGroup.section, ...dragGroup.children];
+            dragItems.forEach(item => {
+              const idx = this._orderedControls.indexOf(item);
+              if (idx >= 0) this._orderedControls.splice(idx, 1);
+            });
+            let ti = this._orderedControls.indexOf(targetGroup.section);
+            if (!targetBefore) {
+              let end = ti + 1;
+              while (end < this._orderedControls.length && this._orderedControls[end].type !== 'section') end++;
+              ti = end;
+            }
+            this._orderedControls.splice(Math.max(0, ti), 0, ...dragItems);
+          }
+        } else {
+          const fi = this._orderedControls.findIndex(c => c.id === ctrlId);
+          const [item] = this._orderedControls.splice(fi, 1);
+          let ti = this._orderedControls.findIndex(c => c.id === targetCtrlId);
+          if (!targetBefore) ti++;
+          this._orderedControls.splice(Math.max(0, ti), 0, item);
+        }
+
+        this._renderControlsDOM(true);
 
         requestAnimationFrame(() => {
           document.querySelectorAll('[data-ctrl-id]').forEach(el => {
@@ -562,11 +670,13 @@ var Bots = {
     const ctrl = this._orderedControls.find(c => c.id === ctrlId);
     if (!ctrl) return;
 
+    const isSection = ctrl.type === 'section';
     const grid = document.getElementById('btControlsGrid');
     const cols = this._getGridCols();
-    const startW = ctrl._w;
+    const startW = ctrl._w || this._defWidth(ctrl.type);
     const startH = ctrl._h || this._defHeight(ctrl.type);
     const minW = this._minWidth(ctrl.type);
+    const minH = this._minHeight(ctrl.type);
     const startX = e.clientX, startY = e.clientY;
     const cellW = (grid.clientWidth - this._GAP_PX * (cols - 1)) / cols;
 
@@ -581,9 +691,13 @@ var Bots = {
                 card.style.gridColumn = `span ${newW}`;
                 const badge = card.querySelector('.bt-edit-size-badge');
                 if (badge) badge.textContent = `${newW}×${ctrl._h || startH}`;
+                if (isSection) {
+                    const innerGrid = card.querySelector('.bt-section-inner-grid');
+                    if (innerGrid) innerGrid.style.gridTemplateColumns = `repeat(${newW}, 1fr)`;
+                }
             }
         } else {
-            const newH = Math.max(1, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
+            const newH = Math.max(minH, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
             if (newH !== ctrl._h) {
                 ctrl._h = newH;
                 card.style.gridRow = `span ${newH}`;
@@ -624,11 +738,7 @@ var Bots = {
     const wrap = document.createElement('div');
     switch (ctrl.type) {
       case 'section':
-        wrap.className = 'bt-section-divider';
-        wrap.innerHTML = `<div class="bt-section-divider-line"></div>
-          <span class="bt-section-divider-label">${this._esc(ctrl.label)}</span>
-          <div class="bt-section-divider-line"></div>`;
-        return wrap;
+        return null;
 
       case 'buttons':
         wrap.className = 'bt-ctrl-card bt-ctrl--buttons';
@@ -697,17 +807,24 @@ var Bots = {
           </label>`;
         return wrap;
 
-      case 'select':
+      case 'select': {
         wrap.className = 'bt-ctrl-card bt-ctrl--select';
-        const opts = (ctrl.options || []).map(o =>
-          `<option value="${this._esc(o.value)}" ${o.value === ctrl.value ? 'selected' : ''}>${this._esc(o.label)}</option>`
+        const options = ctrl.options || [];
+        const selOpt = options.find(o => o.value === ctrl.value) || options[0] || {label:'', value:''};
+        const optsHtml = options.map(o =>
+          `<div class="bt-cs-opt${o.value === ctrl.value ? ' selected' : ''}" data-value="${this._esc(o.value)}"
+            onclick="Bots._selectOption('${ctrl.id}','${this._esc(o.value)}','${this._esc(o.label)}')">${this._esc(o.label)}</div>`
         ).join('');
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
-          <div class="bt-select-wrap">
-            <select class="bt-select" id="btCtrl_${ctrl.id}" onchange="Bots._sendCommand('${ctrl.id}', 'set', this.value)">${opts}</select>
-            <svg class="bt-select-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <div class="bt-cs" id="btCs_${ctrl.id}">
+            <div class="bt-cs-trigger" onclick="Bots._toggleSelect('${ctrl.id}')">
+              <span class="bt-cs-label">${this._esc(selOpt.label)}</span>
+              <svg class="bt-cs-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="bt-cs-drop">${optsHtml}</div>
           </div>`;
         return wrap;
+      }
 
       case 'progress':
         wrap.className = 'bt-ctrl-card bt-ctrl--progress';
@@ -865,6 +982,32 @@ var Bots = {
     }
 
     if (navigator.vibrate) navigator.vibrate(8);
+  },
+
+  _toggleSelect(ctrlId) {
+    const wrap = document.getElementById('btCs_' + ctrlId);
+    if (!wrap) return;
+    const isOpen = wrap.classList.contains('open');
+    document.querySelectorAll('.bt-cs.open').forEach(el => el.classList.remove('open'));
+    if (!isOpen) {
+      wrap.classList.add('open');
+      if (!this._csListener) {
+        this._csListener = ev => {
+          if (!ev.target.closest('.bt-cs')) document.querySelectorAll('.bt-cs.open').forEach(el => el.classList.remove('open'));
+        };
+        document.addEventListener('click', this._csListener, true);
+      }
+    }
+  },
+
+  _selectOption(ctrlId, value, label) {
+    const wrap = document.getElementById('btCs_' + ctrlId);
+    if (!wrap) return;
+    const lbl = wrap.querySelector('.bt-cs-label');
+    if (lbl) lbl.textContent = label;
+    wrap.querySelectorAll('.bt-cs-opt').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
+    wrap.classList.remove('open');
+    this._sendCommand(ctrlId, 'set', value);
   },
 
   _copyCode(ctrlId) {

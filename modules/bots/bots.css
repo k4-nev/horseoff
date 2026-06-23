@@ -141,8 +141,12 @@
 /* Flat 8-col grid (columns set dynamically in JS) */
 .bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1;grid-auto-rows:90px}
 
-/* Section divider — thin horizontal line, centered in its 90px grid row */
-.bt-section-divider{display:flex;align-items:center;gap:10px;padding:4px 0;position:relative;height:36px;align-self:center;width:100%}
+/* Section container — floats in outer grid, wraps inner grid */
+.bt-section-wrap{display:flex;flex-direction:column;overflow:visible;position:relative;min-width:0}
+.bt-section-inner-grid{display:grid;grid-auto-flow:row;gap:10px;grid-auto-rows:90px;flex:1;min-height:0;align-content:start}
+
+/* Section divider — thin header at top of section container */
+.bt-section-divider{display:flex;align-items:center;gap:10px;padding:0;position:relative;height:30px;flex-shrink:0;width:100%;margin-bottom:8px}
 .bt-section-divider-line{flex:1;height:1px;background:var(--border)}
 .bt-section-divider-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.9px;color:var(--text-dim);white-space:nowrap}
 
@@ -156,7 +160,7 @@
 
 /* ── Edit mode ── */
 .bt-edit-mode .bt-ctrl-card{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 50%,var(--border));cursor:default;user-select:none;overflow:visible}
-.bt-edit-mode .bt-section-divider{outline:1.5px dashed color-mix(in srgb,var(--accent) 50%,var(--border));outline-offset:6px;border-radius:4px;overflow:visible}
+.bt-edit-mode .bt-section-wrap{outline:1.5px dashed color-mix(in srgb,var(--accent) 50%,var(--border));outline-offset:4px;border-radius:8px;overflow:visible}
 
 /* Drag handle (top-left) */
 .bt-edit-handle{position:absolute;top:-8px;left:8px;width:24px;height:24px;border-radius:7px;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:20;opacity:0;transition:opacity 0.18s;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
@@ -242,12 +246,20 @@
 .bt-slider::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:linear-gradient(180deg,#5cf08e,#3bc96b);cursor:pointer;border:none;box-shadow:0 2px 6px rgba(59,201,107,0.5)}
 .bt-slider-minmax{display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;margin-top:4px}
 
-/* Custom select */
-.bt-select-wrap{position:relative}
-.bt-select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:9px 36px 9px 13px;color:var(--text);font-size:13px;font-family:inherit;outline:none;-webkit-appearance:none;cursor:pointer;transition:border-color 0.18s,box-shadow 0.18s}
-.bt-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
-.bt-select-chevron{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--text-dim);transition:transform 0.2s}
-.bt-select-wrap:focus-within .bt-select-chevron{transform:translateY(-50%) rotate(180deg)}
+/* Custom select dropdown */
+.bt-cs{position:relative;width:100%}
+.bt-cs-trigger{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:9px 13px;color:var(--text);font-size:13px;font-family:inherit;cursor:pointer;transition:border-color 0.18s,box-shadow 0.18s;user-select:none}
+.bt-cs-trigger:hover{border-color:var(--accent)}
+.bt-cs.open .bt-cs-trigger{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.bt-cs-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-cs-chevron{color:var(--text-dim);flex-shrink:0;transition:transform 0.2s}
+.bt-cs.open .bt-cs-chevron{transform:rotate(180deg)}
+.bt-cs-drop{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.22);z-index:200;overflow:hidden;opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity 0.18s,transform 0.18s}
+.bt-cs.open .bt-cs-drop{opacity:1;transform:translateY(0);pointer-events:auto}
+.bt-cs-opt{padding:9px 14px;font-size:13px;color:var(--text);cursor:pointer;transition:background 0.13s;display:flex;align-items:center;gap:8px}
+.bt-cs-opt:hover{background:var(--surface2)}
+.bt-cs-opt.selected{color:var(--accent);font-weight:600}
+.bt-cs-opt.selected::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0}
 
 /* Progress */
 .bt-progress-header{display:flex;justify-content:space-between;margin-bottom:8px}
@@ -274,7 +286,8 @@
 .bt-stat-delta svg{flex-shrink:0}
 
 /* Individual stat card (controls grid) */
-.bt-ctrl--stat{display:flex;flex-direction:column;justify-content:center;gap:2px}
+.bt-ctrl--stat{display:flex;flex-direction:column;justify-content:center;gap:2px;background:var(--surface2)!important;box-shadow:inset 0 1px 3px rgba(0,0,0,0.18);border-color:transparent!important}
+body.theme-light .bt-ctrl--stat{background:#e9edf3!important;box-shadow:inset 0 2px 4px rgba(23,33,54,.12),inset 0 -1px 0 rgba(255,255,255,.6)}
 .bt-ctrl--stat .bt-stat-val{font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text);line-height:1}
 .bt-ctrl--stat .bt-stat-label{font-size:10px;color:var(--text-dim)}
 .bt-ctrl--stat .bt-stat-delta{font-size:10px;font-weight:600;display:flex;align-items:center;gap:3px;margin-top:2px}
@@ -305,6 +318,12 @@
 .bt-badge-status.stopped::before{background:var(--text-dim)}
 .bt-badge-status.error{background:rgba(226,51,85,0.15);color:#e23355}
 .bt-badge-status.error::before{background:#e23355}
+
+/* Buttons control card — inset background, centered */
+.bt-ctrl--buttons{background:var(--surface2)!important;box-shadow:inset 0 1px 3px rgba(0,0,0,0.18);border-color:transparent!important;justify-content:center;align-items:center}
+body.theme-light .bt-ctrl--buttons{background:#e9edf3!important;box-shadow:inset 0 2px 4px rgba(23,33,54,.12),inset 0 -1px 0 rgba(255,255,255,.6)}
+.bt-ctrl--buttons .bt-btn-group{width:100%;justify-content:center}
+.bt-ctrl--buttons .bt-btn-group .btn{flex:1}
 
 /* Button group */
 .bt-btn-group{display:flex;gap:8px;flex-wrap:wrap}
@@ -440,10 +459,11 @@
 .bt-label-ctrl.error{color:#e23355;font-weight:600}
 
 /* image / screenshot */
-.bt-image-ctrl{width:100%;border-radius:10px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);position:relative}
-.bt-image-ctrl img{width:100%;display:block;border-radius:10px;transition:opacity 0.3s}
+.bt-ctrl--image{gap:0}
+.bt-image-ctrl{flex:1;min-height:0;width:100%;border-radius:10px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);position:relative;display:flex;flex-direction:column}
+.bt-image-ctrl img{width:100%;height:100%;object-fit:contain;display:block;border-radius:10px;transition:opacity 0.3s}
 .bt-image-ts{position:absolute;bottom:8px;right:10px;font-size:10px;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,0.5);background:rgba(0,0,0,0.4);padding:2px 7px;border-radius:5px}
-.bt-image-empty{display:flex;align-items:center;justify-content:center;height:80px;color:var(--text-dim);font-size:12px;gap:7px}
+.bt-image-empty{display:flex;align-items:center;justify-content:center;flex:1;min-height:0;color:var(--text-dim);font-size:12px;gap:7px}
 
 /* table */
 .bt-table-wrap{width:100%;overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
@@ -457,7 +477,7 @@
 .bt-table td.err{color:#e23355}
 
 /* code block */
-.bt-code-ctrl{background:#0a0c14;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;color:#c9d0e0;overflow-x:auto;white-space:pre;max-height:180px;overflow-y:auto;position:relative}
+.bt-code-ctrl{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;color:var(--text);overflow-x:auto;white-space:pre;max-height:180px;overflow-y:auto;position:relative}
 .bt-code-copy{position:absolute;top:8px;right:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:10px;color:var(--text-dim);cursor:pointer;font-family:inherit;transition:all 0.15s}
 .bt-code-copy:hover{border-color:var(--accent);color:var(--accent)}
 
