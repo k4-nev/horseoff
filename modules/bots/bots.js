@@ -907,14 +907,12 @@ var Bots = {
 
   // ─── Mobile sidebar ─────────────────────────────────────────
   openSidebar() {
-    document.getElementById('btSidebar').classList.add('mob-open');
-    document.getElementById('btMobOverlay').classList.add('active');
+    document.querySelector('.bt-wrap').classList.remove('mob-bot-open');
     if (navigator.vibrate) navigator.vibrate(8);
   },
 
   closeSidebar() {
-    document.getElementById('btSidebar').classList.remove('mob-open');
-    document.getElementById('btMobOverlay').classList.remove('active');
+    document.querySelector('.bt-wrap').classList.add('mob-bot-open');
   },
 
   // ─── Add Bot modal ──────────────────────────────────────────

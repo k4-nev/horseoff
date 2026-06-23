@@ -5,6 +5,7 @@ from pathlib import Path
 BOTS_DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data' / 'bots'
 BOTS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 BOTS_INDEX = BOTS_DATA_DIR / 'index.json'
+print(f"  [BOTS] data dir: {BOTS_DATA_DIR}")
 
 _OWNER_ROLES = {'arcana', 'immortal'}
 
@@ -29,7 +30,11 @@ def _load(path, default=None):
     return default if default is not None else {}
 
 def _save(path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    except Exception as e:
+        print(f"[BOTS] Save error {path}: {e}")
 
 def _load_index(): return _load(BOTS_INDEX, [])
 def _save_index(d): _save(BOTS_INDEX, d)

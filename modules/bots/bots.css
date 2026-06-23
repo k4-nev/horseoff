@@ -393,11 +393,10 @@
    MOBILE ADAPTATION (iOS / Android)
    ════════════════════════════════════════ */
 
-/* Mobile overlay */
-.bt-mob-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.55);z-index:150;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-.bt-mob-overlay.active{display:block}
+/* Overlay for sidebar backdrop */
+.bt-mob-overlay{display:none}
 
-/* Hamburger — hidden on desktop */
+/* Hamburger — hidden on desktop, always visible on mobile */
 .bt-mob-menu-btn{display:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-right:4px;transition:all 0.18s}
 .bt-mob-menu-btn:hover{border-color:var(--accent);color:var(--accent)}
 .bt-mob-menu-btn:active{transform:scale(0.93)}
@@ -406,52 +405,61 @@
   /* Show hamburger */
   .bt-mob-menu-btn{display:flex}
 
-  /* Sidebar becomes a drawer */
-  .bt-wrap{position:relative}
+  /* Wrap: full width stack, sidebar on top by default */
+  .bt-wrap{position:relative;overflow:hidden}
+
+  /* Sidebar: full width, visible by default (list-first UX) */
   .bt-sidebar{
     position:absolute;
-    left:-105%;
+    left:0;
     top:0;
     height:100%;
-    z-index:200;
-    width:min(340px,85vw)!important;
+    width:100%!important;
     min-width:0!important;
+    z-index:10;
     transition:left 0.28s cubic-bezier(.4,0,.2,1);
-    box-shadow:4px 0 32px rgba(0,0,0,0.35);
   }
-  .bt-sidebar.mob-open{left:0}
 
-  /* Main panel always full width */
-  .bt-main{width:100%}
+  /* Main panel: full width, slides in from right */
+  .bt-main{
+    width:100%;
+    position:absolute;
+    left:100%;
+    top:0;
+    height:100%;
+    transition:left 0.28s cubic-bezier(.4,0,.2,1);
+  }
+
+  /* When bot is opened: sidebar slides left, workspace slides in */
+  .bt-wrap.mob-bot-open .bt-sidebar{left:-100%}
+  .bt-wrap.mob-bot-open .bt-main{left:0}
 
   /* Topbar tighter */
   .bt-topbar{padding:10px 14px}
   .bt-bot-name{font-size:14px}
   .bt-last-seen{display:none}
 
-  /* Pane scrollable content */
+  /* Pane content */
   .bt-pane{padding:14px}
-
-  /* Controls grid single column */
   .bt-controls-grid{max-width:100%}
+
+  /* Buttons in groups wrap */
   .bt-btn-group{flex-wrap:wrap}
-  .bt-btn-group .btn{flex:1;min-width:90px;justify-content:center}
+  .bt-btn-group .btn{flex:1;min-width:90px}
 
   /* Stats: 2 columns */
   .bt-kpi-row{grid-template-columns:1fr 1fr!important}
   .bt-stat-row{grid-template-columns:1fr 1fr!important}
+  .bt-stats-wrap{max-width:100%}
 
-  /* Settings: stack vertically */
+  /* Settings stack vertically */
   .bt-settings-wrap{max-width:100%}
   .bt-settings-row{flex-direction:column}
   .bt-apikey-field{flex-wrap:wrap}
   .bt-apikey-field .bt-input{min-width:0}
 
-  /* Log console shorter */
+  /* Log */
   .bt-log-console{font-size:11px}
-
-  /* Charts full width */
-  .bt-stats-wrap{max-width:100%}
 
   /* Tabs scroll horizontally */
   .bt-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -461,7 +469,7 @@
   /* Modal full width */
   .bt-modal{width:calc(100vw - 20px)!important;padding:18px}
 
-  /* Offline controls preview */
+  /* Offline state: hide blurred controls preview */
   .bt-offline-controls-blur{display:none}
 
   /* Table horizontal scroll */
@@ -469,32 +477,22 @@
 }
 
 @media (max-width: 480px) {
-  /* Single column stats */
   .bt-kpi-row{grid-template-columns:1fr!important}
   .bt-stat-row{grid-template-columns:1fr!important}
-
-  /* Sidebar nearly full width */
-  .bt-sidebar{width:92vw!important}
-
-  /* Stepper touch-friendly */
   .bt-stepper-btn{width:42px;height:42px;font-size:20px}
   .bt-stepper-val{font-size:18px;min-width:44px}
-
-  /* Bigger tap targets */
   .bt-bot-row{padding:12px 10px}
   .bt-tab{padding:10px 14px}
-
-  /* Sidebar head slightly bigger */
   .bt-sidebar-head{padding:16px 16px 10px}
 }
 
-/* Safe area support (iPhone notch / home bar) */
+/* Safe area (iPhone notch / home bar) */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .bt-sidebar-footer{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
   .bt-log-console{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
 }
 
 /* Touch scroll momentum */
-.bt-list{-webkit-overflow-scrolling:touch}
+.bt-list,.bt-pane,.bt-log-console{-webkit-overflow-scrolling:touch}
 .bt-pane{-webkit-overflow-scrolling:touch}
 .bt-log-console{-webkit-overflow-scrolling:touch}
