@@ -6,16 +6,18 @@
 .bt-wrap{display:flex;width:100%;height:100vh;height:100dvh;overflow:hidden;background:var(--bg)}
 
 /* ── Sidebar ── */
-.bt-sidebar{width:280px;min-width:280px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.bt-sidebar{width:400px;min-width:400px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .bt-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px;gap:8px}
 .bt-sidebar-title{font-size:15px;font-weight:700;letter-spacing:-0.2px;color:var(--text)}
 .bt-head-add{width:30px;height:30px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.18s;flex-shrink:0}
 .bt-head-add:hover{background:var(--accent-glow);border-color:var(--accent);color:var(--accent);transform:scale(1.08)}
 .bt-head-add:active{transform:scale(0.93)}
+.bt-demo-btn.demo-on{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
 
-.bt-search-wrap{position:relative;padding:0 12px 10px}
-.bt-search-ico{position:absolute;left:22px;top:50%;transform:translateY(-55%);color:var(--text-dim);pointer-events:none}
-.bt-search{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:8px 10px 8px 32px;color:var(--text);font-size:13px;outline:none;transition:border-color 0.18s,box-shadow 0.18s;font-family:inherit}
+.bt-search-wrap{padding:0 12px 10px}
+.bt-search-inner{position:relative}
+.bt-search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-dim);pointer-events:none;display:flex}
+.bt-search{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:8px 10px 8px 30px;color:var(--text);font-size:13px;outline:none;transition:border-color 0.18s,box-shadow 0.18s;font-family:inherit;box-sizing:border-box}
 .bt-search::placeholder{color:var(--text-dim);opacity:0.6}
 .bt-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 

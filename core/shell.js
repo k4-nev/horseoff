@@ -48,6 +48,8 @@ const Shell = {
           if (window.Channels && Channels.onWS) Channels.onWS(data);
           // Forward to valentine
           if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
+          // Forward to bots
+          if (window.Bots && Bots.onWS) Bots.onWS(data);
           // Valentine badge (when module not active)
           if (data.type === 'valentine' && this.activeModule !== 'valentine') {
             var sb = document.getElementById('valBadge');
