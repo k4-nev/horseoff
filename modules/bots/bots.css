@@ -156,7 +156,6 @@
 
 /* ── Edit mode ── */
 .bt-edit-mode .bt-ctrl-card{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 50%,var(--border));cursor:default;user-select:none;overflow:visible}
-.bt-edit-mode .bt-ctrl--stats{border-style:dashed!important;border-color:color-mix(in srgb,var(--accent) 50%,var(--border))!important;background:var(--surface)!important;padding:8px!important}
 .bt-edit-mode .bt-section-divider{outline:1.5px dashed color-mix(in srgb,var(--accent) 50%,var(--border));outline-offset:6px;border-radius:4px;overflow:visible}
 
 /* Drag handle (top-left) */
@@ -167,9 +166,10 @@
 /* Size badge (top-right) */
 .bt-edit-size-badge{position:absolute;top:-8px;right:8px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;background:var(--surface);border:1px solid var(--accent);border-radius:5px;padding:2px 7px;color:var(--accent);pointer-events:none;z-index:20}
 
-/* Resize handle (bottom-right corner) */
-.bt-resize-handle{position:absolute;bottom:-1px;right:-1px;width:20px;height:20px;display:flex;align-items:flex-end;justify-content:flex-end;padding:4px;color:var(--accent);cursor:nwse-resize;z-index:20;opacity:0;transition:opacity 0.18s}
-.bt-resize-handle.bt-resize-w-only{cursor:ew-resize}
+/* Resize handles */
+.bt-resize-handle{position:absolute;display:flex;align-items:center;justify-content:center;background:var(--accent);color:#000;border-radius:4px;opacity:0;transition:opacity 0.18s;z-index:20}
+.bt-rh-w{right:-6px;top:50%;transform:translateY(-50%);width:12px;height:28px;cursor:ew-resize}
+.bt-rh-h{bottom:-6px;left:50%;transform:translateX(-50%);width:28px;height:12px;cursor:ns-resize}
 .bt-edit-mode [data-ctrl-id]:hover .bt-resize-handle{opacity:1}
 
 /* Drag states */
@@ -272,6 +272,26 @@
 .bt-stat-delta.up{color:#3bc96b}
 .bt-stat-delta.down{color:#e23355}
 .bt-stat-delta svg{flex-shrink:0}
+
+/* Individual stat card (controls grid) */
+.bt-ctrl--stat{display:flex;flex-direction:column;justify-content:center;gap:2px}
+.bt-ctrl--stat .bt-stat-val{font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text);line-height:1}
+.bt-ctrl--stat .bt-stat-label{font-size:10px;color:var(--text-dim)}
+.bt-ctrl--stat .bt-stat-delta{font-size:10px;font-weight:600;display:flex;align-items:center;gap:3px;margin-top:2px}
+.bt-ctrl--stat .bt-stat-delta.up{color:#3bc96b}
+.bt-ctrl--stat .bt-stat-delta.down{color:#e23355}
+
+/* Textarea flex grow */
+.bt-ctrl--textarea{gap:0}
+.bt-ctrl--textarea .bt-textarea{flex:1;min-height:0;resize:none;margin-top:0}
+
+/* Code flex grow */
+.bt-ctrl--code{gap:0}
+.bt-ctrl--code pre.bt-code-ctrl{flex:1;min-height:0;max-height:none}
+
+/* Table flex grow */
+.bt-ctrl--table{gap:0}
+.bt-ctrl--table .bt-table-wrap{flex:1;min-height:0;overflow-y:auto}
 
 /* Status badges */
 .bt-badges-row{display:flex;flex-wrap:wrap;gap:8px}
