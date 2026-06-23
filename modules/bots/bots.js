@@ -48,6 +48,19 @@ var Bots = {
       { type: 'badges', label: 'Статус', items: [
         { label: 'Running', style: 'running' },
         { label: 'Online', style: 'online' }
+      ]},
+      { type: 'section', label: 'Etap 3 — новые типы' },
+      { type: 'label', id: 'status_txt', label: 'Текущий статус', text: 'Ожидание задачи...', style: 'accent' },
+      { type: 'image', id: 'screenshot', label: 'Последний скриншот', value: '' },
+      { type: 'code', id: 'last_result', label: 'Последний результат', value: '{\n  "status": "ok",\n  "processed": 620,\n  "errors": 12\n}' },
+      { type: 'table', id: 'accounts_tbl', label: 'Аккаунты', columns: [
+        { key: 'login', label: 'Логин' },
+        { key: 'status', label: 'Статус' },
+        { key: 'done', label: 'Выполнено' }
+      ], rows: [
+        { login: '@alice_ig', status: 'OK', done: '84', _style: { status: 'ok' } },
+        { login: '@bob_ig',   status: 'WARN', done: '31', _style: { status: 'warn' } },
+        { login: '@carol_zp', status: 'ERR', done: '0',  _style: { status: 'err' } }
       ]}
     ],
     stats: {
@@ -318,7 +331,8 @@ var Bots = {
         btnGroup.className = 'bt-btn-group';
         ctrl.buttons.forEach(btn => {
           const b = document.createElement('button');
-          b.className = `bt-btn bt-btn-${btn.style || 'secondary'}`;
+          const _styleMap = {primary:'btn btn-primary',danger:'btn btn-danger',secondary:'btn btn-secondary'};
+          b.className = _styleMap[btn.style] || 'btn btn-secondary';
           b.textContent = btn.label;
           b.onclick = () => this._sendCommand(ctrl.id || btn.action, btn.action, null, b);
           btnGroup.appendChild(b);
@@ -432,9 +446,129 @@ var Bots = {
           ).join('')}</div>`;
         return wrap;
 
+      case 'label':
+        wrap.className = 'bt-ctrl-card';
+        wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
+        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+          <div class="bt-label-ctrl ${ctrl.style || ''}" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.text || ctrl.value || '')}</div>`;
+        return wrap;
+
+      case 'image':
+        wrap.className = 'bt-ctrl-card';
+        wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
+        const hasImg = ctrl.value || ctrl.src;
+        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+          <div class="bt-image-ctrl" id="btCtrl_${ctrl.id || ''}">
+            ${hasImg
+              ? `<img src="${this._esc(ctrl.value || ctrl.src)}" alt="${this._esc(ctrl.label || '')}"/>
+                 <span class="bt-image-ts">${ctrl.ts ? this._relTime(ctrl.ts) : ''}</span>`
+              : `<div class="bt-image-empty"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Нет изображения</div>`
+            }
+          </div>`;
+        return wrap;
+
+      case 'table': {
+        wrap.className = 'bt-ctrl-card';
+        wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
+        const cols = ctrl.columns || [];
+        const rows = ctrl.rows || [];
+        const thead = cols.map(c => `<th>${this._esc(c.label || c)}</th>`).join('');
+        const tbody = rows.map(r => `<tr>${cols.map(c => {
+          const key = c.key || c;
+          const val = r[key] !== undefined ? r[key] : '';
+          const cls = r._style && r._style[key] ? ' class="' + r._style[key] + '"' : '';
+          return `<td${cls}>${this._esc(String(val))}</td>`;
+        }).join('')}</tr>`).join('');
+        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+          <div class="bt-table-wrap"><table class="bt-table">
+            <thead><tr>${thead}</tr></thead>
+            <tbody id="btCtrl_${ctrl.id || ''}">${tbody}</tbody>
+          </table></div>`;
+        return wrap;
+      }
+
+      case 'code':
+        wrap.className = 'bt-ctrl-card';
+        wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
+        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+          <div style="position:relative">
+            <pre class="bt-code-ctrl" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.value || '')}</pre>
+            <button class="bt-code-copy" onclick="Bots._copyCode('${ctrl.id}')">Копировать</button>
+          </div>`;
+        return wrap;
+
       default:
         return null;
     }
+  },
+
+  // ─── Live control update (Etap 3) ────────────────────────────
+  _updateCtrl(ctrlId, data) {
+    const card = document.getElementById('btCtrlCard_' + ctrlId);
+    const el = document.getElementById('btCtrl_' + ctrlId);
+    if (!el && !card) return;
+
+    // Flash animation
+    const target = card || el;
+    target.classList.remove('bt-ctrl-updated');
+    void target.offsetWidth;
+    target.classList.add('bt-ctrl-updated');
+
+    // Update value depending on element type
+    const tag = el ? el.tagName : '';
+    if (tag === 'INPUT' && el.type === 'range') {
+      el.value = data.value;
+      const valEl = document.getElementById('btSliderVal_' + ctrlId);
+      if (valEl) valEl.textContent = data.value;
+    } else if (tag === 'INPUT' && el.type === 'checkbox') {
+      el.checked = !!data.value;
+    } else if (tag === 'SELECT') {
+      el.value = data.value;
+    } else if (tag === 'PRE') {
+      el.textContent = data.value || '';
+    } else if (el && el.classList.contains('bt-label-ctrl')) {
+      el.textContent = data.text || data.value || '';
+      el.className = 'bt-label-ctrl ' + (data.style || '');
+    } else if (el && el.classList.contains('bt-image-ctrl')) {
+      if (data.value || data.src) {
+        el.innerHTML = `<img src="${this._esc(data.value || data.src)}" alt=""/>
+          <span class="bt-image-ts">${data.ts ? this._relTime(data.ts) : 'сейчас'}</span>`;
+      }
+    } else if (el && el.tagName === 'TBODY') {
+      // table rows update
+      const cols = data.columns || [];
+      if (data.rows && cols.length) {
+        el.innerHTML = data.rows.map(r => `<tr>${cols.map(c => {
+          const key = c.key || c; const val = r[key] !== undefined ? r[key] : '';
+          const cls = r._style && r._style[key] ? ' class="' + r._style[key] + '"' : '';
+          return `<td${cls}>${this._esc(String(val))}</td>`;
+        }).join('')}</tr>`).join('');
+      }
+    } else if (card) {
+      // progress card
+      const fill = card.querySelector('.bt-progress-fill');
+      const pct = card.querySelector('.bt-progress-pct');
+      const sub = card.querySelector('[style*="text-dim"]');
+      if (fill && data.value !== undefined) {
+        fill.style.width = data.value + '%';
+        if (pct) pct.textContent = data.value + '%';
+        if (sub && data.total) sub.textContent = data.total;
+      }
+      // stepper
+      const sv = document.getElementById('btStepperVal_' + ctrlId);
+      if (sv && data.value !== undefined) sv.textContent = data.value;
+    }
+
+    if (navigator.vibrate) navigator.vibrate(8);
+  },
+
+  _copyCode(ctrlId) {
+    const el = document.getElementById('btCtrl_' + ctrlId);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      Shell.toast('Скопировано');
+      if (navigator.vibrate) navigator.vibrate(15);
+    });
   },
 
   // ─── Control actions ────────────────────────────────────────
@@ -986,6 +1120,10 @@ End If`;
     } else if (data.type === 'bot_log') {
       if (this._selected === data.bot_id) {
         this.addLogLine(data.level || 'INFO', data.msg || '');
+      }
+    } else if (data.type === 'ctrl_update') {
+      if (this._selected === data.bot_id) {
+        this._updateCtrl(data.ctrl_id, data.data || {});
       }
     }
   },

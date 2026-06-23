@@ -332,6 +332,11 @@ async def handle_bot_ws(websocket):
                     _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
                                     'level': msg.get('level', 'INFO'), 'msg': msg.get('msg', '')})
 
+                elif mt == 'ctrl_update':
+                    # Bot pushes live value update for a single control
+                    _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
+                                    'ctrl_id': msg.get('ctrl_id', ''), 'data': msg.get('data', {})})
+
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
                     if bot:
