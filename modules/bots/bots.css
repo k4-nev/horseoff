@@ -135,42 +135,45 @@
    ════════════════════════════════════════ */
 
 /* Flat 8-col grid (columns set dynamically in JS) */
-.bt-controls-grid{display:grid;grid-auto-flow:row dense;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1}
+.bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1;align-items:start}
 
-/* Section divider spans full width */
-.bt-section-divider{display:flex;align-items:center;gap:10px;grid-column:1/-1;padding:4px 0}
+/* Section divider — draggable, not full-width forced */
+.bt-section-divider{display:flex;align-items:center;gap:10px;padding:4px 0;position:relative;min-height:36px}
 .bt-section-divider-line{flex:1;height:1px;background:var(--border)}
 .bt-section-divider-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.9px;color:var(--text-dim);white-space:nowrap}
 
 /* Control card */
-.bt-ctrl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow 0.2s,border-color 0.2s;min-width:0;overflow:hidden}
+.bt-ctrl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow 0.2s,border-color 0.2s;min-width:0;box-sizing:border-box;position:relative}
 .bt-ctrl-card:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
-.bt-ctrl--toggle{min-height:68px;display:flex;align-items:center}
+.bt-ctrl--toggle{display:flex;align-items:center}
 .bt-ctrl--stepper{display:flex;flex-direction:column;justify-content:space-between}
+.bt-ctrl--stats{padding:0;background:transparent;border-color:transparent;box-shadow:none!important}
 .bt-ctrl-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-dim);margin-bottom:10px}
 .bt-ctrl-sub{font-size:11px;color:var(--text-dim);margin-top:4px}
 
 /* ── Edit mode ── */
-.bt-edit-mode .bt-ctrl-card{border-color:var(--accent);border-style:dashed;cursor:default;user-select:none;overflow:visible}
-.bt-edit-mode .bt-section-divider{border:1px dashed var(--border);border-radius:8px;padding:6px 10px;background:var(--surface2)}
+.bt-edit-mode .bt-ctrl-card{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 50%,var(--border));cursor:default;user-select:none;overflow:visible}
+.bt-edit-mode .bt-ctrl--stats{border-style:dashed!important;border-color:color-mix(in srgb,var(--accent) 50%,var(--border))!important;background:var(--surface)!important;padding:8px!important}
+.bt-edit-mode .bt-section-divider{border:1.5px dashed color-mix(in srgb,var(--accent) 50%,var(--border));border-radius:10px;background:var(--surface2);padding:6px 12px;overflow:visible}
 
 /* Drag handle (top-left) */
-.bt-edit-handle{position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:6px;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:10;opacity:0;transition:opacity 0.15s}
-.bt-edit-mode .bt-ctrl-card:hover .bt-edit-handle{opacity:1}
-.bt-edit-handle:active{cursor:grabbing}
+.bt-edit-handle{position:absolute;top:-8px;left:8px;width:24px;height:24px;border-radius:7px;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:20;opacity:0;transition:opacity 0.18s;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.bt-edit-mode [data-ctrl-id]:hover .bt-edit-handle{opacity:1}
+.bt-edit-handle:active{cursor:grabbing;transform:scale(0.95)}
 
-/* Width badge (top-right) */
-.bt-edit-w-badge{position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:2px 6px;color:var(--text-dim);pointer-events:none;z-index:10}
+/* Size badge (top-right) */
+.bt-edit-size-badge{position:absolute;top:-8px;right:8px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;background:var(--surface);border:1px solid var(--accent);border-radius:5px;padding:2px 7px;color:var(--accent);pointer-events:none;z-index:20}
 
-/* Resize handle (bottom-right) */
-.bt-resize-handle{position:absolute;bottom:4px;right:4px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--accent);cursor:ew-resize;z-index:10;opacity:0;transition:opacity 0.15s}
-.bt-edit-mode .bt-ctrl-card:hover .bt-resize-handle{opacity:1}
+/* Resize handle (bottom-right corner) */
+.bt-resize-handle{position:absolute;bottom:-1px;right:-1px;width:20px;height:20px;display:flex;align-items:flex-end;justify-content:flex-end;padding:4px;color:var(--accent);cursor:nwse-resize;z-index:20;opacity:0;transition:opacity 0.18s}
+.bt-resize-handle.bt-resize-w-only{cursor:ew-resize}
+.bt-edit-mode [data-ctrl-id]:hover .bt-resize-handle{opacity:1}
 
 /* Drag states */
-.bt-drag-source{opacity:0.25!important;border-style:dashed!important}
-.bt-resizing{border-color:var(--accent)!important;border-style:solid!important;box-shadow:0 0 0 2px var(--accent-glow)!important}
-.bt-drop-before{box-shadow:-3px 0 0 0 var(--accent)!important;border-top-left-radius:4px!important;border-bottom-left-radius:4px!important}
-.bt-drop-after{box-shadow:3px 0 0 0 var(--accent)!important;border-top-right-radius:4px!important;border-bottom-right-radius:4px!important}
+.bt-drag-source{opacity:0.2!important;filter:grayscale(1)!important}
+.bt-resizing{box-shadow:0 0 0 2px var(--accent)!important;border-color:var(--accent)!important;border-style:solid!important;z-index:5}
+.bt-drop-before{box-shadow:0 -3px 0 0 var(--accent)!important}
+.bt-drop-after{box-shadow:0 3px 0 0 var(--accent)!important}
 
 /* Active edit button */
 .btn-icon-only--active{border-color:var(--accent)!important;color:var(--accent)!important;background:var(--accent-glow)!important}

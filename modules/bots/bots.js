@@ -328,33 +328,47 @@ var Bots = {
 
   // ─── Grid layout constants ───────────────────────────────────
   _getGridCols() { return window.innerWidth <= 768 ? 2 : 8; },
+  _ROW_PX: 90,  // one row unit height in px (excl. gap)
+  _GAP_PX: 10,
 
   _defWidth(type) {
     return {section:8,input:8,textarea:8,slider:8,progress:8,table:8,code:8,stats:8}[type] || 4;
   },
 
-  _minWidth(type) {
-    return {section:8,input:4,textarea:4,slider:4,progress:4,table:4,code:4}[type] || 2;
+  _defHeight(type) {
+    return {textarea:3,table:4,code:3,image:2,stats:2,section:1}[type] || 1;
   },
 
-  // ─── Render controls (flat 8-col grid) ───────────────────────
+  _minWidth(type) {
+    return {section:2,input:4,textarea:4,slider:4,progress:4,table:4,code:4}[type] || 2;
+  },
+
+  _minHeight(type) {
+    return type === 'section' ? 1 : 1;
+  },
+
+  // ─── Render controls (flat 8-col grid with explicit placement) ─
   renderControls(controls) {
-    // Assign stable IDs to controls missing them
     controls.forEach((ctrl, i) => { if (!ctrl.id) ctrl.id = ctrl.type + '_' + i; });
 
     const b = this._bots.find(x => x.id === this._selected);
     const savedLayout = b && b.layout && b.layout.length ? b.layout : null;
+    const cols = this._getGridCols();
 
     if (savedLayout) {
       const byId = {};
       controls.forEach(c => { byId[c.id] = c; });
       this._orderedControls = [];
       savedLayout.forEach(l => {
-        if (byId[l.id]) { this._orderedControls.push({...byId[l.id], _w: l.w}); delete byId[l.id]; }
+        const c = byId[l.id];
+        if (c) {
+          this._orderedControls.push({...c, _w: Math.min(l.w || this._defWidth(c.type), cols), _h: l.h || this._defHeight(c.type)});
+          delete byId[l.id];
+        }
       });
-      Object.values(byId).forEach(c => this._orderedControls.push({...c, _w: this._defWidth(c.type)}));
+      Object.values(byId).forEach(c => this._orderedControls.push({...c, _w: Math.min(this._defWidth(c.type), cols), _h: this._defHeight(c.type)}));
     } else {
-      this._orderedControls = controls.map(c => ({...c, _w: this._defWidth(c.type)}));
+      this._orderedControls = controls.map(c => ({...c, _w: Math.min(this._defWidth(c.type), cols), _h: this._defHeight(c.type)}));
     }
 
     this._renderControlsDOM(true);
@@ -367,7 +381,6 @@ var Bots = {
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     grid.classList.toggle('bt-edit-mode', this._editMode);
 
-    // Reuse or create DOM elements
     const existing = {};
     grid.querySelectorAll('[data-ctrl-id]').forEach(el => { existing[el.dataset.ctrlId] = el; });
 
@@ -380,17 +393,18 @@ var Bots = {
         el.dataset.ctrlId = ctrl.id;
         existing[ctrl.id] = el;
       }
-      // Remove old handles
-      el.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-w-badge').forEach(h => h.remove());
+      el.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-size-badge').forEach(h => h.remove());
       const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
+      const h = ctrl._h || this._defHeight(ctrl.type);
       el.style.gridColumn = `span ${w}`;
-      if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, cols);
+      el.style.minHeight = `${h * this._ROW_PX + (h - 1) * this._GAP_PX}px`;
+      el.style.gridRow = ''; // let auto-flow handle rows
+      if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, h, cols);
       grid.appendChild(el);
     });
 
-    // Remove stale elements
     Object.keys(existing).forEach(id => {
-      if (!this._orderedControls.find(c => c.id === id)) { if (existing[id].parentNode) existing[id].remove(); }
+      if (!this._orderedControls.find(c => c.id === id) && existing[id].parentNode) existing[id].remove();
     });
   },
 
@@ -401,7 +415,7 @@ var Bots = {
     const btn = document.getElementById('btEditBtn');
     if (btn) btn.classList.toggle('btn-icon-only--active', this._editMode);
     if (this._editMode) {
-      Shell.toast('Перетаскивайте элементы, тяните за угол для изменения размера');
+      Shell.toast('Режим редактирования: перетаскивайте и тяните за угол');
       if (navigator.vibrate) navigator.vibrate([8, 40, 8]);
     } else {
       this._saveLayout();
@@ -409,27 +423,28 @@ var Bots = {
     this._renderControlsDOM(false);
   },
 
-  _addEditHandles(el, ctrlId, type, w, cols) {
+  _addEditHandles(el, ctrlId, type, w, h, cols) {
     el.style.position = 'relative';
-    // Drag grip
+
     const grip = document.createElement('div');
     grip.className = 'bt-edit-handle';
     grip.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
     grip.addEventListener('pointerdown', e => this._startDrag(e, ctrlId));
     el.appendChild(grip);
-    // Width badge
+
     const badge = document.createElement('div');
-    badge.className = 'bt-edit-w-badge';
-    badge.textContent = `${w}/${cols}`;
+    badge.className = 'bt-edit-size-badge';
+    badge.textContent = `${w}×${h}`;
     el.appendChild(badge);
-    // Resize handle (not on section dividers)
-    if (type !== 'section') {
-      const rh = document.createElement('div');
-      rh.className = 'bt-resize-handle';
-      rh.innerHTML = '<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,11 11,11 11,4"/></svg>';
-      rh.addEventListener('pointerdown', e => this._startResize(e, ctrlId));
-      el.appendChild(rh);
-    }
+
+    // Resize handle: right edge = width only (section dividers); corner = width+height (others)
+    const rh = document.createElement('div');
+    rh.className = type === 'section' ? 'bt-resize-handle bt-resize-w-only' : 'bt-resize-handle';
+    rh.innerHTML = type === 'section'
+      ? '<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="2" x2="10" y2="10"/><polyline points="7,5 10,2 13,5"/><polyline points="7,7 10,10 13,7"/></svg>'
+      : '<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,11 11,11 11,4"/></svg>';
+    rh.addEventListener('pointerdown', e => this._startResize(e, ctrlId, type === 'section'));
+    el.appendChild(rh);
   },
 
   _startDrag(e, ctrlId) {
@@ -438,15 +453,15 @@ var Bots = {
     const card = document.querySelector(`[data-ctrl-id="${ctrlId}"]`);
     if (!card) return;
     const rect = card.getBoundingClientRect();
-    // Ghost
+
     const ghost = card.cloneNode(true);
-    ghost.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-w-badge').forEach(h => h.remove());
+    ghost.querySelectorAll('.bt-edit-handle,.bt-resize-handle,.bt-edit-size-badge').forEach(h => h.remove());
     Object.assign(ghost.style, {
       position:'fixed', left:rect.left+'px', top:rect.top+'px',
       width:rect.width+'px', height:rect.height+'px',
       pointerEvents:'none', zIndex:'9999', margin:'0',
-      opacity:'0.85', boxShadow:'0 8px 32px rgba(0,0,0,0.25)',
-      transition:'box-shadow 0.15s', transform:'scale(1.02)',
+      opacity:'0.88', boxShadow:'0 12px 40px rgba(0,0,0,0.3)',
+      transform:'scale(1.03)', borderStyle:'solid',
     });
     document.body.appendChild(ghost);
     card.classList.add('bt-drag-source');
@@ -454,7 +469,7 @@ var Bots = {
     let targetCtrlId = null, targetBefore = true;
 
     const onMove = ev => {
-      ghost.style.transform = `translate(${ev.clientX-e.clientX}px,${ev.clientY-e.clientY}px) scale(1.02)`;
+      ghost.style.transform = `translate(${ev.clientX-e.clientX}px,${ev.clientY-e.clientY}px) scale(1.03)`;
       ghost.style.pointerEvents = 'none';
       const under = document.elementFromPoint(ev.clientX, ev.clientY);
       ghost.style.pointerEvents = '';
@@ -462,7 +477,7 @@ var Bots = {
       const newId = tc ? tc.dataset.ctrlId : null;
       if (newId && newId !== ctrlId) {
         const tr = tc.getBoundingClientRect();
-        const before = ev.clientX < tr.left + tr.width / 2;
+        const before = ev.clientY < tr.top + tr.height / 2; // vertical split for row-based reorder
         if (newId !== targetCtrlId || before !== targetBefore) {
           targetCtrlId = newId; targetBefore = before;
           document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
@@ -482,17 +497,16 @@ var Bots = {
       document.querySelectorAll('[data-ctrl-id]').forEach(c => c.classList.remove('bt-drop-before','bt-drop-after'));
 
       if (targetCtrlId && targetCtrlId !== ctrlId) {
-        // FLIP — snapshot before
         const snap = new Map();
         document.querySelectorAll('[data-ctrl-id]').forEach(el => snap.set(el.dataset.ctrlId, el.getBoundingClientRect()));
-        // Reorder
+
         const fi = this._orderedControls.findIndex(c => c.id === ctrlId);
         const [item] = this._orderedControls.splice(fi, 1);
         let ti = this._orderedControls.findIndex(c => c.id === targetCtrlId);
         if (!targetBefore) ti++;
-        this._orderedControls.splice(ti, 0, item);
+        this._orderedControls.splice(Math.max(0, ti), 0, item);
         this._renderControlsDOM(false);
-        // FLIP — play
+
         requestAnimationFrame(() => {
           document.querySelectorAll('[data-ctrl-id]').forEach(el => {
             const old = snap.get(el.dataset.ctrlId);
@@ -517,28 +531,43 @@ var Bots = {
     document.addEventListener('pointerup', onUp);
   },
 
-  _startResize(e, ctrlId) {
+  _startResize(e, ctrlId, widthOnly) {
     e.preventDefault(); e.stopPropagation();
     const card = document.querySelector(`[data-ctrl-id="${ctrlId}"]`);
     if (!card) return;
     const ctrl = this._orderedControls.find(c => c.id === ctrlId);
     if (!ctrl) return;
+
     const grid = document.getElementById('btControlsGrid');
     const cols = this._getGridCols();
-    const cellW = (grid.clientWidth + 10) / cols; // approx including gap
-    const startX = e.clientX;
+    // Capture current starting column to prevent element jumping during resize
+    const computedCol = window.getComputedStyle(card).gridColumnStart;
+    const startCol = parseInt(computedCol) || 1;
     const startW = ctrl._w;
+    const startH = ctrl._h || this._defHeight(ctrl.type);
     const minW = this._minWidth(ctrl.type);
+    const minH = this._minHeight(ctrl.type);
+    const startX = e.clientX, startY = e.clientY;
+    const cellW = (grid.clientWidth - this._GAP_PX * (cols - 1)) / cols;
+    const cellH = this._ROW_PX + this._GAP_PX;
+
     card.classList.add('bt-resizing');
-    document.body.style.cursor = 'ew-resize';
+    // Fix column start so it doesn't jump
+    card.style.gridColumn = `${startCol} / span ${startW}`;
+    document.body.style.cursor = widthOnly ? 'ew-resize' : 'nwse-resize';
 
     const onMove = ev => {
-      const newW = Math.max(minW, Math.min(cols, startW + Math.round((ev.clientX - startX) / cellW)));
-      if (newW !== ctrl._w) {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      const newW = Math.max(minW, Math.min(cols - startCol + 1, startW + Math.round(dx / cellW)));
+      const newH = widthOnly ? startH : Math.max(minH, startH + Math.round(dy / cellH));
+
+      if (newW !== ctrl._w || newH !== ctrl._h) {
         ctrl._w = newW;
-        card.style.gridColumn = `span ${newW}`;
-        const badge = card.querySelector('.bt-edit-w-badge');
-        if (badge) badge.textContent = `${newW}/${cols}`;
+        ctrl._h = newH;
+        card.style.gridColumn = `${startCol} / span ${newW}`;
+        card.style.minHeight = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
+        const badge = card.querySelector('.bt-edit-size-badge');
+        if (badge) badge.textContent = `${newW}×${newH}`;
       }
     };
 
@@ -547,6 +576,8 @@ var Bots = {
       document.removeEventListener('pointerup', onUp);
       card.classList.remove('bt-resizing');
       document.body.style.cursor = '';
+      // Release explicit column start - let flow handle it
+      card.style.gridColumn = `span ${ctrl._w}`;
       if (navigator.vibrate) navigator.vibrate(10);
     };
 
@@ -556,7 +587,11 @@ var Bots = {
 
   async _saveLayout() {
     if (!this._selected || this._selected === '__test__' || !this._orderedControls.length) return;
-    const layout = this._orderedControls.map(c => ({id: c.id, w: c._w || this._defWidth(c.type)}));
+    const layout = this._orderedControls.map(c => ({
+      id: c.id,
+      w: c._w || this._defWidth(c.type),
+      h: c._h || this._defHeight(c.type),
+    }));
     const b = this._bots.find(x => x.id === this._selected);
     if (b) b.layout = layout;
     const d = await Shell.api(`/api/mod/bots/${this._selected}/layout`, {
@@ -677,7 +712,7 @@ var Bots = {
         return wrap;
 
       case 'stats':
-        wrap.className = '';
+        wrap.className = 'bt-ctrl-card bt-ctrl--stats';
         wrap.innerHTML = `<div class="bt-stat-row">${(ctrl.items || []).map((s, i) => `
           <div class="bt-stat-card" style="animation-delay:${i * 0.05}s">
             <div class="bt-stat-val">${this._esc(String(s.value))}</div>

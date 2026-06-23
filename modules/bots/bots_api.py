@@ -222,9 +222,9 @@ def handle_post(handler, session, path, data=None):
 
 
 # ── PATCH ─────────────────────────────────────────────────────────────────────
-def handle_put(handler, session, path):
+def handle_put(handler, session, path, data=None):
     p = path.split('?')[0]
-    data = _read_json(handler)
+    if data is None: data = _read_json(handler) or {}
     if data is None: return
     parts = p.split('/api/mod/bots/')
     if len(parts) == 2:
