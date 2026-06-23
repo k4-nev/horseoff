@@ -1,0 +1,259 @@
+<div class="bt-wrap">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <div class="bt-sidebar" id="btSidebar">
+    <div class="bt-sidebar-head">
+      <span class="bt-sidebar-title">Боты</span>
+      <button class="bt-head-add" onclick="Bots.openAddModal()" title="Добавить бота">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+    <div class="bt-search-wrap">
+      <svg class="bt-search-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="bt-search" id="btSearch" placeholder="Поиск" oninput="Bots.filterBots(this.value)" autocomplete="off"/>
+    </div>
+    <div class="bt-list" id="btList"></div>
+    <div class="bt-sidebar-footer" id="btSidebarFooter"></div>
+  </div>
+
+  <!-- ═══ MAIN PANEL ═══ -->
+  <div class="bt-main" id="btMain">
+
+    <!-- Empty state -->
+    <div class="bt-empty" id="btEmpty">
+      <div class="bt-empty-ico">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.25"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
+      </div>
+      <div class="bt-empty-text">Выберите бота</div>
+      <div class="bt-empty-sub">или добавьте нового через кнопку «+»</div>
+    </div>
+
+    <!-- Bot workspace -->
+    <div class="bt-workspace" id="btWorkspace" style="display:none">
+
+      <!-- Topbar -->
+      <div class="bt-topbar">
+        <div class="bt-topbar-left">
+          <div class="bt-bot-dot" id="btTopDot"></div>
+          <span class="bt-bot-name" id="btTopName">—</span>
+          <span class="bt-bot-version" id="btTopVersion"></span>
+          <div class="bt-status-pill" id="btStatusPill"></div>
+        </div>
+        <div class="bt-topbar-right">
+          <span class="bt-last-seen" id="btLastSeen"></span>
+          <button class="bt-top-btn" onclick="Bots.switchTab('settings')" title="Настройки">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Offline overlay -->
+      <div class="bt-offline-state" id="btOfflineState" style="display:none">
+        <div class="bt-offline-ico">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="16" x2="12" y2="16" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="bt-offline-name" id="btOfflineName"></div>
+        <div class="bt-offline-seen" id="btOfflineSeen"></div>
+        <div class="bt-offline-queue" id="btOfflineQueue" style="display:none">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="btOfflineQueueText"></span>
+        </div>
+        <div class="bt-offline-controls-preview">
+          <div class="bt-offline-overlay-label">Управление недоступно — бот офлайн</div>
+          <div class="bt-offline-controls-blur">
+            <div class="bt-ctrl-row">
+              <div class="bt-ctrl-ghost bt-ctrl-ghost--input"></div>
+              <div class="bt-ctrl-ghost bt-ctrl-ghost--btn"></div>
+            </div>
+            <div class="bt-ctrl-ghost bt-ctrl-ghost--toggle"></div>
+            <div class="bt-ctrl-ghost bt-ctrl-ghost--slider"></div>
+            <div class="bt-ctrl-row">
+              <div class="bt-ctrl-ghost bt-ctrl-ghost--btn-green"></div>
+              <div class="bt-ctrl-ghost bt-ctrl-ghost--btn-red"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs (hidden when offline) -->
+      <div class="bt-tabs" id="btTabs">
+        <button class="bt-tab active" id="btTab-controls" onclick="Bots.switchTab('controls')">Управление</button>
+        <button class="bt-tab" id="btTab-stats" onclick="Bots.switchTab('stats')">Статистика</button>
+        <button class="bt-tab" id="btTab-log" onclick="Bots.switchTab('log')">Лог</button>
+        <button class="bt-tab" id="btTab-settings" onclick="Bots.switchTab('settings')">Настройки</button>
+      </div>
+
+      <!-- ── Tab panes ── -->
+      <div class="bt-panes" id="btPanes">
+
+        <!-- CONTROLS TAB -->
+        <div class="bt-pane active" id="btPane-controls">
+          <div class="bt-controls-grid" id="btControlsGrid">
+            <!-- Rendered by Bots.renderControls() -->
+          </div>
+        </div>
+
+        <!-- STATS TAB -->
+        <div class="bt-pane" id="btPane-stats">
+          <div class="bt-stats-wrap">
+            <div class="bt-kpi-row" id="btKpiRow"></div>
+            <div class="bt-chart-card">
+              <div class="bt-chart-title">Активность по часам</div>
+              <canvas class="bt-chart" id="btLineChart" height="140"></canvas>
+            </div>
+            <div class="bt-chart-card">
+              <div class="bt-chart-title">По дням</div>
+              <canvas class="bt-chart" id="btBarChart" height="120"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOG TAB -->
+        <div class="bt-pane" id="btPane-log">
+          <div class="bt-log-wrap">
+            <div class="bt-log-toolbar">
+              <span class="bt-log-count" id="btLogCount">0 записей</span>
+              <div class="bt-log-actions">
+                <label class="bt-autoscroll-toggle">
+                  <input type="checkbox" id="btAutoScroll" checked onchange="Bots.onAutoScrollChange(this.checked)"/>
+                  <span class="bt-toggle-track"><span class="bt-toggle-thumb"></span></span>
+                  <span class="bt-toggle-label">Авто-скролл</span>
+                </label>
+                <button class="bt-log-clear-btn" onclick="Bots.clearLog()">Очистить</button>
+              </div>
+            </div>
+            <div class="bt-log-console" id="btLogConsole"></div>
+          </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div class="bt-pane" id="btPane-settings">
+          <div class="bt-settings-wrap">
+            <!-- Name -->
+            <div class="bt-settings-section">
+              <div class="bt-settings-label">Название бота</div>
+              <div class="bt-settings-row">
+                <input class="bt-input" id="btSettingsName" placeholder="Имя бота"/>
+                <button class="bt-btn bt-btn-secondary" onclick="Bots.saveBotName()">Сохранить</button>
+              </div>
+            </div>
+
+            <!-- API Key -->
+            <div class="bt-settings-section">
+              <div class="bt-settings-label">API-ключ</div>
+              <div class="bt-apikey-wrap">
+                <div class="bt-apikey-field">
+                  <input class="bt-input bt-mono" id="btApiKeyInput" readonly/>
+                  <button class="bt-icon-btn" id="btApiKeyEye" onclick="Bots.toggleApiKey()" title="Показать/скрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="btEyeIco"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                  <button class="bt-icon-btn" onclick="Bots.copyApiKey()" title="Скопировать">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+                <button class="bt-btn bt-btn-secondary bt-regen-btn" onclick="Bots.regenApiKey()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Перегенерировать
+                </button>
+              </div>
+            </div>
+
+            <!-- Access -->
+            <div class="bt-settings-section">
+              <div class="bt-settings-label">Доступ</div>
+              <div class="bt-access-list" id="btAccessList"></div>
+              <button class="bt-btn bt-btn-secondary bt-add-access-btn" onclick="Bots.openAccessModal()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Добавить пользователя
+              </button>
+            </div>
+
+            <!-- Danger zone -->
+            <div class="bt-settings-section bt-danger-zone">
+              <div class="bt-settings-label">Опасная зона</div>
+              <div class="bt-danger-card">
+                <div>
+                  <div class="bt-danger-title">Удалить бота</div>
+                  <div class="bt-danger-sub">Все данные и API-ключ будут удалены безвозвратно</div>
+                </div>
+                <button class="bt-btn bt-btn-danger" onclick="Bots.confirmDeleteBot()">Удалить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /bt-panes -->
+    </div><!-- /bt-workspace -->
+  </div><!-- /bt-main -->
+</div><!-- /bt-wrap -->
+
+<!-- ═══ ADD BOT MODAL ═══ -->
+<div class="modal-overlay" id="btAddModal" onclick="if(event.target===this)Bots.closeAddModal()">
+  <div class="modal bt-modal">
+    <div class="modal-header">
+      <span class="modal-title">Добавить бота</span>
+      <button class="modal-close" onclick="Bots.closeAddModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Step 1: name input -->
+    <div id="btAddStep1">
+      <div class="bt-modal-field">
+        <label class="bt-field-label">Название бота</label>
+        <input class="bt-input" id="btNewBotName" placeholder="Например: IG Parser v2" autocomplete="off"
+          onkeydown="if(event.key==='Enter')Bots.createBot()"/>
+      </div>
+      <div class="bt-modal-field">
+        <label class="bt-field-label">Группа</label>
+        <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off"/>
+      </div>
+      <div class="bt-modal-actions">
+        <button class="bt-btn bt-btn-secondary" onclick="Bots.closeAddModal()">Отмена</button>
+        <button class="bt-btn bt-btn-create" onclick="Bots.createBot()">Создать</button>
+      </div>
+    </div>
+
+    <!-- Step 2: API key + snippets -->
+    <div id="btAddStep2" style="display:none">
+      <div class="bt-created-msg">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3bc96b" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Бот создан успешно
+      </div>
+      <div class="bt-modal-field">
+        <label class="bt-field-label">API-ключ — сохраните, он больше не отобразится</label>
+        <div class="bt-apikey-field">
+          <input class="bt-input bt-mono" id="btCreatedKey" readonly/>
+          <button class="bt-icon-btn" onclick="Bots.copyCreatedKey()" title="Скопировать">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="bt-snippet-tabs">
+        <button class="bt-snip-tab active" id="btSnipTab-cs" onclick="Bots.switchSnippet('cs')">C#</button>
+        <button class="bt-snip-tab" id="btSnipTab-zp" onclick="Bots.switchSnippet('zp')">ZennoPoster</button>
+      </div>
+      <pre class="bt-code" id="btSnippetCs"></pre>
+      <pre class="bt-code" id="btSnippetZp" style="display:none"></pre>
+      <div class="bt-modal-actions">
+        <button class="bt-btn bt-btn-create" onclick="Bots.closeAddModal()">Готово</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ACCESS MODAL ═══ -->
+<div class="modal-overlay" id="btAccessModal" onclick="if(event.target===this)Bots.closeAccessModal()">
+  <div class="modal bt-modal">
+    <div class="modal-header">
+      <span class="modal-title">Добавить доступ</span>
+      <button class="modal-close" onclick="Bots.closeAccessModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="bt-access-user-list" id="btAccessUserList"></div>
+    <div class="bt-modal-actions">
+      <button class="bt-btn bt-btn-secondary" onclick="Bots.closeAccessModal()">Закрыть</button>
+    </div>
+  </div>
+</div>

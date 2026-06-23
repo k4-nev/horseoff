@@ -1549,13 +1549,17 @@ const Channels = {
   },
 
   // ─── Attachment rendering ───
+  _attUrl(id, suffix) {
+    var tk = (Shell && Shell.token) ? '?token=' + encodeURIComponent(Shell.token) : '';
+    return '/api/msg/file/' + id + (suffix || '') + tk;
+  },
   _renderAttachments(atts) {
     if (!atts || !atts.length) return '';
     var html = '';
     for (var i = 0; i < atts.length; i++) {
       var a = atts[i];
       if (a.type === 'image') {
-        html += '<div class="ch-att-img" onclick="Channels.openViewer(\x27image\x27,\x27/api/msg/file/'+a.id+'\x27)"><img src="/api/msg/file/'+a.id+'/thumb" loading="lazy"/></div>';
+        html += '<div class="ch-att-img" onclick="Channels.openViewer(\x27image\x27,\x27'+this._attUrl(a.id)+'\x27)"><img src="'+this._attUrl(a.id, '/thumb')+'" loading="lazy"/></div>';
       } else if (a.type === 'audio') {
         var dur = a.duration || 0;
         var mm = Math.floor(dur/60), ss = ('0'+(dur%60)).slice(-2);
@@ -1581,10 +1585,10 @@ const Channels = {
             + '</div></div>';
         }
       } else if (a.type === 'video') {
-        html += '<div class="ch-att-video" onclick="Channels.openViewer(\x27video\x27,\x27/api/msg/file/'+a.id+'\x27)"><video preload="none" src="/api/msg/file/'+a.id+'" style="max-width:320px;max-height:240px;border-radius:8px"></video><div class="ch-video-play">▶</div></div>';
+        html += '<div class="ch-att-video" onclick="Channels.openViewer(\x27video\x27,\x27'+this._attUrl(a.id)+'\x27)"><video preload="none" src="'+this._attUrl(a.id)+'" style="max-width:320px;max-height:240px;border-radius:8px"></video><div class="ch-video-play">▶</div></div>';
       } else {
         var sz = a.size > 1048576 ? (a.size/1048576).toFixed(1)+' МБ' : Math.round(a.size/1024)+' КБ';
-        html += '<a class="ch-att-file" href="/api/msg/file/'+a.id+'" download="'+this._esc(a.name)+'" onclick="event.stopPropagation()"><span class="ch-att-file-icon"><span class="ico ico-18 ico-file"></span></span><div class="ch-att-file-info"><div class="ch-att-file-name">'+this._esc(a.name)+'</div><div class="ch-att-size">'+sz+'</div></div></a>';
+        html += '<a class="ch-att-file" href="'+this._attUrl(a.id)+'" download="'+this._esc(a.name)+'" onclick="event.stopPropagation()"><span class="ch-att-file-icon"><span class="ico ico-18 ico-file"></span></span><div class="ch-att-file-info"><div class="ch-att-file-name">'+this._esc(a.name)+'</div><div class="ch-att-size">'+sz+'</div></div></a>';
       }
     }
     return '<div class="ch-att-wrap">'+html+'</div>';
@@ -1635,7 +1639,7 @@ const Channels = {
   },
 
   playAudio(aid) {
-    var url = '/api/msg/file/' + aid;
+    var url = this._attUrl(aid);
     if (this._activeAudioId === aid && this._activeAudio && !this._activeAudio.paused) {
       this._activeAudio.pause();
       var ic = document.querySelector('.ch-audio-icon[data-aid="'+aid+'"]');
