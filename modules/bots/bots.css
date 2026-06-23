@@ -156,17 +156,17 @@
 .bt-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 .bt-textarea::placeholder{color:var(--text-dim);opacity:0.5}
 
-/* Buttons */
-.bt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;border:1px solid transparent;transition:all 0.18s;white-space:nowrap}
+/* Buttons — match shell .btn style */
+.bt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;border:1px solid var(--border);color:var(--text);transition:all 0.2s;white-space:nowrap}
 .bt-btn:active{transform:scale(0.95)}
-.bt-btn-primary{background:linear-gradient(180deg,#5cf08e,#3bc96b);color:#052b13;border-color:transparent;box-shadow:0 2px 8px rgba(59,201,107,0.3)}
-.bt-btn-primary:hover{box-shadow:0 4px 16px rgba(59,201,107,0.45);filter:brightness(1.05)}
+.bt-btn-primary{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700}
+.bt-btn-primary:hover{background:var(--accent-dark)}
 .bt-btn-secondary{background:var(--surface2);border-color:var(--border);color:var(--text)}
 .bt-btn-secondary:hover{border-color:var(--accent);background:var(--accent-glow)}
 .bt-btn-danger{background:transparent;border-color:var(--danger);color:var(--danger)}
 .bt-btn-danger:hover{background:var(--danger-glow)}
-.bt-btn-create{background:linear-gradient(180deg,#5cf08e,#3bc96b);color:#052b13;border-color:transparent;box-shadow:0 2px 8px rgba(59,201,107,0.25);padding:10px 24px}
-.bt-btn-create:hover{box-shadow:0 4px 16px rgba(59,201,107,0.4)}
+.bt-btn-create{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700;padding:10px 24px}
+.bt-btn-create:hover{background:var(--accent-dark)}
 .bt-btn-create:active{transform:scale(0.95)}
 
 /* Icon-only button */
@@ -328,6 +328,8 @@
 .bt-modal{padding:24px;width:480px;max-width:calc(100vw - 32px)}
 .bt-modal-field{margin-bottom:14px}
 .bt-field-label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-dim);margin-bottom:6px}
+/* datalist styling hint */
+.bt-modal-field input[list]{cursor:pointer}
 .bt-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
 
 .bt-created-msg{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text);margin-bottom:16px;background:rgba(59,201,107,0.1);border:1px solid rgba(59,201,107,0.25);border-radius:10px;padding:10px 14px}

@@ -206,7 +206,8 @@
       </div>
       <div class="bt-modal-field">
         <label class="bt-field-label">Группа</label>
-        <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off"/>
+        <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off" list="btGroupList"/>
+        <datalist id="btGroupList"></datalist>
       </div>
       <div class="bt-modal-actions">
         <button class="bt-btn bt-btn-secondary" onclick="Bots.closeAddModal()">Отмена</button>

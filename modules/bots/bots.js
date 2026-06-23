@@ -145,7 +145,9 @@ var Bots = {
     const dot = document.getElementById('btTopDot');
     dot.className = 'bt-bot-dot ' + b.status;
     document.getElementById('btTopName').textContent = b.name;
-    document.getElementById('btTopVersion').textContent = b.version ? 'v' + b.version : '';
+    const verEl = document.getElementById('btTopVersion');
+    verEl.textContent = b.version ? 'v' + b.version : '';
+    verEl.style.display = b.version ? '' : 'none';
     const pill = document.getElementById('btStatusPill');
     const labels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
     pill.className = 'bt-status-pill ' + b.status;
@@ -714,6 +716,12 @@ var Bots = {
     document.getElementById('btAddStep2').style.display = 'none';
     document.getElementById('btNewBotName').value = '';
     document.getElementById('btNewBotGroup').value = '';
+    // Populate group datalist from existing bots
+    const dl = document.getElementById('btGroupList');
+    if (dl) {
+      const groups = [...new Set(this._bots.map(b => b.group).filter(g => g && g !== 'Без группы'))];
+      dl.innerHTML = groups.map(g => `<option value="${this._esc(g)}">`).join('');
+    }
     document.getElementById('btAddModal').classList.add('active');
     setTimeout(() => document.getElementById('btNewBotName').focus(), 80);
     if (navigator.vibrate) navigator.vibrate(15);
