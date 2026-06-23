@@ -232,6 +232,8 @@ var Bots = {
     this.switchTab('controls');
     // Load full bot data
     this._loadBotDetails(id);
+    // On mobile: close sidebar drawer when bot is opened
+    this.closeSidebar();
     if (navigator.vibrate) navigator.vibrate(15);
   },
 
@@ -257,6 +259,14 @@ var Bots = {
   },
 
   async _loadBotDetails(id) {
+    // Test bot — render directly from _TEST_BOT, no API call
+    if (id === '__test__') {
+      const b = Object.assign({}, this._TEST_BOT);
+      this.renderControls(b.controls);
+      this._renderKpi(b.stats);
+      this._renderSettings(b);
+      return;
+    }
     const d = await Shell.api(`/api/mod/bots/${id}`);
     if (!d || !d.bot) return;
     const b = d.bot;
@@ -877,20 +887,34 @@ var Bots = {
     document.querySelectorAll('.bt-tab').forEach(t => t.classList.toggle('active', t.id === 'btTab-' + tab));
     document.querySelectorAll('.bt-pane').forEach(p => p.classList.toggle('active', p.id === 'btPane-' + tab));
     if (navigator.vibrate) navigator.vibrate(8);
-    // Redraw charts on stats tab (canvas needs dimensions)
     if (tab === 'stats') {
       setTimeout(() => {
         const b = this._bots.find(x => x.id === this._selected);
         this._drawCharts(b && b.stats ? b.stats : null);
       }, 50);
     }
-    // Scroll log to bottom if autoscroll
     if (tab === 'log' && this._autoScroll) {
       setTimeout(() => {
         const el = document.getElementById('btLogConsole');
         if (el) el.scrollTop = el.scrollHeight;
       }, 50);
     }
+    if (tab === 'settings') {
+      const b = this._bots.find(x => x.id === this._selected);
+      if (b) this._renderSettings(b);
+    }
+  },
+
+  // ─── Mobile sidebar ─────────────────────────────────────────
+  openSidebar() {
+    document.getElementById('btSidebar').classList.add('mob-open');
+    document.getElementById('btMobOverlay').classList.add('active');
+    if (navigator.vibrate) navigator.vibrate(8);
+  },
+
+  closeSidebar() {
+    document.getElementById('btSidebar').classList.remove('mob-open');
+    document.getElementById('btMobOverlay').classList.remove('active');
   },
 
   // ─── Add Bot modal ──────────────────────────────────────────

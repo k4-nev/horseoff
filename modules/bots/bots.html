@@ -1,4 +1,5 @@
 <div class="bt-wrap">
+  <div class="bt-mob-overlay" id="btMobOverlay" onclick="Bots.closeSidebar()"></div>
 
   <!-- ═══ SIDEBAR ═══ -->
   <div class="bt-sidebar" id="btSidebar">
@@ -41,6 +42,9 @@
       <!-- Topbar -->
       <div class="bt-topbar">
         <div class="bt-topbar-left">
+          <button class="bt-mob-menu-btn" onclick="Bots.openSidebar()" title="Список ботов">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
           <div class="bt-bot-dot" id="btTopDot"></div>
           <span class="bt-bot-name" id="btTopName">—</span>
           <span class="bt-bot-version" id="btTopVersion"></span>
