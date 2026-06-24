@@ -21,7 +21,6 @@
       </div>
     </div>
     <div class="bt-list" id="btList"></div>
-    <div class="bt-sidebar-footer" id="btSidebarFooter"></div>
   </div>
 
   <!-- ═══ MAIN PANEL ═══ -->
@@ -55,10 +54,21 @@
           <button class="btn-icon-only" id="btEditBtn" onclick="Bots.toggleEditMode()" title="Редактировать расположение">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
+          <button class="btn-icon-only bt-sort-btn" id="btSortBtn" onclick="Bots._autoSort()" title="Авто-сортировка" style="display:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><polyline points="3 15 1 18 3 21"/></svg>
+          </button>
           <button class="btn-icon-only" onclick="Bots.switchTab('settings')" title="Настройки">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
         </div>
+      </div>
+
+      <!-- Tabs (hidden when offline) -->
+      <div class="bt-tabs" id="btTabs">
+        <button class="bt-tab active" id="btTab-controls" onclick="Bots.switchTab('controls')">Управление</button>
+        <button class="bt-tab" id="btTab-stats" onclick="Bots.switchTab('stats')">Статистика</button>
+        <button class="bt-tab" id="btTab-log" onclick="Bots.switchTab('log')">Лог</button>
+        <button class="bt-tab" id="btTab-settings" onclick="Bots.switchTab('settings')">Настройки</button>
       </div>
 
       <!-- Offline overlay -->
@@ -87,14 +97,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Tabs (hidden when offline) -->
-      <div class="bt-tabs" id="btTabs">
-        <button class="bt-tab active" id="btTab-controls" onclick="Bots.switchTab('controls')">Управление</button>
-        <button class="bt-tab" id="btTab-stats" onclick="Bots.switchTab('stats')">Статистика</button>
-        <button class="bt-tab" id="btTab-log" onclick="Bots.switchTab('log')">Лог</button>
-        <button class="bt-tab" id="btTab-settings" onclick="Bots.switchTab('settings')">Настройки</button>
       </div>
 
       <!-- ── Tab panes ── -->

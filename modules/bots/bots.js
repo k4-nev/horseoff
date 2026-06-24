@@ -80,7 +80,6 @@ var Bots = {
 
   // ─── Init ───────────────────────────────────────────────────
   async init() {
-    this._renderFooter();
     await this.loadBots();
   },
 
@@ -93,19 +92,6 @@ var Bots = {
       const still = this._bots.find(b => b.id === this._selected);
       if (still) this._openBot(still.id);
     }
-  },
-
-  _renderFooter() {
-    const el = document.getElementById('btSidebarFooter');
-    if (!el || !Shell.user) return;
-    const u = Shell.user;
-    const avaHtml = u.avatar
-      ? `<img src="data:image/jpeg;base64,${u.avatar}" />`
-      : (u.display_name || u.username || '?').charAt(0).toUpperCase();
-    el.innerHTML = `
-      <div class="bt-footer-ava">${avaHtml}</div>
-      <div><div class="bt-footer-name">${this._esc(u.display_name || u.username)}</div>
-      <div class="bt-footer-role">${u.role || ''}</div></div>`;
   },
 
   // ─── List rendering ─────────────────────────────────────────
@@ -259,7 +245,9 @@ var Bots = {
     });
     // Disable edit button, exit edit mode if active
     const editBtn = document.getElementById('btEditBtn');
+    const sortBtn = document.getElementById('btSortBtn');
     if (editBtn) { editBtn.disabled = true; editBtn.title = 'Недоступно офлайн'; }
+    if (sortBtn) sortBtn.style.display = 'none';
     if (this._editMode) { this._editMode = false; if (editBtn) editBtn.classList.remove('btn-icon-only--active'); }
   },
 
@@ -521,7 +509,9 @@ var Bots = {
     if (!this._orderedControls.length) return;
     this._editMode = !this._editMode;
     const btn = document.getElementById('btEditBtn');
+    const sortBtn = document.getElementById('btSortBtn');
     if (btn) btn.classList.toggle('btn-icon-only--active', this._editMode);
+    if (sortBtn) sortBtn.style.display = this._editMode ? '' : 'none';
     if (this._editMode) {
       Shell.toast('Режим редактирования: перетаскивайте и тяните за угол');
       if (navigator.vibrate) navigator.vibrate([8, 40, 8]);
@@ -529,6 +519,36 @@ var Bots = {
       this._saveLayout();
     }
     this._renderControlsDOM(false);
+  },
+
+  _autoSort() {
+    if (!this._editMode || !this._orderedControls.length) return;
+    // Separate sections from non-sections, keep sections in order
+    const sections = this._orderedControls.filter(c => c.type === 'section');
+    const nonSections = this._orderedControls.filter(c => c.type !== 'section');
+    // Sort non-sections by area desc (tallest/widest first)
+    nonSections.sort((a, b) => {
+      const aH = a._h || this._defHeight(a.type);
+      const bH = b._h || this._defHeight(b.type);
+      const aW = a._w || this._defWidth(a.type);
+      const bW = b._w || this._defWidth(b.type);
+      return (bH * bW) - (aH * aW) || bH - aH || bW - aW;
+    });
+    // Rebuild: place sections evenly, distribute non-sections between them
+    if (!sections.length) {
+      this._orderedControls = nonSections;
+    } else {
+      const perSection = Math.ceil(nonSections.length / sections.length);
+      const result = [];
+      sections.forEach((sec, i) => {
+        result.push(sec);
+        const chunk = nonSections.splice(0, perSection);
+        chunk.forEach(c => result.push(c));
+      });
+      this._orderedControls = result;
+    }
+    this._renderControlsDOM(false);
+    Shell.toast('Элементы перестроены по оптимальной схеме');
   },
 
   _addEditHandles(el, ctrlId, type, w, h, cols) {
