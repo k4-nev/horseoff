@@ -1319,10 +1319,12 @@ var Bots = {
       <div class="bt-access-row">
         <div class="bt-access-ava">${u.avatar ? `<img src="data:image/jpeg;base64,${u.avatar}"/>` : this._esc((u.display_name || u.username || '?').charAt(0).toUpperCase())}</div>
         <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
-        <span class="bt-access-role">${this._esc(u.role || '')}</span>
-        <button class="bt-access-remove" onclick="Bots._removeAccess('${u.id}')" title="Убрать доступ">
+        <span class="role-badge ${this._esc(u.role || 'common')}">${this._esc(u.role || '')}</span>
+        ${u.is_owner
+          ? '<span class="bt-access-owner-tag" title="Владелец — доступ по роли">по роли</span>'
+          : `<button class="bt-access-remove" onclick="Bots._removeAccess('${u.id}')" title="Убрать доступ">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        </button>`}
       </div>`) .join('') : '<div style="font-size:12px;color:var(--text-dim);padding:4px 0">Доступ только у владельца</div>';
   },
 
@@ -1753,7 +1755,7 @@ End If`;
           <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
           <div style="font-size:11px;color:var(--text-dim)">${this._esc(u.username)}</div>
         </div>
-        <span class="bt-access-role" style="margin-left:auto">${this._esc(u.role || '')}</span>
+        <span class="role-badge ${this._esc(u.role || 'common')}" style="margin-left:auto">${this._esc(u.role || '')}</span>
         ${has ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
       </div>`;
     }).join('');

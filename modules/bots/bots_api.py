@@ -93,14 +93,21 @@ def _bot_summary(bot):
 def _bot_detail(bot, session):
     from server import get_avatar_b64, load_users
     access_users = []
+    seen = set()
+    access_ids = bot.get('access_ids') or []
     for u in load_users():
-        if u['id'] in (bot.get('access_ids') or []):
+        is_owner = u.get('role') in _OWNER_ROLES
+        if (is_owner or u['id'] in access_ids) and u['id'] not in seen:
+            seen.add(u['id'])
             access_users.append({
                 'id': u['id'], 'username': u['username'],
                 'display_name': u.get('display_name', ''),
                 'role': u.get('role', ''),
-                'avatar': get_avatar_b64(u['id'])
+                'avatar': get_avatar_b64(u['id']),
+                'is_owner': is_owner,
             })
+    # Owners first, then granted users
+    access_users.sort(key=lambda x: (not x['is_owner']))
     return {
         **_bot_summary(bot),
         'api_key': bot.get('api_key', '') if session['role'] in _OWNER_ROLES else '',
