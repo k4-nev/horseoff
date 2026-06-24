@@ -33,3 +33,11 @@ ssh root@157.22.207.243 "systemctl restart horseoff"
 - Vanilla JS + Python WebSocket backend (no frameworks)
 - WebRTC mesh P2P (max 6 speakers, unlimited listeners)
 - Branch for development: `claude/gallant-fermi-2y4cbp`
+
+## ZennoPoster integration
+
+Вся информация по контексту интеграции ботов ZennoPoster (мост на C#,
+протокол WS, текущий рабочий код, грабли, что уже сделано и планы)
+находится в файле **`ZennoPoster.md`** в корне репозитория.
+ОБЯЗАТЕЛЬНО читать его перед любой работой по теме ZennoPoster.
+
