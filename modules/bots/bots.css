@@ -138,15 +138,15 @@
    CONTROLS TAB — flat 8-col grid
    ════════════════════════════════════════ */
 
-/* Flat 8-col grid (columns set dynamically in JS) */
-.bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1;grid-auto-rows:90px}
+/* Flat 8-col grid — NO grid-auto-rows; heights set explicitly via JS */
+.bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1}
 
-/* Section container — floats in outer grid, wraps inner grid */
-.bt-section-wrap{display:grid;grid-template-rows:auto 1fr;overflow:hidden;position:relative;min-width:0;gap:8px;padding:4px;box-sizing:border-box}
-.bt-section-inner-grid{display:grid;grid-auto-flow:row;gap:10px;grid-auto-rows:90px;min-height:0;overflow:hidden;align-content:start}
+/* Section container — auto-heights based on content (height set via JS) */
+.bt-section-wrap{display:flex;flex-direction:column;gap:8px;overflow:visible;position:relative;min-width:0;box-sizing:border-box}
+.bt-section-inner-grid{display:grid;grid-auto-flow:row;gap:10px;grid-auto-rows:90px;align-content:start;overflow:visible}
 
 /* Section divider — thin header at top of section container */
-.bt-section-divider{display:flex;align-items:center;gap:10px;padding:0;position:relative;height:26px;flex-shrink:0;width:100%}
+.bt-section-divider{display:flex;align-items:center;gap:10px;position:relative;height:26px;flex-shrink:0;width:100%}
 .bt-section-divider-line{flex:1;height:1px;background:var(--border)}
 .bt-section-divider-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.9px;color:var(--text-dim);white-space:nowrap}
 
@@ -489,6 +489,16 @@ body.theme-light .bt-ctrl--buttons .bt-btn-group{background:#e9edf3;box-shadow:i
 /* ctrl_update flash */
 @keyframes bt-ctrl-flash{0%{box-shadow:0 0 0 3px rgba(59,201,107,0.5)}100%{box-shadow:0 0 0 0 transparent}}
 .bt-ctrl-updated{animation:bt-ctrl-flash 0.7s ease-out}
+
+/* ════════════════════════════════════════
+   SAVE-EDIT CONFIRM MODAL
+   ════════════════════════════════════════ */
+.bt-confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9100;display:flex;align-items:center;justify-content:center;animation:bt-fade-in 0.15s ease}
+@keyframes bt-fade-in{from{opacity:0}to{opacity:1}}
+.bt-confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:320px;max-width:calc(100vw - 32px);box-shadow:0 24px 60px rgba(0,0,0,0.3);animation:bt-slide-in 0.18s ease}
+.bt-confirm-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px}
+.bt-confirm-sub{font-size:13px;color:var(--text-dim);margin-bottom:22px;line-height:1.55}
+.bt-confirm-actions{display:flex;gap:8px;justify-content:flex-end}
 
 /* ════════════════════════════════════════
    MOBILE ADAPTATION (iOS / Android)

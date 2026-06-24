@@ -370,6 +370,26 @@ var Bots = {
     return groups;
   },
 
+  // Calculates the pixel height a section-wrap needs to show all its children
+  _calcSectionHeight(children, sw) {
+    const HEADER = 26, GAP = 8, PAD_BOT = 5;
+    if (!children.length) return HEADER + GAP + PAD_BOT;
+    // Simulate inner grid auto-placement (greedy row-major)
+    let col = 0, row = 0, rowH = 1, innerRows = 0;
+    children.forEach(ctrl => {
+      const cw = Math.min(ctrl._w || this._defWidth(ctrl.type), sw);
+      const ch = ctrl._h || this._defHeight(ctrl.type);
+      if (col + cw > sw) { innerRows += rowH; row = innerRows; col = 0; rowH = 1; }
+      rowH = Math.max(rowH, ch);
+      col += cw;
+      if (col >= sw) { innerRows += rowH; row = innerRows; col = 0; rowH = 1; }
+    });
+    if (col > 0) innerRows += rowH; // last partial row
+    innerRows = Math.max(1, innerRows);
+    const innerH = innerRows * this._ROW_PX + (innerRows - 1) * this._GAP_PX;
+    return HEADER + GAP + innerH + PAD_BOT;
+  },
+
   // ─── Render controls (flat 8-col grid with explicit placement) ─
   renderControls(controls) {
     // Assign IDs then expand stats → individual stat items
@@ -424,13 +444,14 @@ var Bots = {
       if (group.section) {
         const sect = group.section;
         const sw = Math.min(sect._w || this._defWidth('section'), cols);
-        const sh = sect._h || this._defHeight('section');
+        // Section height is calculated from content — no grid-row span
+        const sectionH = this._calcSectionHeight(group.children, sw);
 
         const wrap = document.createElement('div');
         wrap.className = 'bt-section-wrap';
         wrap.dataset.ctrlId = sect.id;
         wrap.style.gridColumn = `span ${sw}`;
-        wrap.style.gridRow = `span ${sh}`;
+        wrap.style.height = `${sectionH}px`;
 
         const header = document.createElement('div');
         header.className = 'bt-section-divider';
@@ -467,18 +488,14 @@ var Bots = {
           wrap.appendChild(grip);
           const badge = document.createElement('div');
           badge.className = 'bt-edit-size-badge bt-sect-handle';
-          badge.textContent = `${sw}×${sh}`;
+          badge.textContent = `${sw}×`;
           wrap.appendChild(badge);
+          // Width resize only — height is auto-calculated
           const rw = document.createElement('div');
           rw.className = 'bt-resize-handle bt-rh-w bt-sect-handle';
           rw.innerHTML = '<svg width="6" height="14" viewBox="0 0 6 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="2" y2="18"/><line x1="5" y1="2" x2="5" y2="18"/></svg>';
           rw.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'w'));
           wrap.appendChild(rw);
-          const rh = document.createElement('div');
-          rh.className = 'bt-resize-handle bt-rh-h bt-sect-handle';
-          rh.innerHTML = '<svg width="14" height="6" viewBox="0 0 20 6" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="18" y2="2"/><line x1="2" y1="5" x2="18" y2="5"/></svg>';
-          rh.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'h'));
-          wrap.appendChild(rh);
         }
 
         grid.appendChild(wrap);
@@ -490,7 +507,8 @@ var Bots = {
           const w = Math.min(ctrl._w || this._defWidth(ctrl.type), cols);
           const h = ctrl._h || this._defHeight(ctrl.type);
           el.style.gridColumn = `span ${w}`;
-          el.style.gridRow = `span ${h}`;
+          // Explicit pixel height — no grid-auto-rows dependency for outer grid
+          el.style.height = `${h * this._ROW_PX + (h - 1) * this._GAP_PX}px`;
           if (this._editMode) this._addEditHandles(el, ctrl.id, ctrl.type, w, h, cols);
           grid.appendChild(el);
         });
@@ -697,17 +715,24 @@ var Bots = {
                 ctrl._w = newW;
                 card.style.gridColumn = `span ${newW}`;
                 const badge = card.querySelector('.bt-edit-size-badge');
-                if (badge) badge.textContent = `${newW}×${ctrl._h || startH}`;
                 if (isSection) {
                     const innerGrid = card.querySelector('.bt-section-inner-grid');
                     if (innerGrid) innerGrid.style.gridTemplateColumns = `repeat(${newW}, 1fr)`;
+                    // Recalculate section height for new width
+                    const groups = this._groupControls();
+                    const grp = groups.find(g => g.section && g.section.id === ctrlId);
+                    if (grp) card.style.height = `${this._calcSectionHeight(grp.children, newW)}px`;
+                    if (badge) badge.textContent = `${newW}×`;
+                } else {
+                    if (badge) badge.textContent = `${newW}×${ctrl._h || startH}`;
                 }
             }
         } else {
             const newH = Math.max(minH, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
             if (newH !== ctrl._h) {
                 ctrl._h = newH;
-                card.style.gridRow = `span ${newH}`;
+                // Use explicit pixel height (outer grid has no grid-auto-rows)
+                card.style.height = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
                 const badge = card.querySelector('.bt-edit-size-badge');
                 if (badge) badge.textContent = `${ctrl._w || startW}×${newH}`;
             }
@@ -1339,8 +1364,47 @@ var Bots = {
     Shell.toast('Бот удалён');
   },
 
+  // ─── Save-edit guard modal ───────────────────────────────────
+  _showSaveEditModal(onProceed) {
+    const overlay = document.createElement('div');
+    overlay.className = 'bt-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="bt-confirm-box">
+        <div class="bt-confirm-title">Сохранить изменения?</div>
+        <div class="bt-confirm-sub">Вы редактировали расположение элементов управления</div>
+        <div class="bt-confirm-actions">
+          <button class="btn btn-secondary" id="btConfirmNo">Не сохранять</button>
+          <button class="btn btn-primary" id="btConfirmYes">Сохранить</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = save => {
+      overlay.remove();
+      if (save) this._saveLayout();
+      this._editMode = false;
+      const btn = document.getElementById('btEditBtn');
+      if (btn) { btn.classList.remove('btn-icon-only--active'); btn.disabled = false; }
+      this._renderControlsDOM(true);
+      onProceed();
+    };
+    overlay.querySelector('#btConfirmYes').onclick = () => close(true);
+    overlay.querySelector('#btConfirmNo').onclick = () => close(false);
+    overlay.onclick = e => { if (e.target === overlay) close(false); };
+    if (navigator.vibrate) navigator.vibrate([8, 40, 8]);
+  },
+
+  // Called when user leaves this module — show save guard if edit mode active
+  onDeactivate() {
+    if (this._editMode) this._showSaveEditModal(() => {});
+  },
+
   // ─── Tab switching ───────────────────────────────────────────
   switchTab(tab) {
+    // Guard: if in edit mode and switching away from controls, show save modal
+    if (this._editMode && tab !== 'controls') {
+      this._showSaveEditModal(() => this.switchTab(tab));
+      return;
+    }
     const b = this._bots.find(x => x.id === this._selected);
     const isOffline = b && b.status === 'offline';
     if (isOffline && tab !== 'settings') return;
