@@ -1713,22 +1713,54 @@ End If`;
   },
 
   // ─── Access modal ────────────────────────────────────────────
+  _accessAllUsers: [],
+
   async openAccessModal() {
-    const d = await Shell.api('/api/mod/channels/users');
+    document.getElementById('btAccessModal').classList.add('active');
+    if (navigator.vibrate) navigator.vibrate(15);
+    const searchEl = document.getElementById('btAccessSearch');
+    if (searchEl) searchEl.value = '';
+
+    const d = await Shell.api('/api/users');
+    if (!Array.isArray(d)) { document.getElementById('btAccessUserList').innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">Нет доступа к списку пользователей</div>'; return; }
+    // Filter out owner-role users (they have access by default) and self
+    const meId = Shell.user && Shell.user.id;
+    this._accessAllUsers = d.filter(u => !['arcana','immortal'].includes(u.role) && u.id !== meId);
+    this._renderAccessUserList('');
+  },
+
+  _renderAccessUserList(filter) {
     const list = document.getElementById('btAccessUserList');
     if (!list) return;
     const b = this._bots.find(x => x.id === this._selected);
     const existing = b && b.access ? b.access.map(u => u.id) : [];
-    const users = d && d.users ? d.users : [];
-    list.innerHTML = users.map(u => `
-      <div class="bt-access-user-item${existing.includes(u.id) ? ' already' : ''}" onclick="Bots._grantAccess('${u.id}')">
-        <div class="bt-access-ava">${u.avatar ? `<img src="data:image/jpeg;base64,${u.avatar}"/>` : this._esc((u.display_name || u.username || '?').charAt(0).toUpperCase())}</div>
-        <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
-        <span class="bt-access-role">${this._esc(u.role || '')}</span>
-        ${existing.includes(u.id) ? '<span style="font-size:11px;color:var(--accent);margin-left:auto">уже есть</span>' : ''}
-      </div>`).join('');
-    document.getElementById('btAccessModal').classList.add('active');
-    if (navigator.vibrate) navigator.vibrate(15);
+    const q = (filter || '').toLowerCase();
+    const users = this._accessAllUsers.filter(u =>
+      !q || (u.display_name || u.username || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q)
+    );
+    if (!users.length) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px 0;text-align:center">Пользователей не найдено</div>';
+      return;
+    }
+    list.innerHTML = users.map(u => {
+      const has = existing.includes(u.id);
+      const ava = u.avatar
+        ? `<img src="data:image/jpeg;base64,${u.avatar}"/>`
+        : this._esc((u.display_name || u.username || '?').charAt(0).toUpperCase());
+      return `<div class="bt-access-user-item${has ? ' already' : ''}" onclick="Bots._grantAccess('${u.id}')">
+        <div class="bt-access-ava">${ava}</div>
+        <div>
+          <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
+          <div style="font-size:11px;color:var(--text-dim)">${this._esc(u.username)}</div>
+        </div>
+        <span class="bt-access-role" style="margin-left:auto">${this._esc(u.role || '')}</span>
+        ${has ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+      </div>`;
+    }).join('');
+  },
+
+  _filterAccessList(val) {
+    this._renderAccessUserList(val);
   },
 
   closeAccessModal() {
@@ -1742,8 +1774,11 @@ End If`;
       method: 'POST',
       body: JSON.stringify({ user_id: userId })
     });
-    this.closeAccessModal();
     await this._loadBotDetails(this._selected);
+    // Refresh modal list to show checkmark
+    const b = this._bots.find(x => x.id === this._selected);
+    if (b && b.access) this._renderAccessUserList(document.getElementById('btAccessSearch')?.value || '');
+    Shell.toast('Доступ выдан');
   },
 
   // ─── Test bot ────────────────────────────────────────────────
@@ -1815,6 +1850,9 @@ End If`;
       if (this._selected === data.bot_id) {
         this._updateCtrl(data.ctrl_id, data.data || {});
       }
+    } else if (data.type === 'bot_access_update') {
+      // Access granted/revoked — reload bot list so bot appears/disappears for this user
+      this.loadBots();
     }
   },
 

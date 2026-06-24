@@ -256,6 +256,11 @@ def handle_post(handler, session, path, data=None):
             if uid and uid not in bot.setdefault('access_ids', []):
                 bot['access_ids'].append(uid)
                 _save_bot(bot)
+                try:
+                    from server import _ws_broadcast_to_user
+                    _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'granted'})
+                except Exception as e:
+                    print(f'[BOTS] access broadcast error: {e}')
             return _json(handler, 200, {'ok': True})
 
         # POST /api/mod/bots/:id/read — clear badge
@@ -317,6 +322,11 @@ def handle_delete(handler, session, path):
             if uid in bot.get('access_ids', []):
                 bot['access_ids'].remove(uid)
                 _save_bot(bot)
+                try:
+                    from server import _ws_broadcast_to_user
+                    _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'revoked'})
+                except Exception as e:
+                    print(f'[BOTS] access broadcast error: {e}')
             return _json(handler, 200, {'ok': True})
 
         # DELETE /api/mod/bots/:id
