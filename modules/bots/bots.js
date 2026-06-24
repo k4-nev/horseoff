@@ -1030,7 +1030,7 @@ var Bots = {
       el.textContent = data.value || '';
     } else if (el && el.classList.contains('bt-label-ctrl')) {
       el.textContent = data.text || data.value || '';
-      el.className = 'bt-label-ctrl ' + (data.style || '');
+      if (data.style !== undefined) el.className = 'bt-label-ctrl ' + data.style;
     } else if (el && el.classList.contains('bt-image-ctrl')) {
       if (data.value || data.src) {
         el.innerHTML = `<img src="${this._esc(data.value || data.src)}" alt=""/>
