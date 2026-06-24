@@ -125,6 +125,9 @@ var Bots = {
           <svg class="bt-group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           <span class="bt-group-name">${this._esc(gname)}</span>
           <span class="bt-group-count">${groupBots.length}</span>
+          <button class="bt-group-rename" onclick="event.stopPropagation();Bots.renameGroup('${this._esc(gname).replace(/'/g, "\\'")}')" title="Переименовать группу">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
         </div>
         <div class="bt-group-bots" style="max-height:${totalH}px">
           ${groupBots.map((b, i) => this._botRowHtml(b, i * 0.03)).join('')}
@@ -1293,6 +1296,14 @@ var Bots = {
     }
     const nameEl = document.getElementById('btSettingsName');
     if (nameEl) nameEl.value = b.name || '';
+    const groupEl = document.getElementById('btSettingsGroup');
+    if (groupEl) groupEl.value = (b.group && b.group !== 'Без группы') ? b.group : '';
+    // Datalist of existing groups
+    const dl = document.getElementById('btGroupOptions');
+    if (dl) {
+      const names = [...new Set(this._bots.map(x => x.group).filter(g => g && g !== 'Без группы'))];
+      dl.innerHTML = names.map(g => `<option value="${this._esc(g)}"></option>`).join('');
+    }
     // API key (masked)
     this._apiKeyFull = b.api_key || '';
     this._apiKeyVisible = false;
@@ -1344,6 +1355,39 @@ var Bots = {
       const b = this._bots.find(x => x.id === this._selected);
       if (b) { b.name = name; this._renderList(); this._openBot(this._selected); }
       Shell.toast('Название обновлено');
+    }
+  },
+
+  async saveBotGroup() {
+    const el = document.getElementById('btSettingsGroup');
+    if (!el || !this._selected) return;
+    const group = el.value.trim() || 'Без группы';
+    if (navigator.vibrate) navigator.vibrate(20);
+    const d = await Shell.api(`/api/mod/bots/${this._selected}`, {
+      method: 'PUT',
+      body: JSON.stringify({ group })
+    });
+    if (d && d.ok) {
+      const b = this._bots.find(x => x.id === this._selected);
+      if (b) b.group = group;
+      this._renderList();
+      Shell.toast('Группа обновлена');
+    }
+  },
+
+  async renameGroup(oldName) {
+    const next = prompt('Новое название группы:', oldName);
+    if (next === null) return;
+    const newName = next.trim();
+    if (!newName || newName === oldName) return;
+    if (navigator.vibrate) navigator.vibrate(20);
+    const d = await Shell.api('/api/mod/bots/group/rename', {
+      method: 'POST',
+      body: JSON.stringify({ old: oldName, new: newName })
+    });
+    if (d && d.ok) {
+      await this.loadBots();
+      Shell.toast(`Группа переименована (${d.count})`);
     }
   },
 

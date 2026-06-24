@@ -179,6 +179,23 @@ def handle_post(handler, session, path, data=None):
         _save_index(index)
         return _json(handler, 200, {'bot': _bot_summary(bot), 'api_key': api_key})
 
+    # POST /api/mod/bots/group/rename — rename a group across all its bots
+    if p.endswith('/group/rename'):
+        if session['role'] not in _OWNER_ROLES:
+            return _json(handler, 403, {'error': 'Forbidden'})
+        old = (data.get('old') or '').strip()
+        new = (data.get('new') or '').strip()
+        if not old or not new:
+            return _json(handler, 400, {'error': 'old and new required'})
+        count = 0
+        for entry in _load_index():
+            b = _load_bot(entry['id'])
+            if b and b.get('group', 'Без группы') == old:
+                b['group'] = new
+                _save_bot(b)
+                count += 1
+        return _json(handler, 200, {'ok': True, 'count': count})
+
     # Paths with bot id
     parts = p.split('/api/mod/bots/')
     if len(parts) == 2:

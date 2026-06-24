@@ -31,6 +31,9 @@
 .bt-group.collapsed .bt-group-chevron{transform:rotate(-90deg)}
 .bt-group-name{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-dim)}
 .bt-group-count{font-size:10px;color:var(--text-dim);opacity:0.6;font-family:'JetBrains Mono',monospace;margin-left:auto}
+.bt-group-rename{width:22px;height:22px;margin-left:4px;border:none;background:transparent;color:var(--text-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:6px;opacity:0;transition:opacity 0.15s,background 0.15s,color 0.15s;flex-shrink:0}
+.bt-group-header:hover .bt-group-rename{opacity:0.7}
+.bt-group-rename:hover{opacity:1!important;background:var(--surface2);color:var(--accent)}
 .bt-group-bots{overflow:hidden;transition:max-height 0.28s cubic-bezier(.4,0,.2,1)}
 .bt-group.collapsed .bt-group-bots{max-height:0!important}
 
