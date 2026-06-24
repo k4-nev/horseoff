@@ -911,6 +911,7 @@ var Bots = {
 
       case 'progress':
         wrap.className = 'bt-ctrl-card bt-ctrl--progress';
+        wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-progress-header">
             <span style="font-size:12px;color:var(--text-dim)">${this._esc(ctrl.total || '')}</span>
