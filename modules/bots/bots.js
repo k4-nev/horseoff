@@ -8,7 +8,8 @@ var Bots = {
   _apiKeyVisible: false,
   _apiKeyFull: '',
   _autoScroll: true,
-  _logLines: [],
+  _botLogs: {},
+  _botControls: {},
   _logMax: 500,
   _snippetMode: 'cs',
   _testBotEnabled: false,
@@ -226,6 +227,31 @@ var Bots = {
 
     // Reset to controls tab
     this.switchTab('controls');
+
+    // Restore cached controls immediately (before API)
+    const cachedControls = this._botControls[id];
+    if (cachedControls && b.status !== 'offline') {
+      this.renderControls(cachedControls);
+    }
+
+    // Restore cached logs
+    const cachedLogs = this._botLogs[id] || [];
+    const logConsole = document.getElementById('btLogConsole');
+    if (logConsole) {
+      logConsole.innerHTML = '';
+      cachedLogs.forEach(({ ts, level, msg }) => {
+        const line = document.createElement('div');
+        line.className = 'bt-log-line';
+        line.innerHTML = `<span class="bt-log-time">${ts}</span>
+          <span class="bt-log-level ${level}">[${level}]</span>
+          <span class="bt-log-msg">${this._esc(msg)}</span>`;
+        logConsole.appendChild(line);
+      });
+      const countEl = document.getElementById('btLogCount');
+      if (countEl) countEl.textContent = cachedLogs.length + ' записей';
+      if (this._autoScroll) logConsole.scrollTop = logConsole.scrollHeight;
+    }
+
     // Load full bot data
     this._loadBotDetails(id);
     // On mobile: close sidebar drawer when bot is opened
@@ -283,7 +309,9 @@ var Bots = {
     if (idx >= 0) this._bots[idx] = Object.assign(this._bots[idx], b);
     if (this._selected !== id) return;
 
-    this.renderControls(b.controls || this._defaultControls());
+    const controls = b.controls || this._defaultControls();
+    this._botControls[id] = controls;
+    this.renderControls(controls);
     this._renderKpi(b.stats);
     this._renderSettings(b);
   },
@@ -926,8 +954,10 @@ var Bots = {
       case 'label':
         wrap.className = 'bt-ctrl-card bt-ctrl--label';
         wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
-        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
-          <div class="bt-label-ctrl ${ctrl.style || ''}" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.text || ctrl.value || '')}</div>`;
+        wrap.innerHTML = `<div class="bt-label-inner">
+          ${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+          <div class="bt-label-ctrl ${ctrl.style || ''}" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.text || ctrl.value || '')}</div>
+        </div>`;
         return wrap;
 
       case 'image':
@@ -984,12 +1014,6 @@ var Bots = {
     const card = document.getElementById('btCtrlCard_' + ctrlId);
     const el = document.getElementById('btCtrl_' + ctrlId);
     if (!el && !card) return;
-
-    // Flash animation
-    const target = card || el;
-    target.classList.remove('bt-ctrl-updated');
-    void target.offsetWidth;
-    target.classList.add('bt-ctrl-updated');
 
     // Update value depending on element type
     const tag = el ? el.tagName : '';
@@ -1249,21 +1273,27 @@ var Bots = {
     if (!console_) return;
     const now = new Date();
     const ts = now.toTimeString().slice(0, 8);
-    this._logLines.push({ ts, level, msg });
-    if (this._logLines.length > this._logMax) this._logLines.shift();
+    const id = this._selected;
+    if (id) {
+      if (!this._botLogs[id]) this._botLogs[id] = [];
+      this._botLogs[id].push({ ts, level, msg });
+      if (this._botLogs[id].length > this._logMax) this._botLogs[id].shift();
+    }
     const line = document.createElement('div');
     line.className = 'bt-log-line';
     line.innerHTML = `<span class="bt-log-time">${ts}</span>
       <span class="bt-log-level ${level}">[${level}]</span>
       <span class="bt-log-msg">${this._esc(msg)}</span>`;
     console_.appendChild(line);
+    const logLen = id && this._botLogs[id] ? this._botLogs[id].length : 0;
     const countEl = document.getElementById('btLogCount');
-    if (countEl) countEl.textContent = this._logLines.length + ' записей';
+    if (countEl) countEl.textContent = logLen + ' записей';
     if (this._autoScroll) console_.scrollTop = console_.scrollHeight;
   },
 
   clearLog() {
-    this._logLines = [];
+    const id = this._selected;
+    if (id) this._botLogs[id] = [];
     const el = document.getElementById('btLogConsole');
     if (el) el.innerHTML = '';
     const countEl = document.getElementById('btLogCount');
@@ -1820,6 +1850,20 @@ End If`;
   },
 
   // ─── WebSocket messages from Shell ────────────────────────────
+  _refreshBotTopbar(b) {
+    const dot = document.getElementById('btTopDot');
+    if (dot) dot.className = 'bt-bot-dot ' + b.status;
+    const verEl = document.getElementById('btTopVersion');
+    if (verEl) { verEl.textContent = b.version ? 'v' + b.version : ''; verEl.style.display = b.version ? '' : 'none'; }
+    const pill = document.getElementById('btStatusPill');
+    const labels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
+    if (pill) { pill.className = 'bt-status-pill ' + b.status; pill.textContent = labels[b.status] || b.status; }
+    const lastSeenEl = document.getElementById('btLastSeen');
+    if (lastSeenEl) lastSeenEl.textContent = b.status === 'offline' && b.last_seen ? 'был ' + this._relTime(b.last_seen) : '';
+    if (b.status === 'offline') this._showOfflineState(b);
+    else this._showOnlineState(b);
+  },
+
   onWS(data) {
     if (data.type === 'bot_update') {
       const { bot_id, status, controls, version, sub } = data;
@@ -1828,20 +1872,25 @@ End If`;
         if (status !== undefined) this._bots[idx].status = status;
         if (version !== undefined) this._bots[idx].version = version;
         if (sub !== undefined) this._bots[idx].sub = sub;
-        // Update dot in list
+        // Update dot/sub in list row
         const row = document.querySelector(`.bt-bot-row[data-bot-id="${bot_id}"]`);
         if (row) {
           const dot = row.querySelector('.bt-dot');
+          const avaDot = row.querySelector('.bt-ava-dot');
           if (dot) dot.className = 'bt-dot ' + (status || 'offline');
+          if (avaDot) avaDot.className = 'bt-ava-dot ' + (status || 'offline');
           row.classList.toggle('offline-bot', status === 'offline');
-        }
-        // If this bot is open, refresh workspace
-        if (this._selected === bot_id) {
-          this._openBot(bot_id);
-          if (controls && status === 'online') {
-            this._bots[idx].controls = controls;
-            this.renderControls(controls);
+          if (sub !== undefined) {
+            const subEl = row.querySelector('.bt-bot-row-sub');
+            if (subEl) subEl.textContent = sub;
           }
+        }
+        // Update controls cache
+        if (controls) this._botControls[bot_id] = controls;
+        // If this bot is open, update topbar inline without resetting tab
+        if (this._selected === bot_id) {
+          this._refreshBotTopbar(this._bots[idx]);
+          if (controls && status === 'online') this.renderControls(controls);
         }
       }
     } else if (data.type === 'bot_log') {
@@ -1849,6 +1898,12 @@ End If`;
         this.addLogLine(data.level || 'INFO', data.msg || '');
       }
     } else if (data.type === 'ctrl_update') {
+      // Update controls cache
+      const ctrls = this._botControls[data.bot_id];
+      if (ctrls) {
+        const ctrl = ctrls.find(c => c.id === data.ctrl_id);
+        if (ctrl) Object.assign(ctrl, data.data || {});
+      }
       if (this._selected === data.bot_id) {
         this._updateCtrl(data.ctrl_id, data.data || {});
       }
