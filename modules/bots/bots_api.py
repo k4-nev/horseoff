@@ -430,9 +430,18 @@ async def handle_bot_ws(websocket):
                         _notify_bot_users(b, str(title)[:80], str(body)[:140])
 
                 elif mt == 'ctrl_update':
-                    # Bot pushes live value update for a single control
+                    ctrl_id = msg.get('ctrl_id', '')
+                    data = msg.get('data', {})
+                    # Persist updated value into stored controls
+                    bot = _load_bot(bot_id)
+                    if bot and bot.get('controls'):
+                        for ctrl in bot['controls']:
+                            if ctrl.get('id') == ctrl_id:
+                                ctrl.update(data)
+                                break
+                        _save_bot(bot)
                     _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
-                                    'ctrl_id': msg.get('ctrl_id', ''), 'data': msg.get('data', {})})
+                                    'ctrl_id': ctrl_id, 'data': data})
 
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
@@ -453,6 +462,10 @@ async def handle_bot_ws(websocket):
             if bot:
                 bot['status'] = 'offline'
                 bot['last_seen'] = int(time.time())
+                # Reset live control values so stale data isn't shown on reconnect
+                for ctrl in (bot.get('controls') or []):
+                    for field in ('text', 'value', 'rows', 'total', 'src'):
+                        ctrl.pop(field, None)
                 _save_bot(bot)
                 _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline'})
 
