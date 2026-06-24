@@ -436,7 +436,7 @@ var Bots = {
       savedLayout.forEach(l => {
         const c = byId[l.id];
         if (c) {
-          this._orderedControls.push({...c, _w: Math.min(l.w || this._defWidth(c.type), cols), _h: l.h || this._defHeight(c.type)});
+          this._orderedControls.push({...c, _w: Math.min(l.w || this._defWidth(c.type), cols), _h: l.h || this._defHeight(c.type), ...(l.manualH !== undefined ? { _manualH: l.manualH } : {})});
           delete byId[l.id];
         }
       });
@@ -463,8 +463,9 @@ var Bots = {
       if (group.section) {
         const sect = group.section;
         const sw = Math.min(sect._w || this._defWidth('section'), cols);
-        // Section height is calculated from content — no grid-row span
-        const sectionH = this._calcSectionHeight(group.children, sw);
+        const sectionH = sect._manualH !== undefined
+          ? sect._manualH
+          : this._calcSectionHeight(group.children, sw);
 
         const wrap = document.createElement('div');
         wrap.className = 'bt-section-wrap';
@@ -509,12 +510,16 @@ var Bots = {
           badge.className = 'bt-edit-size-badge bt-sect-handle';
           badge.textContent = `${sw}×`;
           wrap.appendChild(badge);
-          // Width resize only — height is auto-calculated
           const rw = document.createElement('div');
           rw.className = 'bt-resize-handle bt-rh-w bt-sect-handle';
           rw.innerHTML = '<svg width="6" height="14" viewBox="0 0 6 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="2" y2="18"/><line x1="5" y1="2" x2="5" y2="18"/></svg>';
           rw.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'w'));
           wrap.appendChild(rw);
+          const rh = document.createElement('div');
+          rh.className = 'bt-resize-handle bt-rh-h bt-sect-handle';
+          rh.innerHTML = '<svg width="14" height="6" viewBox="0 0 20 6" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="18" y2="2"/><line x1="2" y1="5" x2="18" y2="5"/></svg>';
+          rh.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'h'));
+          wrap.appendChild(rh);
         }
 
         grid.appendChild(wrap);
@@ -754,6 +759,7 @@ var Bots = {
     const minW = this._minWidth(ctrl.type);
     const minH = this._minHeight(ctrl.type);
     const startX = e.clientX, startY = e.clientY;
+    const startPxH = card.clientHeight; // for section pixel-height resize
     const cellW = (grid.clientWidth - this._GAP_PX * (cols - 1)) / cols;
 
     card.classList.add('bt-resizing');
@@ -779,13 +785,20 @@ var Bots = {
                 }
             }
         } else {
-            const newH = Math.max(minH, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
-            if (newH !== ctrl._h) {
-                ctrl._h = newH;
-                // Use explicit pixel height (outer grid has no grid-auto-rows)
-                card.style.height = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
+            if (isSection) {
+                const newPxH = Math.max(60, startPxH + (ev.clientY - startY));
+                ctrl._manualH = newPxH;
+                card.style.height = `${newPxH}px`;
                 const badge = card.querySelector('.bt-edit-size-badge');
-                if (badge) badge.textContent = `${ctrl._w || startW}×${newH}`;
+                if (badge) badge.textContent = `${ctrl._w || startW}×`;
+            } else {
+                const newH = Math.max(minH, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
+                if (newH !== ctrl._h) {
+                    ctrl._h = newH;
+                    card.style.height = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
+                    const badge = card.querySelector('.bt-edit-size-badge');
+                    if (badge) badge.textContent = `${ctrl._w || startW}×${newH}`;
+                }
             }
         }
     };
@@ -808,6 +821,7 @@ var Bots = {
       id: c.id,
       w: c._w || this._defWidth(c.type),
       h: c._h || this._defHeight(c.type),
+      ...(c._manualH !== undefined ? { manualH: c._manualH } : {}),
     }));
     const b = this._bots.find(x => x.id === this._selected);
     if (b) b.layout = layout;

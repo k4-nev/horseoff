@@ -136,7 +136,7 @@
    ════════════════════════════════════════ */
 
 /* Flat 8-col grid — NO grid-auto-rows; heights set explicitly via JS */
-.bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1}
+.bt-controls-grid{display:grid;grid-auto-flow:row;gap:10px;padding:20px;overflow-y:auto;min-height:0;flex:1;align-content:start}
 
 /* Section container — auto-heights based on content (height set via JS) */
 .bt-section-wrap{display:flex;flex-direction:column;gap:8px;overflow:visible;position:relative;min-width:0;box-sizing:border-box}
