@@ -11,10 +11,19 @@ scp core/shell.html root@157.22.207.243:/opt/horseoff-v2/core/
 scp modules/channels/channels.js root@157.22.207.243:/opt/horseoff-v2/modules/channels/
 scp modules/channels/channels.css root@157.22.207.243:/opt/horseoff-v2/modules/channels/
 scp modules/channels/channels.html root@157.22.207.243:/opt/horseoff-v2/modules/channels/
+scp modules/bots/bots.js root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp modules/bots/bots.css root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp modules/bots/bots.html root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp modules/bots/bots_api.py root@157.22.207.243:/opt/horseoff-v2/modules/bots/
 scp pwa/sw.js root@157.22.207.243:/opt/horseoff-v2/pwa/
 ```
 
 After uploading `server.py`, restart the server:
+```bash
+ssh root@157.22.207.243 "systemctl restart horseoff"
+```
+
+After uploading `bots_api.py`, restart the server:
 ```bash
 ssh root@157.22.207.243 "systemctl restart horseoff"
 ```

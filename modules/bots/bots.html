@@ -1,4 +1,5 @@
 <div class="bt-wrap">
+  <div class="bt-mob-overlay" id="btMobOverlay" onclick="Bots.closeSidebar()"></div>
 
   <!-- ═══ SIDEBAR ═══ -->
   <div class="bt-sidebar" id="btSidebar">
@@ -20,7 +21,6 @@
       </div>
     </div>
     <div class="bt-list" id="btList"></div>
-    <div class="bt-sidebar-footer" id="btSidebarFooter"></div>
   </div>
 
   <!-- ═══ MAIN PANEL ═══ -->
@@ -41,6 +41,9 @@
       <!-- Topbar -->
       <div class="bt-topbar">
         <div class="bt-topbar-left">
+          <button class="bt-mob-menu-btn" onclick="Bots.openSidebar()" title="Список ботов">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
           <div class="bt-bot-dot" id="btTopDot"></div>
           <span class="bt-bot-name" id="btTopName">—</span>
           <span class="bt-bot-version" id="btTopVersion"></span>
@@ -48,10 +51,24 @@
         </div>
         <div class="bt-topbar-right">
           <span class="bt-last-seen" id="btLastSeen"></span>
-          <button class="bt-top-btn" onclick="Bots.switchTab('settings')" title="Настройки">
+          <button class="btn-icon-only" id="btEditBtn" onclick="Bots.toggleEditMode()" title="Редактировать расположение">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-icon-only bt-sort-btn" id="btSortBtn" onclick="Bots._autoSort()" title="Авто-сортировка" style="display:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><polyline points="3 15 1 18 3 21"/></svg>
+          </button>
+          <button class="btn-icon-only" onclick="Bots.switchTab('settings')" title="Настройки">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
         </div>
+      </div>
+
+      <!-- Tabs (hidden when offline) -->
+      <div class="bt-tabs" id="btTabs">
+        <button class="bt-tab active" id="btTab-controls" onclick="Bots.switchTab('controls')">Управление</button>
+        <button class="bt-tab" id="btTab-stats" onclick="Bots.switchTab('stats')">Статистика</button>
+        <button class="bt-tab" id="btTab-log" onclick="Bots.switchTab('log')">Лог</button>
+        <button class="bt-tab" id="btTab-settings" onclick="Bots.switchTab('settings')">Настройки</button>
       </div>
 
       <!-- Offline overlay -->
@@ -80,14 +97,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Tabs (hidden when offline) -->
-      <div class="bt-tabs" id="btTabs">
-        <button class="bt-tab active" id="btTab-controls" onclick="Bots.switchTab('controls')">Управление</button>
-        <button class="bt-tab" id="btTab-stats" onclick="Bots.switchTab('stats')">Статистика</button>
-        <button class="bt-tab" id="btTab-log" onclick="Bots.switchTab('log')">Лог</button>
-        <button class="bt-tab" id="btTab-settings" onclick="Bots.switchTab('settings')">Настройки</button>
       </div>
 
       <!-- ── Tab panes ── -->
@@ -136,12 +145,36 @@
         <!-- SETTINGS TAB -->
         <div class="bt-pane" id="btPane-settings">
           <div class="bt-settings-wrap">
+            <!-- Avatar -->
+            <div class="bt-settings-section">
+              <div class="bt-settings-label">Фото бота</div>
+              <div class="bt-avatar-settings-row">
+                <div class="bt-avatar-preview-wrap">
+                  <div class="bt-avatar-preview" id="btSettingsAvaPreview"></div>
+                </div>
+                <div class="bt-avatar-actions">
+                  <button class="btn btn-secondary" onclick="document.getElementById('btSettingsAvaInput').click()">Изменить фото</button>
+                  <button class="btn btn-danger" id="btAvaDeleteBtn" onclick="Bots.deleteAvatar()" style="display:none">Удалить</button>
+                </div>
+                <input type="file" id="btSettingsAvaInput" accept="image/*" style="display:none" onchange="Bots._onSettingsAvaSelect(this)"/>
+              </div>
+            </div>
             <!-- Name -->
             <div class="bt-settings-section">
               <div class="bt-settings-label">Название бота</div>
               <div class="bt-settings-row">
                 <input class="bt-input" id="btSettingsName" placeholder="Имя бота"/>
                 <button class="btn btn-secondary" onclick="Bots.saveBotName()">Сохранить</button>
+              </div>
+            </div>
+
+            <!-- Group -->
+            <div class="bt-settings-section">
+              <div class="bt-settings-label">Группа</div>
+              <div class="bt-settings-row">
+                <input class="bt-input" id="btSettingsGroup" placeholder="Без группы" list="btGroupOptions" autocomplete="off"/>
+                <datalist id="btGroupOptions"></datalist>
+                <button class="btn btn-secondary" onclick="Bots.saveBotGroup()">Сохранить</button>
               </div>
             </div>
 
@@ -204,18 +237,29 @@
       </button>
     </div>
 
-    <!-- Step 1: name input -->
+    <!-- Step 1: name + avatar + group -->
     <div id="btAddStep1">
-      <div class="bt-modal-field">
-        <label class="bt-field-label">Название бота</label>
-        <input class="bt-input" id="btNewBotName" placeholder="Например: IG Parser v2" autocomplete="off"
-          onkeydown="if(event.key==='Enter')Bots.createBot()"/>
+      <div class="bt-modal-avatar-row">
+        <div class="bt-modal-ava-wrap" onclick="document.getElementById('btNewBotAvaInput').click()" title="Добавить фото">
+          <div class="bt-modal-ava" id="btNewBotAvaPreview">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" opacity="0.35"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          <div class="bt-modal-ava-hint">Фото</div>
+        </div>
+        <div style="flex:1">
+          <div class="bt-modal-field" style="margin:0 0 10px">
+            <label class="bt-field-label">Название бота</label>
+            <input class="bt-input" id="btNewBotName" placeholder="Например: IG Parser v2" autocomplete="off"
+              onkeydown="if(event.key==='Enter')Bots.createBot()"/>
+          </div>
+          <div class="bt-modal-field" style="margin:0">
+            <label class="bt-field-label">Группа</label>
+            <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off"/>
+          </div>
+        </div>
       </div>
-      <div class="bt-modal-field">
-        <label class="bt-field-label">Группа</label>
-        <input class="bt-input" id="btNewBotGroup" placeholder="Например: Instagram" autocomplete="off" list="btGroupList"/>
-        <datalist id="btGroupList"></datalist>
-      </div>
+      <input type="file" id="btNewBotAvaInput" accept="image/*" style="display:none" onchange="Bots._onAvaSelect(this)"/>
+      <div class="bt-group-chips" id="btGroupChips" style="display:none"></div>
       <div class="bt-modal-actions">
         <button class="btn btn-secondary" onclick="Bots.closeAddModal()">Отмена</button>
         <button class="btn btn-primary" onclick="Bots.createBot()">Создать</button>

@@ -5,6 +5,7 @@ from pathlib import Path
 BOTS_DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data' / 'bots'
 BOTS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 BOTS_INDEX = BOTS_DATA_DIR / 'index.json'
+print(f"  [BOTS] data dir: {BOTS_DATA_DIR}")
 
 _OWNER_ROLES = {'arcana', 'immortal'}
 
@@ -21,6 +22,35 @@ def _broadcast_bot(data):
         print(f"[BOTS WS] Broadcast error: {e}")
 
 
+# ── Push notifications on bot events ─────────────────────────────────────────
+_push_cooldown = {}      # bot_id → last error-push monotonic time
+_PUSH_ERROR_COOLDOWN = 20  # seconds between ERROR pushes per bot
+
+def _bot_recipients(bot):
+    """User ids that should be notified: owners (by role) + explicit access."""
+    try:
+        from server import load_users
+        ids = {u['id'] for u in load_users() if u.get('role') in _OWNER_ROLES}
+    except Exception:
+        ids = set()
+    ids.update(bot.get('access_ids') or [])
+    return ids
+
+def _notify_bot_users(bot, title, body):
+    """Send a web-push to everyone with access to this bot (non-blocking)."""
+    def _run():
+        try:
+            from server import send_push
+            for uid in _bot_recipients(bot):
+                try:
+                    send_push(uid, title, body, url='/')
+                except Exception as e:
+                    print(f"[BOTS PUSH] send error {uid}: {e}")
+        except Exception as e:
+            print(f"[BOTS PUSH] {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+
 # ── Persistence ──────────────────────────────────────────────────────────────
 def _load(path, default=None):
     try:
@@ -29,7 +59,11 @@ def _load(path, default=None):
     return default if default is not None else {}
 
 def _save(path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    except Exception as e:
+        print(f"[BOTS] Save error {path}: {e}")
 
 def _load_index(): return _load(BOTS_INDEX, [])
 def _save_index(d): _save(BOTS_INDEX, d)
@@ -52,6 +86,8 @@ def _bot_summary(bot):
         'badge': bot.get('badge', 0),
         'last_seen': bot.get('last_seen'),
         'queue_count': len(bot.get('command_queue', [])),
+        'avatar': bot.get('avatar', ''),
+        'layout': bot.get('layout', None),
     }
 
 def _bot_detail(bot, session):
@@ -134,6 +170,7 @@ def handle_post(handler, session, path, data=None):
             'api_key': api_key, 'api_key_hint': api_key[-6:],
             'owner_id': session['id'], 'access_ids': [],
             'command_queue': [], 'controls': None, 'stats': None,
+            'avatar': data.get('avatar', ''),
             'created_at': int(time.time()),
         }
         _save_bot(bot)
@@ -141,6 +178,23 @@ def handle_post(handler, session, path, data=None):
         index.append({'id': bot_id, 'name': name})
         _save_index(index)
         return _json(handler, 200, {'bot': _bot_summary(bot), 'api_key': api_key})
+
+    # POST /api/mod/bots/group/rename — rename a group across all its bots
+    if p.endswith('/group/rename'):
+        if session['role'] not in _OWNER_ROLES:
+            return _json(handler, 403, {'error': 'Forbidden'})
+        old = (data.get('old') or '').strip()
+        new = (data.get('new') or '').strip()
+        if not old or not new:
+            return _json(handler, 400, {'error': 'old and new required'})
+        count = 0
+        for entry in _load_index():
+            b = _load_bot(entry['id'])
+            if b and b.get('group', 'Без группы') == old:
+                b['group'] = new
+                _save_bot(b)
+                count += 1
+        return _json(handler, 200, {'ok': True, 'count': count})
 
     # Paths with bot id
     parts = p.split('/api/mod/bots/')
@@ -180,6 +234,12 @@ def handle_post(handler, session, path, data=None):
                 _save_bot(bot)
                 return _json(handler, 200, {'queued': True})
 
+        # POST /api/mod/bots/:id/layout
+        if sub == 'layout':
+            bot['layout'] = data.get('layout', [])
+            _save_bot(bot)
+            return _json(handler, 200, {'ok': True})
+
         # POST /api/mod/bots/:id/regen_key
         if sub == 'regen_key':
             if session['role'] not in _OWNER_ROLES:
@@ -208,9 +268,9 @@ def handle_post(handler, session, path, data=None):
 
 
 # ── PATCH ─────────────────────────────────────────────────────────────────────
-def handle_put(handler, session, path):
+def handle_put(handler, session, path, data=None):
     p = path.split('?')[0]
-    data = _read_json(handler)
+    if data is None: data = _read_json(handler) or {}
     if data is None: return
     parts = p.split('/api/mod/bots/')
     if len(parts) == 2:
@@ -229,6 +289,7 @@ def handle_put(handler, session, path):
         if 'group' in data: bot['group'] = data['group']
         if 'sub' in data: bot['sub'] = data['sub']
         if 'version' in data: bot['version'] = data['version']
+        if 'avatar' in data: bot['avatar'] = data['avatar']
         _save_bot(bot)
         return _json(handler, 200, {'ok': True})
     return _json(handler, 404, {'error': 'Not found'})
@@ -329,8 +390,32 @@ async def handle_bot_ws(websocket):
                                         'sub': bot.get('sub', ''), 'controls': bot.get('controls')})
 
                 elif mt == 'log':
+                    level = (msg.get('level') or 'INFO').upper()
+                    text = msg.get('msg', '')
                     _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
-                                    'level': msg.get('level', 'INFO'), 'msg': msg.get('msg', '')})
+                                    'level': level, 'msg': text})
+                    # Push on ERROR-level logs, rate-limited per bot
+                    if level == 'ERROR':
+                        now = time.monotonic()
+                        if now - _push_cooldown.get(bot_id, 0) >= _PUSH_ERROR_COOLDOWN:
+                            _push_cooldown[bot_id] = now
+                            b = _load_bot(bot_id)
+                            if b:
+                                _notify_bot_users(b, f'⚠️ {b.get("name", "Бот")}: ошибка',
+                                                  (text or 'Произошла ошибка')[:140])
+
+                elif mt == 'event':
+                    # Bot explicitly requests a push notification
+                    b = _load_bot(bot_id)
+                    if b:
+                        title = msg.get('title') or b.get('name', 'Бот')
+                        body = msg.get('body') or msg.get('msg') or ''
+                        _notify_bot_users(b, str(title)[:80], str(body)[:140])
+
+                elif mt == 'ctrl_update':
+                    # Bot pushes live value update for a single control
+                    _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
+                                    'ctrl_id': msg.get('ctrl_id', ''), 'data': msg.get('data', {})})
 
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
