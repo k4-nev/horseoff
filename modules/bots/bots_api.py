@@ -22,6 +22,35 @@ def _broadcast_bot(data):
         print(f"[BOTS WS] Broadcast error: {e}")
 
 
+# ── Push notifications on bot events ─────────────────────────────────────────
+_push_cooldown = {}      # bot_id → last error-push monotonic time
+_PUSH_ERROR_COOLDOWN = 20  # seconds between ERROR pushes per bot
+
+def _bot_recipients(bot):
+    """User ids that should be notified: owners (by role) + explicit access."""
+    try:
+        from server import load_users
+        ids = {u['id'] for u in load_users() if u.get('role') in _OWNER_ROLES}
+    except Exception:
+        ids = set()
+    ids.update(bot.get('access_ids') or [])
+    return ids
+
+def _notify_bot_users(bot, title, body):
+    """Send a web-push to everyone with access to this bot (non-blocking)."""
+    def _run():
+        try:
+            from server import send_push
+            for uid in _bot_recipients(bot):
+                try:
+                    send_push(uid, title, body, url='/')
+                except Exception as e:
+                    print(f"[BOTS PUSH] send error {uid}: {e}")
+        except Exception as e:
+            print(f"[BOTS PUSH] {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+
 # ── Persistence ──────────────────────────────────────────────────────────────
 def _load(path, default=None):
     try:
@@ -344,8 +373,27 @@ async def handle_bot_ws(websocket):
                                         'sub': bot.get('sub', ''), 'controls': bot.get('controls')})
 
                 elif mt == 'log':
+                    level = (msg.get('level') or 'INFO').upper()
+                    text = msg.get('msg', '')
                     _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
-                                    'level': msg.get('level', 'INFO'), 'msg': msg.get('msg', '')})
+                                    'level': level, 'msg': text})
+                    # Push on ERROR-level logs, rate-limited per bot
+                    if level == 'ERROR':
+                        now = time.monotonic()
+                        if now - _push_cooldown.get(bot_id, 0) >= _PUSH_ERROR_COOLDOWN:
+                            _push_cooldown[bot_id] = now
+                            b = _load_bot(bot_id)
+                            if b:
+                                _notify_bot_users(b, f'⚠️ {b.get("name", "Бот")}: ошибка',
+                                                  (text or 'Произошла ошибка')[:140])
+
+                elif mt == 'event':
+                    # Bot explicitly requests a push notification
+                    b = _load_bot(bot_id)
+                    if b:
+                        title = msg.get('title') or b.get('name', 'Бот')
+                        body = msg.get('body') or msg.get('msg') or ''
+                        _notify_bot_users(b, str(title)[:80], str(body)[:140])
 
                 elif mt == 'ctrl_update':
                     # Bot pushes live value update for a single control
