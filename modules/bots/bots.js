@@ -461,21 +461,21 @@ var Bots = {
         if (this._editMode) {
           wrap.style.position = 'relative';
           const grip = document.createElement('div');
-          grip.className = 'bt-edit-handle';
+          grip.className = 'bt-edit-handle bt-sect-handle';
           grip.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
           grip.addEventListener('pointerdown', ev => this._startDrag(ev, sect.id));
           wrap.appendChild(grip);
           const badge = document.createElement('div');
-          badge.className = 'bt-edit-size-badge';
+          badge.className = 'bt-edit-size-badge bt-sect-handle';
           badge.textContent = `${sw}×${sh}`;
           wrap.appendChild(badge);
           const rw = document.createElement('div');
-          rw.className = 'bt-resize-handle bt-rh-w';
+          rw.className = 'bt-resize-handle bt-rh-w bt-sect-handle';
           rw.innerHTML = '<svg width="6" height="14" viewBox="0 0 6 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="2" y2="18"/><line x1="5" y1="2" x2="5" y2="18"/></svg>';
           rw.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'w'));
           wrap.appendChild(rw);
           const rh = document.createElement('div');
-          rh.className = 'bt-resize-handle bt-rh-h';
+          rh.className = 'bt-resize-handle bt-rh-h bt-sect-handle';
           rh.innerHTML = '<svg width="14" height="6" viewBox="0 0 20 6" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="18" y2="2"/><line x1="2" y1="5" x2="18" y2="5"/></svg>';
           rh.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'h'));
           wrap.appendChild(rh);
@@ -582,7 +582,8 @@ var Bots = {
           const tcCtrl = this._orderedControls.find(c => c.id === tc.dataset.ctrlId);
           if (tcCtrl && tcCtrl.type === 'section') newId = tc.dataset.ctrlId;
         } else {
-          if (tc.dataset.parentSection === parentSect) newId = tc.dataset.ctrlId;
+          // Allow dropping on any card or section-wrap (cross-section move)
+          newId = tc.dataset.ctrlId;
         }
       }
       if (newId) {
@@ -632,8 +633,14 @@ var Bots = {
         } else {
           const fi = this._orderedControls.findIndex(c => c.id === ctrlId);
           const [item] = this._orderedControls.splice(fi, 1);
+          const targetCtrl = this._orderedControls.find(c => c.id === targetCtrlId);
           let ti = this._orderedControls.findIndex(c => c.id === targetCtrlId);
-          if (!targetBefore) ti++;
+          if (targetCtrl && targetCtrl.type === 'section') {
+            // Dropped on a section header — insert as first child of that section
+            ti = ti + 1;
+          } else {
+            if (!targetBefore) ti++;
+          }
           this._orderedControls.splice(Math.max(0, ti), 0, item);
         }
 
