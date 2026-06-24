@@ -93,14 +93,21 @@ def _bot_summary(bot):
 def _bot_detail(bot, session):
     from server import get_avatar_b64, load_users
     access_users = []
+    seen = set()
+    access_ids = bot.get('access_ids') or []
     for u in load_users():
-        if u['id'] in (bot.get('access_ids') or []):
+        is_owner = u.get('role') in _OWNER_ROLES
+        if (is_owner or u['id'] in access_ids) and u['id'] not in seen:
+            seen.add(u['id'])
             access_users.append({
                 'id': u['id'], 'username': u['username'],
                 'display_name': u.get('display_name', ''),
                 'role': u.get('role', ''),
-                'avatar': get_avatar_b64(u['id'])
+                'avatar': get_avatar_b64(u['id']),
+                'is_owner': is_owner,
             })
+    # Owners first, then granted users
+    access_users.sort(key=lambda x: (not x['is_owner']))
     return {
         **_bot_summary(bot),
         'api_key': bot.get('api_key', '') if session['role'] in _OWNER_ROLES else '',
@@ -256,6 +263,11 @@ def handle_post(handler, session, path, data=None):
             if uid and uid not in bot.setdefault('access_ids', []):
                 bot['access_ids'].append(uid)
                 _save_bot(bot)
+                try:
+                    from server import _ws_broadcast_to_user
+                    _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'granted'})
+                except Exception as e:
+                    print(f'[BOTS] access broadcast error: {e}')
             return _json(handler, 200, {'ok': True})
 
         # POST /api/mod/bots/:id/read — clear badge
@@ -317,6 +329,11 @@ def handle_delete(handler, session, path):
             if uid in bot.get('access_ids', []):
                 bot['access_ids'].remove(uid)
                 _save_bot(bot)
+                try:
+                    from server import _ws_broadcast_to_user
+                    _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'revoked'})
+                except Exception as e:
+                    print(f'[BOTS] access broadcast error: {e}')
             return _json(handler, 200, {'ok': True})
 
         # DELETE /api/mod/bots/:id
@@ -413,9 +430,18 @@ async def handle_bot_ws(websocket):
                         _notify_bot_users(b, str(title)[:80], str(body)[:140])
 
                 elif mt == 'ctrl_update':
-                    # Bot pushes live value update for a single control
+                    ctrl_id = msg.get('ctrl_id', '')
+                    data = msg.get('data', {})
+                    # Persist updated value into stored controls
+                    bot = _load_bot(bot_id)
+                    if bot and bot.get('controls'):
+                        for ctrl in bot['controls']:
+                            if ctrl.get('id') == ctrl_id:
+                                ctrl.update(data)
+                                break
+                        _save_bot(bot)
                     _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
-                                    'ctrl_id': msg.get('ctrl_id', ''), 'data': msg.get('data', {})})
+                                    'ctrl_id': ctrl_id, 'data': data})
 
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
@@ -436,6 +462,10 @@ async def handle_bot_ws(websocket):
             if bot:
                 bot['status'] = 'offline'
                 bot['last_seen'] = int(time.time())
+                # Reset live control values so stale data isn't shown on reconnect
+                for ctrl in (bot.get('controls') or []):
+                    for field in ('text', 'value', 'rows', 'total', 'src'):
+                        ctrl.pop(field, None)
                 _save_bot(bot)
                 _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline'})
 

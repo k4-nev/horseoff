@@ -8,7 +8,8 @@ var Bots = {
   _apiKeyVisible: false,
   _apiKeyFull: '',
   _autoScroll: true,
-  _logLines: [],
+  _botLogs: {},
+  _botControls: {},
   _logMax: 500,
   _snippetMode: 'cs',
   _testBotEnabled: false,
@@ -226,6 +227,31 @@ var Bots = {
 
     // Reset to controls tab
     this.switchTab('controls');
+
+    // Restore cached controls immediately (before API)
+    const cachedControls = this._botControls[id];
+    if (cachedControls && b.status !== 'offline') {
+      this.renderControls(cachedControls);
+    }
+
+    // Restore cached logs
+    const cachedLogs = this._botLogs[id] || [];
+    const logConsole = document.getElementById('btLogConsole');
+    if (logConsole) {
+      logConsole.innerHTML = '';
+      cachedLogs.forEach(({ ts, level, msg }) => {
+        const line = document.createElement('div');
+        line.className = 'bt-log-line';
+        line.innerHTML = `<span class="bt-log-time">${ts}</span>
+          <span class="bt-log-level ${level}">[${level}]</span>
+          <span class="bt-log-msg">${this._esc(msg)}</span>`;
+        logConsole.appendChild(line);
+      });
+      const countEl = document.getElementById('btLogCount');
+      if (countEl) countEl.textContent = cachedLogs.length + ' записей';
+      if (this._autoScroll) logConsole.scrollTop = logConsole.scrollHeight;
+    }
+
     // Load full bot data
     this._loadBotDetails(id);
     // On mobile: close sidebar drawer when bot is opened
@@ -283,7 +309,9 @@ var Bots = {
     if (idx >= 0) this._bots[idx] = Object.assign(this._bots[idx], b);
     if (this._selected !== id) return;
 
-    this.renderControls(b.controls || this._defaultControls());
+    const controls = b.controls || this._defaultControls();
+    this._botControls[id] = controls;
+    this.renderControls(controls);
     this._renderKpi(b.stats);
     this._renderSettings(b);
   },
@@ -408,7 +436,7 @@ var Bots = {
       savedLayout.forEach(l => {
         const c = byId[l.id];
         if (c) {
-          this._orderedControls.push({...c, _w: Math.min(l.w || this._defWidth(c.type), cols), _h: l.h || this._defHeight(c.type)});
+          this._orderedControls.push({...c, _w: Math.min(l.w || this._defWidth(c.type), cols), _h: l.h || this._defHeight(c.type), ...(l.manualH !== undefined ? { _manualH: l.manualH } : {})});
           delete byId[l.id];
         }
       });
@@ -435,8 +463,9 @@ var Bots = {
       if (group.section) {
         const sect = group.section;
         const sw = Math.min(sect._w || this._defWidth('section'), cols);
-        // Section height is calculated from content — no grid-row span
-        const sectionH = this._calcSectionHeight(group.children, sw);
+        const sectionH = sect._manualH !== undefined
+          ? sect._manualH
+          : this._calcSectionHeight(group.children, sw);
 
         const wrap = document.createElement('div');
         wrap.className = 'bt-section-wrap';
@@ -481,12 +510,16 @@ var Bots = {
           badge.className = 'bt-edit-size-badge bt-sect-handle';
           badge.textContent = `${sw}×`;
           wrap.appendChild(badge);
-          // Width resize only — height is auto-calculated
           const rw = document.createElement('div');
           rw.className = 'bt-resize-handle bt-rh-w bt-sect-handle';
           rw.innerHTML = '<svg width="6" height="14" viewBox="0 0 6 20" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="2" y2="18"/><line x1="5" y1="2" x2="5" y2="18"/></svg>';
           rw.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'w'));
           wrap.appendChild(rw);
+          const rh = document.createElement('div');
+          rh.className = 'bt-resize-handle bt-rh-h bt-sect-handle';
+          rh.innerHTML = '<svg width="14" height="6" viewBox="0 0 20 6" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="18" y2="2"/><line x1="2" y1="5" x2="18" y2="5"/></svg>';
+          rh.addEventListener('pointerdown', ev => this._startResize(ev, sect.id, 'h'));
+          wrap.appendChild(rh);
         }
 
         grid.appendChild(wrap);
@@ -726,6 +759,7 @@ var Bots = {
     const minW = this._minWidth(ctrl.type);
     const minH = this._minHeight(ctrl.type);
     const startX = e.clientX, startY = e.clientY;
+    const startPxH = card.clientHeight; // for section pixel-height resize
     const cellW = (grid.clientWidth - this._GAP_PX * (cols - 1)) / cols;
 
     card.classList.add('bt-resizing');
@@ -751,13 +785,20 @@ var Bots = {
                 }
             }
         } else {
-            const newH = Math.max(minH, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
-            if (newH !== ctrl._h) {
-                ctrl._h = newH;
-                // Use explicit pixel height (outer grid has no grid-auto-rows)
-                card.style.height = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
+            if (isSection) {
+                const newPxH = Math.max(60, startPxH + (ev.clientY - startY));
+                ctrl._manualH = newPxH;
+                card.style.height = `${newPxH}px`;
                 const badge = card.querySelector('.bt-edit-size-badge');
-                if (badge) badge.textContent = `${ctrl._w || startW}×${newH}`;
+                if (badge) badge.textContent = `${ctrl._w || startW}×`;
+            } else {
+                const newH = Math.max(minH, startH + Math.round((ev.clientY - startY) / (this._ROW_PX + this._GAP_PX)));
+                if (newH !== ctrl._h) {
+                    ctrl._h = newH;
+                    card.style.height = `${newH * this._ROW_PX + (newH - 1) * this._GAP_PX}px`;
+                    const badge = card.querySelector('.bt-edit-size-badge');
+                    if (badge) badge.textContent = `${ctrl._w || startW}×${newH}`;
+                }
             }
         }
     };
@@ -780,6 +821,7 @@ var Bots = {
       id: c.id,
       w: c._w || this._defWidth(c.type),
       h: c._h || this._defHeight(c.type),
+      ...(c._manualH !== undefined ? { manualH: c._manualH } : {}),
     }));
     const b = this._bots.find(x => x.id === this._selected);
     if (b) b.layout = layout;
@@ -883,6 +925,7 @@ var Bots = {
 
       case 'progress':
         wrap.className = 'bt-ctrl-card bt-ctrl--progress';
+        wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
         wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>
           <div class="bt-progress-header">
             <span style="font-size:12px;color:var(--text-dim)">${this._esc(ctrl.total || '')}</span>
@@ -926,8 +969,10 @@ var Bots = {
       case 'label':
         wrap.className = 'bt-ctrl-card bt-ctrl--label';
         wrap.id = ctrl.id ? 'btCtrlCard_' + ctrl.id : '';
-        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
-          <div class="bt-label-ctrl ${ctrl.style || ''}" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.text || ctrl.value || '')}</div>`;
+        wrap.innerHTML = `<div class="bt-label-inner">
+          ${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+          <div class="bt-label-ctrl ${ctrl.style || ''}" id="btCtrl_${ctrl.id || ''}">${this._esc(ctrl.text || ctrl.value || '')}</div>
+        </div>`;
         return wrap;
 
       case 'image':
@@ -985,12 +1030,6 @@ var Bots = {
     const el = document.getElementById('btCtrl_' + ctrlId);
     if (!el && !card) return;
 
-    // Flash animation
-    const target = card || el;
-    target.classList.remove('bt-ctrl-updated');
-    void target.offsetWidth;
-    target.classList.add('bt-ctrl-updated');
-
     // Update value depending on element type
     const tag = el ? el.tagName : '';
     if (tag === 'INPUT' && el.type === 'range') {
@@ -1005,7 +1044,7 @@ var Bots = {
       el.textContent = data.value || '';
     } else if (el && el.classList.contains('bt-label-ctrl')) {
       el.textContent = data.text || data.value || '';
-      el.className = 'bt-label-ctrl ' + (data.style || '');
+      if (data.style !== undefined) el.className = 'bt-label-ctrl ' + data.style;
     } else if (el && el.classList.contains('bt-image-ctrl')) {
       if (data.value || data.src) {
         el.innerHTML = `<img src="${this._esc(data.value || data.src)}" alt=""/>
@@ -1249,21 +1288,27 @@ var Bots = {
     if (!console_) return;
     const now = new Date();
     const ts = now.toTimeString().slice(0, 8);
-    this._logLines.push({ ts, level, msg });
-    if (this._logLines.length > this._logMax) this._logLines.shift();
+    const id = this._selected;
+    if (id) {
+      if (!this._botLogs[id]) this._botLogs[id] = [];
+      this._botLogs[id].push({ ts, level, msg });
+      if (this._botLogs[id].length > this._logMax) this._botLogs[id].shift();
+    }
     const line = document.createElement('div');
     line.className = 'bt-log-line';
     line.innerHTML = `<span class="bt-log-time">${ts}</span>
       <span class="bt-log-level ${level}">[${level}]</span>
       <span class="bt-log-msg">${this._esc(msg)}</span>`;
     console_.appendChild(line);
+    const logLen = id && this._botLogs[id] ? this._botLogs[id].length : 0;
     const countEl = document.getElementById('btLogCount');
-    if (countEl) countEl.textContent = this._logLines.length + ' записей';
+    if (countEl) countEl.textContent = logLen + ' записей';
     if (this._autoScroll) console_.scrollTop = console_.scrollHeight;
   },
 
   clearLog() {
-    this._logLines = [];
+    const id = this._selected;
+    if (id) this._botLogs[id] = [];
     const el = document.getElementById('btLogConsole');
     if (el) el.innerHTML = '';
     const countEl = document.getElementById('btLogCount');
@@ -1319,10 +1364,12 @@ var Bots = {
       <div class="bt-access-row">
         <div class="bt-access-ava">${u.avatar ? `<img src="data:image/jpeg;base64,${u.avatar}"/>` : this._esc((u.display_name || u.username || '?').charAt(0).toUpperCase())}</div>
         <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
-        <span class="bt-access-role">${this._esc(u.role || '')}</span>
-        <button class="bt-access-remove" onclick="Bots._removeAccess('${u.id}')" title="Убрать доступ">
+        <span class="role-badge ${this._esc(u.role || 'common')}">${this._esc(u.role || '')}</span>
+        ${u.is_owner
+          ? '<span class="bt-access-owner-tag" title="Владелец — доступ по роли">по роли</span>'
+          : `<button class="bt-access-remove" onclick="Bots._removeAccess('${u.id}')" title="Убрать доступ">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        </button>`}
       </div>`) .join('') : '<div style="font-size:12px;color:var(--text-dim);padding:4px 0">Доступ только у владельца</div>';
   },
 
@@ -1713,22 +1760,54 @@ End If`;
   },
 
   // ─── Access modal ────────────────────────────────────────────
+  _accessAllUsers: [],
+
   async openAccessModal() {
-    const d = await Shell.api('/api/mod/channels/users');
+    document.getElementById('btAccessModal').classList.add('active');
+    if (navigator.vibrate) navigator.vibrate(15);
+    const searchEl = document.getElementById('btAccessSearch');
+    if (searchEl) searchEl.value = '';
+
+    const d = await Shell.api('/api/users');
+    if (!Array.isArray(d)) { document.getElementById('btAccessUserList').innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">Нет доступа к списку пользователей</div>'; return; }
+    // Filter out owner-role users (they have access by default) and self
+    const meId = Shell.user && Shell.user.id;
+    this._accessAllUsers = d.filter(u => !['arcana','immortal'].includes(u.role) && u.id !== meId);
+    this._renderAccessUserList('');
+  },
+
+  _renderAccessUserList(filter) {
     const list = document.getElementById('btAccessUserList');
     if (!list) return;
     const b = this._bots.find(x => x.id === this._selected);
     const existing = b && b.access ? b.access.map(u => u.id) : [];
-    const users = d && d.users ? d.users : [];
-    list.innerHTML = users.map(u => `
-      <div class="bt-access-user-item${existing.includes(u.id) ? ' already' : ''}" onclick="Bots._grantAccess('${u.id}')">
-        <div class="bt-access-ava">${u.avatar ? `<img src="data:image/jpeg;base64,${u.avatar}"/>` : this._esc((u.display_name || u.username || '?').charAt(0).toUpperCase())}</div>
-        <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
-        <span class="bt-access-role">${this._esc(u.role || '')}</span>
-        ${existing.includes(u.id) ? '<span style="font-size:11px;color:var(--accent);margin-left:auto">уже есть</span>' : ''}
-      </div>`).join('');
-    document.getElementById('btAccessModal').classList.add('active');
-    if (navigator.vibrate) navigator.vibrate(15);
+    const q = (filter || '').toLowerCase();
+    const users = this._accessAllUsers.filter(u =>
+      !q || (u.display_name || u.username || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q)
+    );
+    if (!users.length) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px 0;text-align:center">Пользователей не найдено</div>';
+      return;
+    }
+    list.innerHTML = users.map(u => {
+      const has = existing.includes(u.id);
+      const ava = u.avatar
+        ? `<img src="data:image/jpeg;base64,${u.avatar}"/>`
+        : this._esc((u.display_name || u.username || '?').charAt(0).toUpperCase());
+      return `<div class="bt-access-user-item${has ? ' already' : ''}" onclick="Bots._grantAccess('${u.id}')">
+        <div class="bt-access-ava">${ava}</div>
+        <div>
+          <div class="bt-access-name">${this._esc(u.display_name || u.username)}</div>
+          <div style="font-size:11px;color:var(--text-dim)">${this._esc(u.username)}</div>
+        </div>
+        <span class="role-badge ${this._esc(u.role || 'common')}" style="margin-left:auto">${this._esc(u.role || '')}</span>
+        ${has ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+      </div>`;
+    }).join('');
+  },
+
+  _filterAccessList(val) {
+    this._renderAccessUserList(val);
   },
 
   closeAccessModal() {
@@ -1742,8 +1821,11 @@ End If`;
       method: 'POST',
       body: JSON.stringify({ user_id: userId })
     });
-    this.closeAccessModal();
     await this._loadBotDetails(this._selected);
+    // Refresh modal list to show checkmark
+    const b = this._bots.find(x => x.id === this._selected);
+    if (b && b.access) this._renderAccessUserList(document.getElementById('btAccessSearch')?.value || '');
+    Shell.toast('Доступ выдан');
   },
 
   // ─── Test bot ────────────────────────────────────────────────
@@ -1783,6 +1865,20 @@ End If`;
   },
 
   // ─── WebSocket messages from Shell ────────────────────────────
+  _refreshBotTopbar(b) {
+    const dot = document.getElementById('btTopDot');
+    if (dot) dot.className = 'bt-bot-dot ' + b.status;
+    const verEl = document.getElementById('btTopVersion');
+    if (verEl) { verEl.textContent = b.version ? 'v' + b.version : ''; verEl.style.display = b.version ? '' : 'none'; }
+    const pill = document.getElementById('btStatusPill');
+    const labels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
+    if (pill) { pill.className = 'bt-status-pill ' + b.status; pill.textContent = labels[b.status] || b.status; }
+    const lastSeenEl = document.getElementById('btLastSeen');
+    if (lastSeenEl) lastSeenEl.textContent = b.status === 'offline' && b.last_seen ? 'был ' + this._relTime(b.last_seen) : '';
+    if (b.status === 'offline') this._showOfflineState(b);
+    else this._showOnlineState(b);
+  },
+
   onWS(data) {
     if (data.type === 'bot_update') {
       const { bot_id, status, controls, version, sub } = data;
@@ -1791,20 +1887,25 @@ End If`;
         if (status !== undefined) this._bots[idx].status = status;
         if (version !== undefined) this._bots[idx].version = version;
         if (sub !== undefined) this._bots[idx].sub = sub;
-        // Update dot in list
+        // Update dot/sub in list row
         const row = document.querySelector(`.bt-bot-row[data-bot-id="${bot_id}"]`);
         if (row) {
           const dot = row.querySelector('.bt-dot');
+          const avaDot = row.querySelector('.bt-ava-dot');
           if (dot) dot.className = 'bt-dot ' + (status || 'offline');
+          if (avaDot) avaDot.className = 'bt-ava-dot ' + (status || 'offline');
           row.classList.toggle('offline-bot', status === 'offline');
-        }
-        // If this bot is open, refresh workspace
-        if (this._selected === bot_id) {
-          this._openBot(bot_id);
-          if (controls && status === 'online') {
-            this._bots[idx].controls = controls;
-            this.renderControls(controls);
+          if (sub !== undefined) {
+            const subEl = row.querySelector('.bt-bot-row-sub');
+            if (subEl) subEl.textContent = sub;
           }
+        }
+        // Update controls cache
+        if (controls) this._botControls[bot_id] = controls;
+        // If this bot is open, update topbar inline without resetting tab
+        if (this._selected === bot_id) {
+          this._refreshBotTopbar(this._bots[idx]);
+          if (controls && status === 'online') this.renderControls(controls);
         }
       }
     } else if (data.type === 'bot_log') {
@@ -1812,9 +1913,18 @@ End If`;
         this.addLogLine(data.level || 'INFO', data.msg || '');
       }
     } else if (data.type === 'ctrl_update') {
+      // Update controls cache
+      const ctrls = this._botControls[data.bot_id];
+      if (ctrls) {
+        const ctrl = ctrls.find(c => c.id === data.ctrl_id);
+        if (ctrl) Object.assign(ctrl, data.data || {});
+      }
       if (this._selected === data.bot_id) {
         this._updateCtrl(data.ctrl_id, data.data || {});
       }
+    } else if (data.type === 'bot_access_update') {
+      // Access granted/revoked — reload bot list so bot appears/disappears for this user
+      this.loadBots();
     }
   },
 
