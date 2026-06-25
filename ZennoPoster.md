@@ -279,7 +279,10 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
                 string q   = p.Length > 0 ? p[0] : "";
                 string art = p.Length > 1 ? p[1] : "";
                 // 5 колонок: q;art;status;total;done — статус/кол-во/выполнено заполнит проект
-                tbl.AddRow(q + ";" + art + ";;;");
+                int rowIdx = tbl.RowCount;
+                tbl.AddRow();
+                tbl.SetCell(0, rowIdx, q);
+                tbl.SetCell(1, rowIdx, art);
             }
         }
     } catch {}
@@ -295,8 +298,19 @@ try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
 bool enabled = false;
 try {
-    // GetTaskInfo принимает имя задачи (в некоторых версиях — Guid).
-    string xml = ZennoPoster.GetTaskInfo(taskName);
+    // В ZP 7.8.12.0 GetTaskInfo принимает Guid, а не имя. Ищем Guid по имени через TasksList.
+    string tasksList = ZennoPoster.TasksList;
+    var mGuid = System.Text.RegularExpressions.Regex.Match(
+        tasksList ?? "",
+        "<Name>" + System.Text.RegularExpressions.Regex.Escape(taskName) + "</Name>.*?<Id>([^<]+)</Id>",
+        System.Text.RegularExpressions.RegexOptions.Singleline);
+    string xml = null;
+    if (mGuid.Success) {
+        try { xml = ZennoPoster.GetTaskInfo(new System.Guid(mGuid.Groups[1].Value)); } catch {}
+    }
+    if (xml == null) {
+        try { xml = ZennoPoster.GetTaskInfo(taskName); } catch {}
+    }
     var me = System.Text.RegularExpressions.Regex.Match(xml ?? "",
         "<IsEnable>\\s*(true|false)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     if (me.Success) enabled = me.Groups[1].Value.ToLower() == "true";

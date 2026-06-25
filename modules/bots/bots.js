@@ -1265,7 +1265,7 @@ var Bots = {
           </button>
         </div>
         <div class="bt-confirm-sub">Каждая строка = одна запись. Столбцы вставляются скопом (как из Excel). Строки сопоставляются по порядку.</div>
-        <div class="bt-edit-cols">${colsHtml}</div>
+        <div class="bt-edit-cols"><div class="bt-edit-linenum" id="btEditLineNum"></div>${colsHtml}</div>
         <div class="bt-confirm-actions">
           <button class="btn btn-secondary" id="btEditCancel">Отмена</button>
           <button class="btn btn-primary" id="btEditSave">Сохранить</button>
@@ -1279,6 +1279,18 @@ var Bots = {
     overlay.querySelector('#btEditSave').onclick = () => {
       this._tableSave(ctrlId, overlay, editCols.map(c => c.key));
     };
+    // Row numbers: sync with first textarea scroll/input
+    const lineNumEl = overlay.querySelector('#btEditLineNum');
+    const areas = Array.from(overlay.querySelectorAll('.bt-edit-area'));
+    const updateNums = () => {
+      const n = Math.max(...areas.map(a => a.value.split('\n').length), 1);
+      lineNumEl.innerHTML = Array.from({length: n}, (_, i) => `<div>${i + 1}</div>`).join('');
+    };
+    areas.forEach(a => {
+      a.addEventListener('input', updateNums);
+      a.addEventListener('scroll', () => { lineNumEl.scrollTop = a.scrollTop; });
+    });
+    updateNums();
     if (navigator.vibrate) navigator.vibrate(12);
   },
 
