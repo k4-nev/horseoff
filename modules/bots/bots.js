@@ -1402,8 +1402,9 @@ var Bots = {
     // Labels
     ctx.fillStyle = textColor; ctx.font = '10px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
+    const step = data.length <= 10 ? 1 : Math.ceil(data.length / 6);
     data.forEach((d, i) => {
-      if (i % Math.ceil(data.length / 6) === 0) {
+      if (i % step === 0) {
         ctx.fillText(d.label || '', pad.l + (i / (data.length - 1 || 1)) * iW, H - 4);
       }
     });
@@ -1418,12 +1419,12 @@ var Bots = {
     ctx.clearRect(0, 0, W, H);
     if (!data.length) { this._drawChartEmpty(ctx, W, H); return; }
     const max = Math.max(...data.map(d => d.v || 0), 1);
-    const pad = { l: 10, r: 10, t: 10, b: 24 };
+    const rotate = data.length > 5;
+    const pad = { l: 10, r: 10, t: 10, b: rotate ? 80 : 24 };
     const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
     const barW = Math.max(6, iW / data.length - 4);
     const isDark = !document.body.classList.contains('theme-light');
     const textColor = isDark ? '#4a5568' : '#9aa3b0';
-    ctx.fillStyle = textColor; ctx.font = '10px JetBrains Mono, monospace'; ctx.textAlign = 'center';
     data.forEach((d, i) => {
       const x = pad.l + (i + 0.5) * (iW / data.length);
       const barH = ((d.v || 0) / max) * iH;
@@ -1439,7 +1440,18 @@ var Bots = {
       ctx.arcTo(x - barW / 2, y, x - barW / 2 + r, y, r);
       ctx.closePath(); ctx.fill();
       ctx.fillStyle = textColor;
-      ctx.fillText(d.label || '', x, H - 4);
+      ctx.font = '10px JetBrains Mono, monospace';
+      if (rotate) {
+        ctx.save();
+        ctx.translate(x, pad.t + iH + 8);
+        ctx.rotate(-Math.PI / 3);
+        ctx.textAlign = 'right';
+        ctx.fillText(d.label || '', 0, 0);
+        ctx.restore();
+      } else {
+        ctx.textAlign = 'center';
+        ctx.fillText(d.label || '', x, H - 4);
+      }
     });
   },
 
@@ -2100,6 +2112,12 @@ End If`;
       }
       if (this._selected === data.bot_id) {
         this._updateCtrl(data.ctrl_id, data.data || {});
+      }
+    } else if (data.type === 'bot_stats') {
+      if (this._selected === data.bot_id) {
+        const b = this._bots.find(b => b.id === data.bot_id);
+        if (b) b.stats = data.stats;
+        this._renderKpi(data.stats);
       }
     } else if (data.type === 'bot_access_update') {
       // Access granted/revoked — reload bot list so bot appears/disappears for this user

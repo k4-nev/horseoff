@@ -462,8 +462,10 @@ async def handle_bot_ws(websocket):
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
                     if bot:
-                        bot['stats'] = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
+                        stats = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
+                        bot['stats'] = stats
                         _save_bot(bot)
+                        _broadcast_bot({'type': 'bot_stats', 'bot_id': bot_id, 'stats': stats})
 
             except (json.JSONDecodeError, KeyError):
                 pass

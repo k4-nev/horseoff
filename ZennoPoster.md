@@ -147,13 +147,19 @@ C# в фоновом recv-цикле кладёт `action` в `HoBridge.PendingC
 
 ### Свой код проекта (Project Settings → «Свой код»)
 
+Переменные проекта:
+- `horseoff_sklik_api` — API-ключ
+- `horseoff_sklik_task` — имя задачи ZP
+- `horseoff_stats_dir` — папка для статистики, например `C:\Users\...\K4_WB\System\logs`
+
 ```csharp
 public static class HoBridge {
     public static System.Net.WebSockets.ClientWebSocket Ws;
     public static System.Threading.Tasks.Task Recv;
-    public static string PendingCmd  = "";  // команда из horseoff: start|pause|stop|clear_table|load_table
-    public static string PendingData = "";  // base64-данные для load_table
-    public static string CmdState    = "";  // последняя выполненная команда (start|pause|stop)
+    public static string PendingCmd  = "";
+    public static string PendingData = "";
+    public static string CmdState    = "";
+    public static string StatsDir    = "";
 
     public static void Send(string msg) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(msg);
@@ -173,20 +179,80 @@ public static class HoBridge {
         var m = System.Text.RegularExpressions.Regex.Match(s, "\\d+");
         return m.Success ? int.Parse(m.Value) : 0;
     }
+
+    // Читает файл статистики за конкретный день
+    public static System.Collections.Generic.List<string[]> ReadDayStat(
+            string date, out int done, out int ic) {
+        done = 0; ic = 0;
+        var fi = new System.Collections.Generic.List<string[]>();
+        if (string.IsNullOrEmpty(StatsDir)) return fi;
+        try {
+            string f = System.IO.Path.Combine(StatsDir, "statistics_sklik_" + date + ".json");
+            if (!System.IO.File.Exists(f)) return fi;
+            string raw = System.IO.File.ReadAllText(f, System.Text.Encoding.UTF8);
+            var mD = System.Text.RegularExpressions.Regex.Match(raw, "\"done\":(\\d+)");
+            var mI = System.Text.RegularExpressions.Regex.Match(raw, "\"ic\":(\\d+)");
+            if (mD.Success) done = int.Parse(mD.Groups[1].Value);
+            if (mI.Success) ic   = int.Parse(mI.Groups[1].Value);
+            var ms = System.Text.RegularExpressions.Regex.Matches(raw,
+                "\\{\"q\":\"([^\"]*)\",\"art\":\"([^\"]*)\",\"done\":(\\d+)\\}");
+            foreach (System.Text.RegularExpressions.Match m in ms)
+                fi.Add(new string[] { m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value });
+        } catch {}
+        return fi;
+    }
+
+    // Записывает статистику сегодняшнего дня и удаляет файлы старше 7 дней
+    public static void WriteDayStat(string date, int done,
+            System.Collections.Generic.List<string[]> fi) {
+        if (string.IsNullOrEmpty(StatsDir)) return;
+        try {
+            if (!System.IO.Directory.Exists(StatsDir))
+                System.IO.Directory.CreateDirectory(StatsDir);
+            var sb = new System.Text.StringBuilder();
+            sb.Append("{\"done\":").Append(done)
+              .Append(",\"ic\":").Append(fi.Count)
+              .Append(",\"fi\":[");
+            for (int i = 0; i < fi.Count; i++) {
+                if (i > 0) sb.Append(",");
+                sb.Append("{\"q\":\"").Append(Esc(fi[i][0]))
+                  .Append("\",\"art\":\"").Append(Esc(fi[i][1]))
+                  .Append("\",\"done\":").Append(fi[i][2]).Append("}");
+            }
+            sb.Append("]}");
+            System.IO.File.WriteAllText(
+                System.IO.Path.Combine(StatsDir, "statistics_sklik_" + date + ".json"),
+                sb.ToString(), System.Text.Encoding.UTF8);
+            // Удаляем файлы старше 7 дней
+            string cutoff = System.DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd");
+            try {
+                foreach (string ff in System.IO.Directory.GetFiles(StatsDir, "statistics_sklik_*.json")) {
+                    string fn = System.IO.Path.GetFileNameWithoutExtension(ff);
+                    string prefix = "statistics_sklik_";
+                    if (fn.Length == prefix.Length + 10) {
+                        string fdate = fn.Substring(prefix.Length);
+                        if (string.Compare(fdate, cutoff) < 0)
+                            try { System.IO.File.Delete(ff); } catch {}
+                    }
+                }
+            } catch {}
+        } catch {}
+    }
 }
 ```
 
 ### Блок 1 — подключение + манифест (ОДИН раз в начале)
 
 ```csharp
-string apiKey  = project.Variables["horseoff_sklik_api"].Value;
-string wsUrl   = "wss://ТВОЙ_ДОМЕН/ws/bots";
+string apiKey   = project.Variables["horseoff_sklik_api"].Value;
+string wsUrl    = "wss://ТВОЙ_ДОМЕН/ws/bots";
 string taskName = project.Variables["horseoff_sklik_task"].Value;
 
 // Сброс состояния при новом подключении
 HoBridge.PendingCmd  = "";
 HoBridge.PendingData = "";
 HoBridge.CmdState    = "";
+HoBridge.StatsDir    = project.Variables["horseoff_stats_dir"].Value;
 
 HoBridge.Ws = new System.Net.WebSockets.ClientWebSocket();
 HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
@@ -267,7 +333,6 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
             project.Tables[tableName].Clear();
         }
         else if (cmd == "load_table") {
-            // PendingData — base64( "запрос\tартикул\nзапрос\tартикул\n..." )
             string decoded = System.Text.Encoding.UTF8.GetString(
                 System.Convert.FromBase64String(HoBridge.PendingData));
             HoBridge.PendingData = "";
@@ -278,9 +343,6 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
                 var p = line.Split('\t');
                 string q   = p.Length > 0 ? p[0] : "";
                 string art = p.Length > 1 ? p[1] : "";
-                // 5 колонок: q;art;status;total;done — статус/кол-во/выполнено заполнит проект.
-                // AddRow(string) кладёт строку в колонку 0 (разделитель ; в этой таблице
-                // не дробит) → q пишем через AddRow, art точечно через SetCell.
                 int rowIdx = tbl.RowCount;
                 tbl.AddRow(q);
                 tbl.SetCell(1, rowIdx, art);
@@ -289,16 +351,10 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
     } catch {}
 }
 
-// ── Получение состояния от ZennoPoster ────────────────────────
-// Два прямых системных сигнала:
-//   threads — живое число потоков ПРЯМО СЕЙЧАС (GetThreadsCount)
-//   enabled — включена ли задача в ZP (IsEnable из GetTaskInfo).
-//             Запущенный проект, ждущий задачу при 0 потоков → enabled=true.
+// ── Состояние ZennoPoster ──────────────────────────────────────
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
-// Системный сигнал «задача включена» (best-effort — в ZP 7.8.12.0 GetTaskInfo
-// может не отдать IsEnable). Если null — опираемся на CmdState (намерение).
 bool? sysEnabled = null;
 try {
     string xml = ZennoPoster.GetTaskInfo(taskName);
@@ -307,43 +363,34 @@ try {
     if (me.Success) sysEnabled = me.Groups[1].Value.ToLower() == "true";
 } catch {}
 
-// Итог «проект работает»: системный сигнал, иначе — намерение пользователя
-// (после Старта CmdState=="start", даже при 0 потоков → проект ждёт задачу).
-bool enabled = sysEnabled.HasValue
-    ? sysEnabled.Value
-    : (HoBridge.CmdState == "start");
+bool enabled = sysEnabled.HasValue ? sysEnabled.Value : (HoBridge.CmdState == "start");
 
-// ── Определение состояния проекта ─────────────────────────────
-// enabled  → проект включён/работает (даже если ждёт задачу при 0 потоков).
-// !enabled → проект остановлен; «пауза vs стоп» ZP не различает → берём CmdState.
 string stateText; string dotClass;
 string[] disabledBtns;
-bool locked;  // true = таблицу редактировать НЕЛЬЗЯ (проект активен или есть потоки)
+bool locked;
 if (enabled) {
     if (threads >= 2) { stateText = threads + " потоков активно"; dotClass = "online"; }
     else              { stateText = "Ожидает задачу";            dotClass = "idle";   }
-    disabledBtns = new string[] {"start"};            // доступны Пауза и Стоп
+    disabledBtns = new string[] {"start"};
     locked = true;
 } else if (threads >= 2) {
-    // выключен, но потоки ещё доганивают (после Паузы/Стопа)
     stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
-    disabledBtns = new string[] {"pause"};            // доступны Старт и Стоп
+    disabledBtns = new string[] {"pause"};
     locked = true;
 } else if (HoBridge.CmdState == "pause") {
     stateText = "На паузе"; dotClass = "idle";
-    disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
+    disabledBtns = new string[] {"pause", "stop"};
     locked = false;
 } else if (HoBridge.CmdState == "stop") {
     stateText = "Склик остановлен"; dotClass = "offline";
-    disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
+    disabledBtns = new string[] {"pause", "stop"};
     locked = false;
 } else {
     stateText = "Склик остановлен"; dotClass = "offline";
-    disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
+    disabledBtns = new string[] {"pause", "stop"};
     locked = false;
 }
 
-// Построить JSON-массив заблокированных кнопок
 var dis = new System.Text.StringBuilder("[");
 for (int i = 0; i < disabledBtns.Length; i++) {
     if (i > 0) dis.Append(",");
@@ -351,20 +398,32 @@ for (int i = 0; i < disabledBtns.Length; i++) {
 }
 dis.Append("]");
 
-// ── Таблица ────────────────────────────────────────────────────
+// ── Таблица + прогресс ─────────────────────────────────────────
+// Если у строки статус "Артикул пропал из выдачи" — товар скликан:
+// за максимум берём done (уже выполненные), а не total (пороговое значение).
 var rows = new System.Text.StringBuilder("[");
 var t = project.Tables[tableName];
 int rc = t.RowCount;
 int sumDone = 0, sumTotal = 0;
+var finishedItems = new System.Collections.Generic.List<string[]>();
 for (int i = 0; i < rc; i++) {
+    string rowQ      = t.GetCell(0, i) ?? "";
+    string rowArt    = t.GetCell(1, i) ?? "";
+    string rowStatus = t.GetCell(2, i) ?? "";
     int total = HoBridge.Num(t.GetCell(3, i));
     int done  = HoBridge.Num(t.GetCell(4, i));
-    sumTotal += total; sumDone += done;
+    bool isPropan = rowStatus.IndexOf("пропал из выдачи",
+        System.StringComparison.OrdinalIgnoreCase) >= 0;
+    // Скликанный товар: его максимум = done (больше не вырастет)
+    sumTotal += isPropan ? done : total;
+    sumDone  += done;
+    if (isPropan && done > 0)
+        finishedItems.Add(new string[] { rowQ, rowArt, done.ToString() });
     if (i > 0) rows.Append(",");
     rows.Append("{")
-        .Append("\"q\":\"").Append(HoBridge.Esc(t.GetCell(0, i))).Append("\",")
-        .Append("\"art\":\"").Append(HoBridge.Esc(t.GetCell(1, i))).Append("\",")
-        .Append("\"status\":\"").Append(HoBridge.Esc(t.GetCell(2, i))).Append("\",")
+        .Append("\"q\":\"").Append(HoBridge.Esc(rowQ)).Append("\",")
+        .Append("\"art\":\"").Append(HoBridge.Esc(rowArt)).Append("\",")
+        .Append("\"status\":\"").Append(HoBridge.Esc(rowStatus)).Append("\",")
         .Append("\"total\":\"").Append(HoBridge.Esc(t.GetCell(3, i))).Append("\",")
         .Append("\"done\":\"").Append(HoBridge.Esc(t.GetCell(4, i))).Append("\"")
         .Append("}");
@@ -372,8 +431,93 @@ for (int i = 0; i < rc; i++) {
 rows.Append("]");
 int pct = sumTotal > 0 ? (int)(sumDone * 100L / sumTotal) : 0;
 
-// ── Отправка обновлений ────────────────────────────────────────
-// __status__ — спецназначение: точка + подпись в шапке бота + блокировка таблицы
+// ── Статистика (запись в файл + отправка) ─────────────────────
+try {
+    string today = System.DateTime.Now.ToString("yyyy-MM-dd");
+    string yesterday = System.DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
+    // Запись сегодняшних данных
+    HoBridge.WriteDayStat(today, sumDone, finishedItems);
+
+    // Сбор данных за 7 дней (от старого к новому)
+    var wDates = new System.Collections.Generic.List<string>();
+    var wDones = new System.Collections.Generic.List<int>();
+    var wFis   = new System.Collections.Generic.List<System.Collections.Generic.List<string[]>>();
+    for (int d = 6; d >= 0; d--) {
+        string dt = System.DateTime.Now.AddDays(-d).ToString("yyyy-MM-dd");
+        int dd = 0, dic = 0;
+        var fi = HoBridge.ReadDayStat(dt, out dd, out dic);
+        if (dd == 0 && fi.Count == 0 && dt != today) continue; // пропуск если нет данных
+        wDates.Add(dt);
+        wDones.Add(dd);
+        wFis.Add(fi);
+    }
+
+    // Вчерашние данные для дельт
+    int prevDone = 0; int prevIc = 0;
+    if (!string.IsNullOrEmpty(yesterday)) {
+        for (int i = 0; i < wDates.Count; i++) {
+            if (wDates[i] == yesterday) { prevDone = wDones[i]; prevIc = wFis[i].Count; break; }
+        }
+    }
+    int todayDone = sumDone;
+    int todayIc   = finishedItems.Count;
+    int deltaDone  = todayDone - prevDone;
+    int deltaItems = todayIc   - prevIc;
+
+    // Уникальные товары за всю неделю
+    var seenWeek = new System.Collections.Generic.Dictionary<string, int>();
+    for (int i = 0; i < wFis.Count; i++) {
+        foreach (string[] fi in wFis[i]) {
+            string key = fi[0] + "\x01" + fi[1];
+            int dv = 0; int.TryParse(fi[2], out dv);
+            if (!seenWeek.ContainsKey(key) || seenWeek[key] < dv) seenWeek[key] = dv;
+        }
+    }
+    int weekTotalItems = seenWeek.Count;
+
+    // KPI
+    string[] ruDow = new string[] {"вс","пн","вт","ср","чт","пт","сб"};
+    var kpi = new System.Text.StringBuilder("[");
+    kpi.Append("{\"label\":\"Скликов за неделю\",\"value\":\"").Append(todayDone)
+       .Append("\",\"delta\":\"").Append(deltaDone >= 0 ? "+" : "").Append(deltaDone)
+       .Append("\",\"trend\":\"").Append(deltaDone >= 0 ? "up" : "down").Append("\"},");
+    kpi.Append("{\"label\":\"Товаров скликано сегодня\",\"value\":\"").Append(todayIc)
+       .Append("\",\"delta\":\"").Append(deltaItems >= 0 ? "+" : "").Append(deltaItems)
+       .Append("\",\"trend\":\"").Append(deltaItems >= 0 ? "up" : "down").Append("\"},");
+    kpi.Append("{\"label\":\"Товаров за неделю\",\"value\":\"").Append(weekTotalItems).Append("\"}]");
+
+    // Дневной график (hourly = по дням недели)
+    var hourly = new System.Text.StringBuilder("[");
+    bool fh = true;
+    for (int i = 0; i < wDates.Count; i++) {
+        System.DateTime dtp = System.DateTime.Parse(wDates[i]);
+        string lbl = ruDow[(int)dtp.DayOfWeek] + " " + dtp.ToString("dd.MM");
+        if (!fh) hourly.Append(","); fh = false;
+        hourly.Append("{\"label\":\"").Append(lbl).Append("\",\"v\":").Append(wDones[i]).Append("}");
+    }
+    hourly.Append("]");
+
+    // Топ-10 (daily = топ товаров)
+    var topList = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string,int>>();
+    foreach (var kv in seenWeek)
+        topList.Add(new System.Collections.Generic.KeyValuePair<string,int>(kv.Key, kv.Value));
+    topList.Sort((a2, b2) => b2.Value.CompareTo(a2.Value));
+    if (topList.Count > 10) topList.RemoveRange(10, topList.Count - 10);
+    var daily = new System.Text.StringBuilder("[");
+    for (int i = 0; i < topList.Count; i++) {
+        string[] parts = topList[i].Key.Split('\x01');
+        string q2 = parts.Length > 0 ? parts[0] : "";
+        string lbl2 = q2.Length > 12 ? q2.Substring(0, 12) : q2;
+        if (i > 0) daily.Append(",");
+        daily.Append("{\"label\":\"").Append(HoBridge.Esc(lbl2))
+             .Append("\",\"v\":").Append(topList[i].Value).Append("}");
+    }
+    daily.Append("]");
+
+    HoBridge.Send("{\"type\":\"stats\",\"kpi\":" + kpi + ",\"hourly\":" + hourly + ",\"daily\":" + daily + "}");
+} catch {}
+
+// ── Отправка обновлений контролов ─────────────────────────────
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"__status__\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"dot\":\"" + dotClass + "\",\"lock\":" + (locked ? "true" : "false") + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"ctrl\",\"data\":{\"disabled\":" + dis.ToString() + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"tasks\",\"data\":{\"columns\":" + cols + ",\"rows\":" + rows.ToString() + "}}");
