@@ -88,6 +88,8 @@ def _bot_summary(bot):
         'queue_count': len(bot.get('command_queue', [])),
         'avatar': bot.get('avatar', ''),
         'layout': bot.get('layout', None),
+        'status_text': bot.get('status_text', ''),
+        'status_dot': bot.get('status_dot', ''),
     }
 
 def _bot_detail(bot, session):
@@ -432,16 +434,27 @@ async def handle_bot_ws(websocket):
                 elif mt == 'ctrl_update':
                     ctrl_id = msg.get('ctrl_id', '')
                     data = msg.get('data', {})
-                    # Persist updated value into stored controls
-                    bot = _load_bot(bot_id)
-                    if bot and bot.get('controls'):
-                        for ctrl in bot['controls']:
-                            if ctrl.get('id') == ctrl_id:
-                                ctrl.update(data)
-                                break
-                        _save_bot(bot)
-                    _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
-                                    'ctrl_id': ctrl_id, 'data': data})
+                    if ctrl_id == '__status__':
+                        # Bot live status — store and broadcast as bot_update
+                        bot = _load_bot(bot_id)
+                        if bot:
+                            bot['status_text'] = data.get('text', '')
+                            bot['status_dot']  = data.get('dot', 'online')
+                            _save_bot(bot)
+                        _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id,
+                                        'status_text': data.get('text', ''),
+                                        'status_dot':  data.get('dot', 'online')})
+                    else:
+                        # Persist updated value into stored controls
+                        bot = _load_bot(bot_id)
+                        if bot and bot.get('controls'):
+                            for ctrl in bot['controls']:
+                                if ctrl.get('id') == ctrl_id:
+                                    ctrl.update(data)
+                                    break
+                            _save_bot(bot)
+                        _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
+                                        'ctrl_id': ctrl_id, 'data': data})
 
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
@@ -462,12 +475,15 @@ async def handle_bot_ws(websocket):
             if bot:
                 bot['status'] = 'offline'
                 bot['last_seen'] = int(time.time())
+                bot['status_text'] = ''
+                bot['status_dot'] = ''
                 # Reset live control values so stale data isn't shown on reconnect
                 for ctrl in (bot.get('controls') or []):
                     for field in ('text', 'value', 'rows', 'total', 'src'):
                         ctrl.pop(field, None)
                 _save_bot(bot)
-                _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline'})
+                _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline',
+                                'status_text': '', 'status_dot': ''})
 
 
 # ── Registration ──────────────────────────────────────────────────────────────

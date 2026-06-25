@@ -180,14 +180,13 @@ HoBridge.Send("{\"type\":\"auth\",\"api_key\":\"" + HoBridge.Esc(apiKey) + "\"}"
 string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"label\":\"Артикул\"},{\"key\":\"status\",\"label\":\"Статус\"},{\"key\":\"total\",\"label\":\"Кол-во\"},{\"key\":\"done\",\"label\":\"Выполнено\"}]";
 HoBridge.Send("{\"type\":\"manifest\",\"version\":\"1.0\",\"sub\":\"Склик конкурентов\",\"controls\":["
     + "{\"type\":\"section\",\"label\":\"Управление\"},"
-    + "{\"type\":\"label\",\"id\":\"state\",\"label\":\"Статус\",\"text\":\"Ожидает задачу\",\"style\":\"warn\"},"
     + "{\"type\":\"buttons\",\"id\":\"ctrl\",\"buttons\":["
     +   "{\"label\":\"Запустить\",\"action\":\"start\",\"style\":\"primary\"},"
     +   "{\"label\":\"Пауза\",\"action\":\"pause\",\"style\":\"secondary\"},"
     +   "{\"label\":\"Стоп\",\"action\":\"stop\",\"style\":\"danger\"}"
     + "]},"
     + "{\"type\":\"section\",\"label\":\"Состояние\"},"
-    + "{\"type\":\"label\",\"id\":\"threads\",\"label\":\"Активных потоков\",\"text\":\"0\",\"style\":\"accent\"},"
+    + "{\"type\":\"stat\",\"id\":\"threads\",\"label\":\"Активных потоков\",\"value\":\"0\"},"
     + "{\"type\":\"progress\",\"id\":\"progress\",\"label\":\"Общий прогресс\",\"value\":0,\"total\":\"0 из 0\"},"
     + "{\"type\":\"section\",\"label\":\"Задания\"},"
     + "{\"type\":\"table\",\"id\":\"tasks\",\"label\":\"Процесс склика\",\"columns\":" + cols + ",\"rows\":[]}"
@@ -241,20 +240,26 @@ int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
 // ── Определение состояния проекта ─────────────────────────────
-string stateText; string stateStyle;
+// Логика: CmdState = последняя команда пользователя.
+// Если start — проект запущен, даже если потоков 0 (ожидает задачу).
+// Кнопки блокируются по состоянию проекта, не по числу потоков.
+string stateText; string dotClass;
 string[] disabledBtns;
-if (HoBridge.CmdState == "stop" && threads == 0) {
-    stateText = "Склик остановлен"; stateStyle = "error";
+if (HoBridge.CmdState == "stop") {
+    stateText = "Склик остановлен"; dotClass = "offline";
     disabledBtns = new string[] {"pause", "stop"};
-} else if (HoBridge.CmdState == "pause" && threads > 0) {
-    stateText = "На паузе"; stateStyle = "warn";
-    disabledBtns = new string[] {"pause"};
-} else if (threads > 0) {
-    stateText = threads + " потоков активно"; stateStyle = "accent";
-    disabledBtns = new string[] {"start"};
+} else if (HoBridge.CmdState == "pause") {
+    stateText = threads > 0 ? "Завершает потоки..." : "На паузе"; dotClass = "idle";
+    disabledBtns = new string[] {"pause"}; // можно Старт или Стоп
+} else if (HoBridge.CmdState == "start") {
+    stateText = threads > 0 ? threads + " потоков активно" : "Ожидает задачу";
+    dotClass = threads > 0 ? "online" : "idle";
+    disabledBtns = new string[] {"start"}; // проект запущен — Пауза и Стоп всегда доступны
 } else {
-    stateText = "Ожидает задачу"; stateStyle = "warn";
-    disabledBtns = new string[] {"pause", "stop"};
+    // Начальное состояние: неизвестно — определяем по потокам
+    stateText = threads > 0 ? threads + " потоков активно" : "Ожидает задачу";
+    dotClass = threads > 0 ? "online" : "idle";
+    disabledBtns = threads > 0 ? new string[] {"start"} : new string[] {"pause", "stop"};
 }
 
 // Построить JSON-массив заблокированных кнопок
@@ -287,10 +292,11 @@ rows.Append("]");
 int pct = sumTotal > 0 ? (int)(sumDone * 100L / sumTotal) : 0;
 
 // ── Отправка обновлений ────────────────────────────────────────
-HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"state\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"style\":\"" + stateStyle + "\"}}");
+// __status__ — спецназначение: обновляет точку и подпись в списке ботов
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"__status__\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"dot\":\"" + dotClass + "\"}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"ctrl\",\"data\":{\"disabled\":" + dis.ToString() + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"tasks\",\"data\":{\"columns\":" + cols + ",\"rows\":" + rows.ToString() + "}}");
-HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"text\":\"" + threads + "\"}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"value\":" + threads + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"progress\",\"data\":{\"value\":" + pct + ",\"total\":\"" + sumDone + " из " + sumTotal + "\"}}");
 HoBridge.Send("{\"type\":\"ping\"}");
 ```

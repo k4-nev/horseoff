@@ -145,15 +145,17 @@ var Bots = {
     const badge = b.badge ? `<div class="bt-badge">${b.badge}</div>` : '';
     const activeCls = b.id === this._selected ? ' active' : '';
     const offlineCls = b.status === 'offline' ? ' offline-bot' : '';
+    const dotClass = b.status === 'offline' ? 'offline' : (b.status_dot || b.status);
+    const subText = b.status !== 'offline' && b.status_text ? b.status_text : (b.sub || '');
     const ava = b.avatar
-      ? `<div class="bt-bot-ava"><img src="${this._esc(b.avatar)}" /><div class="bt-ava-dot ${b.status}"></div></div>`
-      : `<div class="bt-dot ${b.status}"></div>`;
+      ? `<div class="bt-bot-ava"><img src="${this._esc(b.avatar)}" /><div class="bt-ava-dot ${dotClass}"></div></div>`
+      : `<div class="bt-dot ${dotClass}"></div>`;
     return `<div class="bt-bot-row${activeCls}${offlineCls}" onclick="Bots._openBot('${b.id}')"
       style="animation-delay:${delay}s" data-bot-id="${b.id}">
       ${ava}
       <div class="bt-bot-info">
         <div class="bt-bot-row-name">${this._esc(b.name)}</div>
-        <div class="bt-bot-row-sub">${this._esc(b.sub || '')}</div>
+        <div class="bt-bot-row-sub">${this._esc(subText)}</div>
       </div>
       ${badge}
     </div>`;
@@ -949,7 +951,8 @@ var Bots = {
 
       case 'stat': {
         wrap.className = 'bt-ctrl-card bt-ctrl--stat';
-        const s = ctrl._item || {};
+        if (ctrl.id) wrap.id = 'btCtrlCard_' + ctrl.id;
+        const s = ctrl._item || ctrl;
         wrap.innerHTML = `
             <div class="bt-stat-val">${this._esc(String(s.value || '—'))}</div>
             <div class="bt-stat-label">${this._esc(s.label || '')}</div>
@@ -1062,6 +1065,11 @@ var Bots = {
           const cls = r._style && r._style[key] ? ' class="' + r._style[key] + '"' : '';
           return `<td${cls}>${this._esc(String(val))}</td>`;
         }).join('')}</tr>`).join('');
+      }
+    } else if (card && card.classList.contains('bt-ctrl--stat')) {
+      const valEl = card.querySelector('.bt-stat-val');
+      if (valEl && (data.value !== undefined || data.text !== undefined)) {
+        valEl.textContent = String(data.value !== undefined ? data.value : data.text);
       }
     } else if (card && card.classList.contains('bt-ctrl--buttons')) {
       if (data.disabled !== undefined) {
@@ -1876,13 +1884,15 @@ End If`;
 
   // ─── WebSocket messages from Shell ────────────────────────────
   _refreshBotTopbar(b) {
+    const dotClass = b.status === 'offline' ? 'offline' : (b.status_dot || b.status);
     const dot = document.getElementById('btTopDot');
-    if (dot) dot.className = 'bt-bot-dot ' + b.status;
+    if (dot) dot.className = 'bt-bot-dot ' + dotClass;
     const verEl = document.getElementById('btTopVersion');
     if (verEl) { verEl.textContent = b.version ? 'v' + b.version : ''; verEl.style.display = b.version ? '' : 'none'; }
     const pill = document.getElementById('btStatusPill');
-    const labels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
-    if (pill) { pill.className = 'bt-status-pill ' + b.status; pill.textContent = labels[b.status] || b.status; }
+    const defaultLabels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
+    const pillText = (b.status !== 'offline' && b.status_text) ? b.status_text : (defaultLabels[b.status] || b.status);
+    if (pill) { pill.className = 'bt-status-pill ' + dotClass; pill.textContent = pillText; }
     const lastSeenEl = document.getElementById('btLastSeen');
     if (lastSeenEl) lastSeenEl.textContent = b.status === 'offline' && b.last_seen ? 'был ' + this._relTime(b.last_seen) : '';
     if (b.status === 'offline') this._showOfflineState(b);
@@ -1891,24 +1901,26 @@ End If`;
 
   onWS(data) {
     if (data.type === 'bot_update') {
-      const { bot_id, status, controls, version, sub } = data;
+      const { bot_id, status, controls, version, sub, status_text, status_dot } = data;
       const idx = this._bots.findIndex(b => b.id === bot_id);
       if (idx >= 0) {
         if (status !== undefined) this._bots[idx].status = status;
         if (version !== undefined) this._bots[idx].version = version;
         if (sub !== undefined) this._bots[idx].sub = sub;
+        if (status_text !== undefined) this._bots[idx].status_text = status_text;
+        if (status_dot !== undefined) this._bots[idx].status_dot = status_dot;
         // Update dot/sub in list row
         const row = document.querySelector(`.bt-bot-row[data-bot-id="${bot_id}"]`);
         if (row) {
+          const b = this._bots[idx];
+          const dotClass = b.status === 'offline' ? 'offline' : (b.status_dot || b.status);
           const dot = row.querySelector('.bt-dot');
           const avaDot = row.querySelector('.bt-ava-dot');
-          if (dot) dot.className = 'bt-dot ' + (status || 'offline');
-          if (avaDot) avaDot.className = 'bt-ava-dot ' + (status || 'offline');
-          row.classList.toggle('offline-bot', status === 'offline');
-          if (sub !== undefined) {
-            const subEl = row.querySelector('.bt-bot-row-sub');
-            if (subEl) subEl.textContent = sub;
-          }
+          if (dot) dot.className = 'bt-dot ' + dotClass;
+          if (avaDot) avaDot.className = 'bt-ava-dot ' + dotClass;
+          row.classList.toggle('offline-bot', b.status === 'offline');
+          const subEl = row.querySelector('.bt-bot-row-sub');
+          if (subEl) subEl.textContent = b.status !== 'offline' && b.status_text ? b.status_text : (b.sub || '');
         }
         // Update controls cache
         if (controls) this._botControls[bot_id] = controls;
