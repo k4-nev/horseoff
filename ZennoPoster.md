@@ -278,10 +278,11 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
                 var p = line.Split('\t');
                 string q   = p.Length > 0 ? p[0] : "";
                 string art = p.Length > 1 ? p[1] : "";
-                // 5 колонок: q;art;status;total;done — статус/кол-во/выполнено заполнит проект
+                // 5 колонок: q;art;status;total;done — статус/кол-во/выполнено заполнит проект.
+                // AddRow(string) кладёт строку в колонку 0 (разделитель ; в этой таблице
+                // не дробит) → q пишем через AddRow, art точечно через SetCell.
                 int rowIdx = tbl.RowCount;
-                tbl.AddRow();
-                tbl.SetCell(0, rowIdx, q);
+                tbl.AddRow(q);
                 tbl.SetCell(1, rowIdx, art);
             }
         }
@@ -296,25 +297,21 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
-bool enabled = false;
+// Системный сигнал «задача включена» (best-effort — в ZP 7.8.12.0 GetTaskInfo
+// может не отдать IsEnable). Если null — опираемся на CmdState (намерение).
+bool? sysEnabled = null;
 try {
-    // В ZP 7.8.12.0 GetTaskInfo принимает Guid, а не имя. Ищем Guid по имени через TasksList.
-    string tasksList = ZennoPoster.TasksList;
-    var mGuid = System.Text.RegularExpressions.Regex.Match(
-        tasksList ?? "",
-        "<Name>" + System.Text.RegularExpressions.Regex.Escape(taskName) + "</Name>.*?<Id>([^<]+)</Id>",
-        System.Text.RegularExpressions.RegexOptions.Singleline);
-    string xml = null;
-    if (mGuid.Success) {
-        try { xml = ZennoPoster.GetTaskInfo(new System.Guid(mGuid.Groups[1].Value)); } catch {}
-    }
-    if (xml == null) {
-        try { xml = ZennoPoster.GetTaskInfo(taskName); } catch {}
-    }
+    string xml = ZennoPoster.GetTaskInfo(taskName);
     var me = System.Text.RegularExpressions.Regex.Match(xml ?? "",
         "<IsEnable>\\s*(true|false)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    if (me.Success) enabled = me.Groups[1].Value.ToLower() == "true";
+    if (me.Success) sysEnabled = me.Groups[1].Value.ToLower() == "true";
 } catch {}
+
+// Итог «проект работает»: системный сигнал, иначе — намерение пользователя
+// (после Старта CmdState=="start", даже при 0 потоков → проект ждёт задачу).
+bool enabled = sysEnabled.HasValue
+    ? sysEnabled.Value
+    : (HoBridge.CmdState == "start");
 
 // ── Определение состояния проекта ─────────────────────────────
 // enabled  → проект включён/работает (даже если ждёт задачу при 0 потоков).
