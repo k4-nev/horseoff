@@ -419,7 +419,9 @@ for (int i = 0; i < rc; i++) {
     // Скликанный товар: его максимум = done (больше не вырастет)
     sumTotal += isPropan ? done : total;
     sumDone  += done;
-    if (isPropan && done > 0)
+    // В рейтинг/статистику попадает ЛЮБОЙ товар, по которому был хоть один склик
+    // (не только пропавшие из выдачи — те просто перестают расти).
+    if (done > 0)
         finishedItems.Add(new string[] { rowQ, rowArt, done.ToString() });
     if (i > 0) rows.Append(",");
     rows.Append("{")
