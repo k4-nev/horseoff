@@ -97,23 +97,27 @@ ZennoPoster ставить на **5 сек** (можно меньше, но 5 н
 
 ### Состояния проекта
 
-**«Запущен» определяется НАПРЯМУЮ по живым потокам:** `threads >= 2`
-(`GetThreadsCount` — единственный надёжный живой сигнал работы проекта из
-блока-моста; 1 проверочный поток склика работой не считается, поэтому порог 2).
-«Пауза» vs «Стоп» ZP различить не умеет (оба сводятся к 0–1 потоку) — это
-**намерение** пользователя, хранится в `CmdState`.
+Состояние берём **напрямую от ZennoPoster** по двум системным сигналам:
+- `enabled` — включена ли задача (`<IsEnable>` из `GetTaskInfo(taskName)`).
+  Запущенный проект, который ждёт задачу при 0 потоков → `enabled=true`.
+  Это и есть прямой системный ответ «проект запущен или нет».
+- `threads` — живое число потоков прямо сейчас (`GetThreadsCount(taskName)`).
 
-| Условие | Статус бота (dot) | Доступные кнопки |
-|---|---|---|
-| `threads >= 2`, CmdState != pause | N потоков активно (online/зел) | Пауза, Стоп |
-| `threads >= 2`, CmdState == pause | Завершает потоки… (idle/жёлт) | Старт, Стоп |
-| `threads < 2`, CmdState == stop | Склик остановлен (offline/красн) | Старт |
-| `threads < 2`, CmdState == pause | На паузе (idle/жёлт) | Старт |
-| `threads < 2`, иначе | Ожидает задачу (idle/жёлт) | Старт |
+`enabled` НЕ различает «пауза» и «стоп» (обе команды выключают задачу) —
+для подписи используем `CmdState` (намерение пользователя).
 
-Статус (`dot` + текст) шлётся в спец-контрол `__status__` → сервер кладёт его
-в шапку бота (`bt-bot-row-sub` + индикатор), а НЕ в карточку контрола.
+| Условие | Статус бота (dot) | Кнопки | Таблица |
+|---|---|---|---|
+| `enabled`, `threads >= 2` | N потоков активно (online/зел) | Пауза, Стоп | 🔒 |
+| `enabled`, `threads < 2` | Ожидает задачу (idle/жёлт) | Пауза, Стоп | 🔒 |
+| `!enabled`, `threads >= 2` | Завершает потоки… (idle/жёлт) | Старт, Стоп | 🔒 |
+| `!enabled`, `threads < 2`, CmdState==pause | На паузе (idle/жёлт) | Старт | ✏️ |
+| `!enabled`, `threads < 2`, иначе | Склик остановлен (offline/красн) | Старт | ✏️ |
+
+Статус (`dot` + текст + `lock`) шлётся в спец-контрол `__status__` → сервер
+кладёт его в шапку бота (`bt-bot-row-sub` + индикатор), а НЕ в карточку.
 `dot`: `online` (зел) | `idle` (жёлт) | `offline` (красн).
+`lock: true` — таблицу редактировать нельзя (проект активен или есть потоки).
 
 ### Команды из horseoff → бот
 
@@ -281,32 +285,51 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
     } catch {}
 }
 
-// ── Получение данных ───────────────────────────────────────────
+// ── Получение состояния от ZennoPoster ────────────────────────
+// Два прямых системных сигнала:
+//   threads — живое число потоков ПРЯМО СЕЙЧАС (GetThreadsCount)
+//   enabled — включена ли задача в ZP (IsEnable из GetTaskInfo).
+//             Запущенный проект, ждущий задачу при 0 потоков → enabled=true.
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
+bool enabled = false;
+try {
+    // GetTaskInfo принимает имя задачи (в некоторых версиях — Guid).
+    string xml = ZennoPoster.GetTaskInfo(taskName);
+    var me = System.Text.RegularExpressions.Regex.Match(xml ?? "",
+        "<IsEnable>\\s*(true|false)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    if (me.Success) enabled = me.Groups[1].Value.ToLower() == "true";
+} catch {}
+
 // ── Определение состояния проекта ─────────────────────────────
-// «Запущен» = >= 2 потоков напрямую из GetThreadsCount (живая правда).
-// 1 проверочный поток склика работой НЕ считается.
-// «Пауза» vs «Стоп» ZP различить не даёт — берём из CmdState (намерение).
-bool running = threads >= 2;
+// enabled  → проект включён/работает (даже если ждёт задачу при 0 потоков).
+// !enabled → проект остановлен; «пауза vs стоп» ZP не различает → берём CmdState.
 string stateText; string dotClass;
 string[] disabledBtns;
-if (running && HoBridge.CmdState == "pause") {
+bool locked;  // true = таблицу редактировать НЕЛЬЗЯ (проект активен или есть потоки)
+if (enabled) {
+    if (threads >= 2) { stateText = threads + " потоков активно"; dotClass = "online"; }
+    else              { stateText = "Ожидает задачу";            dotClass = "idle";   }
+    disabledBtns = new string[] {"start"};            // доступны Пауза и Стоп
+    locked = true;
+} else if (threads >= 2) {
+    // выключен, но потоки ещё доганивают (после Паузы/Стопа)
     stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
     disabledBtns = new string[] {"pause"};            // доступны Старт и Стоп
-} else if (running) {
-    stateText = threads + " потоков активно"; dotClass = "online";
-    disabledBtns = new string[] {"start"};            // доступны Пауза и Стоп
-} else if (HoBridge.CmdState == "stop") {
-    stateText = "Склик остановлен"; dotClass = "offline";
-    disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
+    locked = true;
 } else if (HoBridge.CmdState == "pause") {
     stateText = "На паузе"; dotClass = "idle";
     disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
-} else {
-    stateText = "Ожидает задачу"; dotClass = "idle";
+    locked = false;
+} else if (HoBridge.CmdState == "stop") {
+    stateText = "Склик остановлен"; dotClass = "offline";
     disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
+    locked = false;
+} else {
+    stateText = "Склик остановлен"; dotClass = "offline";
+    disabledBtns = new string[] {"pause", "stop"};    // доступен только Старт
+    locked = false;
 }
 
 // Построить JSON-массив заблокированных кнопок
@@ -339,8 +362,8 @@ rows.Append("]");
 int pct = sumTotal > 0 ? (int)(sumDone * 100L / sumTotal) : 0;
 
 // ── Отправка обновлений ────────────────────────────────────────
-// __status__ — спецназначение: обновляет точку и подпись в списке ботов
-HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"__status__\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"dot\":\"" + dotClass + "\"}}");
+// __status__ — спецназначение: точка + подпись в шапке бота + блокировка таблицы
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"__status__\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"dot\":\"" + dotClass + "\",\"lock\":" + (locked ? "true" : "false") + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"ctrl\",\"data\":{\"disabled\":" + dis.ToString() + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"tasks\",\"data\":{\"columns\":" + cols + ",\"rows\":" + rows.ToString() + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"value\":" + threads + "}}");

@@ -90,6 +90,7 @@ def _bot_summary(bot):
         'layout': bot.get('layout', None),
         'status_text': bot.get('status_text', ''),
         'status_dot': bot.get('status_dot', ''),
+        'status_lock': bot.get('status_lock', False),
     }
 
 def _bot_detail(bot, session):
@@ -440,10 +441,12 @@ async def handle_bot_ws(websocket):
                         if bot:
                             bot['status_text'] = data.get('text', '')
                             bot['status_dot']  = data.get('dot', 'online')
+                            bot['status_lock'] = bool(data.get('lock', False))
                             _save_bot(bot)
                         _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id,
                                         'status_text': data.get('text', ''),
-                                        'status_dot':  data.get('dot', 'online')})
+                                        'status_dot':  data.get('dot', 'online'),
+                                        'status_lock': bool(data.get('lock', False))})
                     else:
                         # Persist updated value into stored controls
                         bot = _load_bot(bot_id)
@@ -477,13 +480,14 @@ async def handle_bot_ws(websocket):
                 bot['last_seen'] = int(time.time())
                 bot['status_text'] = ''
                 bot['status_dot'] = ''
+                bot['status_lock'] = False
                 # Reset live control values so stale data isn't shown on reconnect
                 for ctrl in (bot.get('controls') or []):
                     for field in ('text', 'value', 'rows', 'total', 'src'):
                         ctrl.pop(field, None)
                 _save_bot(bot)
                 _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline',
-                                'status_text': '', 'status_dot': ''})
+                                'status_text': '', 'status_dot': '', 'status_lock': False})
 
 
 # ── Registration ──────────────────────────────────────────────────────────────

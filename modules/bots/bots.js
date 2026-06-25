@@ -186,8 +186,8 @@ var Bots = {
     this._selected = id;
     const b = this._bots.find(x => x.id === id);
     if (!b) return;
-    // Seed running state from last known status dot (locks table tools until first WS update)
-    this._botRunning[id] = b.status !== 'offline' && b.status_dot === 'online';
+    // Seed lock state from last known value (locks table tools until first WS update)
+    this._botRunning[id] = b.status !== 'offline' && !!b.status_lock;
 
     // Clear badge
     if (b.badge) {
@@ -2039,21 +2039,20 @@ End If`;
 
   onWS(data) {
     if (data.type === 'bot_update') {
-      const { bot_id, status, controls, version, sub, status_text, status_dot } = data;
+      const { bot_id, status, controls, version, sub, status_text, status_dot, status_lock } = data;
       const idx = this._bots.findIndex(b => b.id === bot_id);
       if (idx >= 0) {
         if (status !== undefined) this._bots[idx].status = status;
         if (version !== undefined) this._bots[idx].version = version;
         if (sub !== undefined) this._bots[idx].sub = sub;
         if (status_text !== undefined) this._bots[idx].status_text = status_text;
-        if (status_dot !== undefined) {
-          this._bots[idx].status_dot = status_dot;
-          // 'online' dot = project running (>=2 threads). Lock table editing.
-          const wasRunning = this._botRunning[bot_id];
-          this._botRunning[bot_id] = status_dot === 'online';
-          if (this._selected === bot_id && wasRunning !== this._botRunning[bot_id]) {
-            this._refreshTableTools();
-          }
+        if (status_dot !== undefined) this._bots[idx].status_dot = status_dot;
+        if (status_lock !== undefined) {
+          // Explicit lock from bot: project active or threads running → table read-only
+          this._bots[idx].status_lock = status_lock;
+          const was = this._botRunning[bot_id];
+          this._botRunning[bot_id] = status_lock;
+          if (this._selected === bot_id && was !== status_lock) this._refreshTableTools();
         }
         // Update dot/sub in list row
         const row = document.querySelector(`.bt-bot-row[data-bot-id="${bot_id}"]`);
