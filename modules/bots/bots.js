@@ -10,6 +10,7 @@ var Bots = {
   _autoScroll: true,
   _botLogs: {},
   _botControls: {},
+  _botRunning: {},
   _logMax: 500,
   _snippetMode: 'cs',
   _testBotEnabled: false,
@@ -185,6 +186,8 @@ var Bots = {
     this._selected = id;
     const b = this._bots.find(x => x.id === id);
     if (!b) return;
+    // Seed running state from last known status dot (locks table tools until first WS update)
+    this._botRunning[id] = b.status !== 'offline' && b.status_dot === 'online';
 
     // Clear badge
     if (b.badge) {
@@ -1007,7 +1010,20 @@ var Bots = {
           const cls = r._style && r._style[key] ? ' class="' + r._style[key] + '"' : '';
           return `<td${cls}>${this._esc(String(val))}</td>`;
         }).join('')}</tr>`).join('');
-        wrap.innerHTML = `${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : ''}
+        const editable = Array.isArray(ctrl.edit_cols) && ctrl.edit_cols.length && ctrl.id;
+        const locked = this._botRunning[this._selected];
+        const tools = editable ? `<div class="bt-table-tools" id="btTableTools_${ctrl.id}">
+            <button class="bt-table-tool danger" ${locked ? 'disabled' : ''} onclick="Bots._tableClear('${ctrl.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Стереть</button>
+            <button class="bt-table-tool" ${locked ? 'disabled' : ''} onclick="Bots._tableEdit('${ctrl.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Редактировать</button>
+          </div>` : '';
+        wrap.innerHTML = `<div class="bt-table-head">
+            ${ctrl.label ? `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>` : '<span></span>'}
+            ${tools}
+          </div>
           <div class="bt-table-wrap"><table class="bt-table">
             <thead><tr>${thead}</tr></thead>
             <tbody id="btCtrl_${ctrl.id || ''}">${tbody}</tbody>
@@ -1187,6 +1203,128 @@ var Bots = {
       method: 'POST',
       body: JSON.stringify({ ctrl_id: ctrlId, action, value })
     });
+  },
+
+  // ─── Table editing (variant B) ───────────────────────────────
+  _findCtrl(ctrlId) {
+    const ctrls = this._botControls[this._selected] || [];
+    return ctrls.find(c => c.id === ctrlId);
+  },
+
+  // UTF-8 safe base64 (data may contain Cyrillic)
+  _b64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  },
+
+  _refreshTableTools() {
+    const locked = this._botRunning[this._selected];
+    document.querySelectorAll('.bt-table-tools button').forEach(b => { b.disabled = !!locked; });
+  },
+
+  _tableLockedGuard() {
+    if (this._botRunning[this._selected]) {
+      Shell.toast('Сначала остановите проект');
+      return true;
+    }
+    return false;
+  },
+
+  _tableClear(ctrlId) {
+    if (this._tableLockedGuard()) return;
+    this._confirm('Стереть таблицу?', 'Все данные задания будут удалены из проекта без возможности восстановления.', 'Стереть', () => {
+      this._sendCommand(ctrlId, 'clear_table', null);
+      Shell.toast('Команда на очистку отправлена');
+    });
+  },
+
+  _tableEdit(ctrlId) {
+    if (this._tableLockedGuard()) return;
+    const ctrl = this._findCtrl(ctrlId);
+    if (!ctrl) return;
+    const editCols = (ctrl.edit_cols || []).map(key => {
+      const col = (ctrl.columns || []).find(c => (c.key || c) === key) || { key, label: key };
+      return { key, label: col.label || key };
+    });
+    const rows = ctrl.rows || [];
+    // Pre-fill each column textarea with its current values, one per line
+    const colsHtml = editCols.map(c => {
+      const vals = rows.map(r => (r[c.key] !== undefined ? String(r[c.key]) : '')).join('\n');
+      return `<div class="bt-edit-col">
+          <div class="bt-edit-col-label">${this._esc(c.label)}</div>
+          <textarea class="bt-edit-area" data-key="${this._esc(c.key)}" spellcheck="false" placeholder="Вставьте столбец...">${this._esc(vals)}</textarea>
+        </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'bt-confirm-overlay';
+    overlay.innerHTML = `<div class="bt-edit-box">
+        <div class="bt-edit-head">
+          <div class="bt-confirm-title">Редактирование таблицы</div>
+          <button class="bt-edit-close" id="btEditClose">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="bt-confirm-sub">Каждая строка = одна запись. Столбцы вставляются скопом (как из Excel). Строки сопоставляются по порядку.</div>
+        <div class="bt-edit-cols">${colsHtml}</div>
+        <div class="bt-confirm-actions">
+          <button class="btn btn-secondary" id="btEditCancel">Отмена</button>
+          <button class="btn btn-primary" id="btEditSave">Сохранить</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#btEditClose').onclick = close;
+    overlay.querySelector('#btEditCancel').onclick = close;
+    overlay.onclick = e => { if (e.target === overlay) close(); };
+    overlay.querySelector('#btEditSave').onclick = () => {
+      this._tableSave(ctrlId, overlay, editCols.map(c => c.key));
+    };
+    if (navigator.vibrate) navigator.vibrate(12);
+  },
+
+  _tableSave(ctrlId, overlay, keys) {
+    // Read each column textarea into arrays of lines
+    const colData = {};
+    let maxLen = 0;
+    keys.forEach(k => {
+      const ta = overlay.querySelector(`textarea[data-key="${k}"]`);
+      const lines = (ta ? ta.value : '').split('\n').map(s => s.trim());
+      // drop trailing empty lines
+      while (lines.length && lines[lines.length - 1] === '') lines.pop();
+      colData[k] = lines;
+      if (lines.length > maxLen) maxLen = lines.length;
+    });
+    // Zip into rows by index; skip rows where all editable cells empty
+    const lines = [];
+    for (let i = 0; i < maxLen; i++) {
+      const cells = keys.map(k => (colData[k][i] || '').replace(/\t/g, ' '));
+      if (cells.every(c => c === '')) continue;
+      lines.push(cells.join('\t'));
+    }
+    const payload = this._b64(lines.join('\n'));
+    this._sendCommand(ctrlId, 'load_table', payload);
+    overlay.remove();
+    Shell.toast(lines.length + ' строк отправлено в проект');
+  },
+
+  // Generic confirm dialog
+  _confirm(title, sub, okLabel, onOk) {
+    const overlay = document.createElement('div');
+    overlay.className = 'bt-confirm-overlay';
+    overlay.innerHTML = `<div class="bt-confirm-box">
+        <div class="bt-confirm-title">${this._esc(title)}</div>
+        <div class="bt-confirm-sub">${this._esc(sub)}</div>
+        <div class="bt-confirm-actions">
+          <button class="btn btn-secondary" id="btConfirmNo">Отмена</button>
+          <button class="btn btn-danger" id="btConfirmYes">${this._esc(okLabel || 'OK')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = ok => { overlay.remove(); if (ok) onOk(); };
+    overlay.querySelector('#btConfirmYes').onclick = () => close(true);
+    overlay.querySelector('#btConfirmNo').onclick = () => close(false);
+    overlay.onclick = e => { if (e.target === overlay) close(false); };
+    if (navigator.vibrate) navigator.vibrate([8, 40, 8]);
   },
 
   // ─── Stats tab ──────────────────────────────────────────────
@@ -1908,7 +2046,15 @@ End If`;
         if (version !== undefined) this._bots[idx].version = version;
         if (sub !== undefined) this._bots[idx].sub = sub;
         if (status_text !== undefined) this._bots[idx].status_text = status_text;
-        if (status_dot !== undefined) this._bots[idx].status_dot = status_dot;
+        if (status_dot !== undefined) {
+          this._bots[idx].status_dot = status_dot;
+          // 'online' dot = project running (>=2 threads). Lock table editing.
+          const wasRunning = this._botRunning[bot_id];
+          this._botRunning[bot_id] = status_dot === 'online';
+          if (this._selected === bot_id && wasRunning !== this._botRunning[bot_id]) {
+            this._refreshTableTools();
+          }
+        }
         // Update dot/sub in list row
         const row = document.querySelector(`.bt-bot-row[data-bot-id="${bot_id}"]`);
         if (row) {
