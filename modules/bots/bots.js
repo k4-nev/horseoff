@@ -839,6 +839,7 @@ var Bots = {
 
       case 'buttons':
         wrap.className = 'bt-ctrl-card bt-ctrl--buttons';
+        if (ctrl.id) wrap.id = 'btCtrlCard_' + ctrl.id;
         if (ctrl.label) wrap.innerHTML = `<div class="bt-ctrl-label">${this._esc(ctrl.label)}</div>`;
         const btnGroup = document.createElement('div');
         btnGroup.className = 'bt-btn-group';
@@ -846,6 +847,8 @@ var Bots = {
           const b = document.createElement('button');
           const _styleMap = {primary:'btn btn-primary',danger:'btn btn-danger',secondary:'btn btn-secondary'};
           b.className = _styleMap[btn.style] || 'btn btn-secondary';
+          b.dataset.action = btn.action;
+          if (ctrl.id) b.id = 'btBtn_' + ctrl.id + '_' + btn.action;
           b.textContent = btn.label;
           b.onclick = () => this._sendCommand(ctrl.id || btn.action, btn.action, null, b);
           btnGroup.appendChild(b);
@@ -1059,6 +1062,13 @@ var Bots = {
           const cls = r._style && r._style[key] ? ' class="' + r._style[key] + '"' : '';
           return `<td${cls}>${this._esc(String(val))}</td>`;
         }).join('')}</tr>`).join('');
+      }
+    } else if (card && card.classList.contains('bt-ctrl--buttons')) {
+      if (data.disabled !== undefined) {
+        card.querySelectorAll('button[data-action]').forEach(b => {
+          b.disabled = data.disabled.includes(b.dataset.action);
+          b.style.opacity = b.disabled ? '0.4' : '';
+        });
       }
     } else if (card) {
       // progress card

@@ -93,6 +93,33 @@ horseoff по WS.
 Изначально цикл слал данные каждые **5 секунд**. Цикл вокруг блока 2 в
 ZennoPoster ставить на **5 сек** (можно меньше, но 5 норм).
 
+## Управление проектом из horseoff (кнопки Старт/Пауза/Стоп)
+
+### Состояния проекта
+
+| CmdState | threads | Статус бота | Цвет | Доступные кнопки |
+|---|---|---|---|---|
+| "" | 0 | Ожидает задачу | warn (жёлт) | Запустить |
+| "start" | >0 | N потоков активно | accent (зел) | Пауза, Стоп |
+| "pause" | >0 | На паузе | warn (жёлт) | Запустить, Стоп |
+| "pause" | 0 | Ожидает задачу | warn (жёлт) | Запустить |
+| "stop" | 0 | Склик остановлен | error (красн) | Запустить |
+
+`CmdState` хранится в `HoBridge` — последняя команда пользователя.
+Сбрасывается при коннекте (в Блоке 1).
+
+### Команда из horseoff → бот
+
+Когда пользователь нажимает кнопку в приложении, horseoff отправляет:
+```json
+{"type":"command","cmd":{"ctrl_id":"ctrl","action":"start","value":null}}
+```
+
+C# разбирает `action` в фоновом recv-цикле и кладёт в `HoBridge.PendingCmd`.
+Блок 2 забирает команду и выполняет её через ZP API.
+
+---
+
 ## Текущий рабочий код (для проекта «Склик конкурентов»)
 
 Переменные проекта ZennoPoster:
@@ -107,6 +134,8 @@ ZennoPoster ставить на **5 сек** (можно меньше, но 5 н
 public static class HoBridge {
     public static System.Net.WebSockets.ClientWebSocket Ws;
     public static System.Threading.Tasks.Task Recv;
+    public static string PendingCmd = "";  // команда из horseoff: "start"|"pause"|"stop"
+    public static string CmdState   = "";  // последняя выполненная команда
 
     public static void Send(string msg) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(msg);
@@ -132,8 +161,13 @@ public static class HoBridge {
 ### Блок 1 — подключение + манифест (ОДИН раз в начале)
 
 ```csharp
-string apiKey = project.Variables["horseoff_sklik_api"].Value;
-string wsUrl  = "wss://ТВОЙ_ДОМЕН/ws/bots";
+string apiKey  = project.Variables["horseoff_sklik_api"].Value;
+string wsUrl   = "wss://ТВОЙ_ДОМЕН/ws/bots";
+string taskName = project.Variables["horseoff_sklik_task"].Value;
+
+// Сброс состояния при новом подключении
+HoBridge.PendingCmd = "";
+HoBridge.CmdState   = "";
 
 HoBridge.Ws = new System.Net.WebSockets.ClientWebSocket();
 HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
@@ -142,9 +176,16 @@ HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
 // auth
 HoBridge.Send("{\"type\":\"auth\",\"api_key\":\"" + HoBridge.Esc(apiKey) + "\"}");
 
-// manifest (вёрстка) — сохранится на сервере, шлём один раз
+// manifest — сохранится на сервере, шлём один раз
 string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"label\":\"Артикул\"},{\"key\":\"status\",\"label\":\"Статус\"},{\"key\":\"total\",\"label\":\"Кол-во\"},{\"key\":\"done\",\"label\":\"Выполнено\"}]";
 HoBridge.Send("{\"type\":\"manifest\",\"version\":\"1.0\",\"sub\":\"Склик конкурентов\",\"controls\":["
+    + "{\"type\":\"section\",\"label\":\"Управление\"},"
+    + "{\"type\":\"label\",\"id\":\"state\",\"label\":\"Статус\",\"text\":\"Ожидает задачу\",\"style\":\"warn\"},"
+    + "{\"type\":\"buttons\",\"id\":\"ctrl\",\"buttons\":["
+    +   "{\"label\":\"Запустить\",\"action\":\"start\",\"style\":\"primary\"},"
+    +   "{\"label\":\"Пауза\",\"action\":\"pause\",\"style\":\"secondary\"},"
+    +   "{\"label\":\"Стоп\",\"action\":\"stop\",\"style\":\"danger\"}"
+    + "]},"
     + "{\"type\":\"section\",\"label\":\"Состояние\"},"
     + "{\"type\":\"label\",\"id\":\"threads\",\"label\":\"Активных потоков\",\"text\":\"0\",\"style\":\"accent\"},"
     + "{\"type\":\"progress\",\"id\":\"progress\",\"label\":\"Общий прогресс\",\"value\":0,\"total\":\"0 из 0\"},"
@@ -161,8 +202,12 @@ HoBridge.Recv = System.Threading.Tasks.Task.Run(() => {
             var r = HoBridge.Ws.ReceiveAsync(new System.ArraySegment<byte>(buf),
                 System.Threading.CancellationToken.None).GetAwaiter().GetResult();
             if (r.MessageType == System.Net.WebSockets.WebSocketMessageType.Close) break;
-            // при желании: разбор команд
-            // string txt = System.Text.Encoding.UTF8.GetString(buf, 0, r.Count);
+            // Разбор команды из horseoff: {"type":"command","cmd":{"action":"start"}}
+            string txt = System.Text.Encoding.UTF8.GetString(buf, 0, r.Count);
+            try {
+                var m = System.Text.RegularExpressions.Regex.Match(txt, "\"action\"\\s*:\\s*\"(\\w+)\"");
+                if (m.Success) HoBridge.PendingCmd = m.Groups[1].Value;
+            } catch {}
         }
     } catch {}
 });
@@ -179,9 +224,48 @@ string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"la
 if (HoBridge.Ws == null || HoBridge.Ws.State != System.Net.WebSockets.WebSocketState.Open)
     return null;
 
+// ── Обработка команды из horseoff ──────────────────────────────
+if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
+    string cmd = HoBridge.PendingCmd;
+    HoBridge.PendingCmd = "";
+    try {
+        if      (cmd == "start") ZennoPoster.StartTask(taskName);
+        else if (cmd == "pause") ZennoPoster.StopTask(taskName);
+        else if (cmd == "stop")  ZennoPoster.InterruptTask(taskName);
+        HoBridge.CmdState = cmd;
+    } catch {}
+}
+
+// ── Получение данных ───────────────────────────────────────────
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
+// ── Определение состояния проекта ─────────────────────────────
+string stateText; string stateStyle;
+string[] disabledBtns;
+if (HoBridge.CmdState == "stop" && threads == 0) {
+    stateText = "Склик остановлен"; stateStyle = "error";
+    disabledBtns = new string[] {"pause", "stop"};
+} else if (HoBridge.CmdState == "pause" && threads > 0) {
+    stateText = "На паузе"; stateStyle = "warn";
+    disabledBtns = new string[] {"pause"};
+} else if (threads > 0) {
+    stateText = threads + " потоков активно"; stateStyle = "accent";
+    disabledBtns = new string[] {"start"};
+} else {
+    stateText = "Ожидает задачу"; stateStyle = "warn";
+    disabledBtns = new string[] {"pause", "stop"};
+}
+
+// Построить JSON-массив заблокированных кнопок
+var dis = new System.Text.StringBuilder("[");
+for (int i = 0; i < disabledBtns.Length; i++) {
+    if (i > 0) dis.Append(",");
+    dis.Append("\"").Append(disabledBtns[i]).Append("\"");
+}
+dis.Append("]");
+
+// ── Таблица ────────────────────────────────────────────────────
 var rows = new System.Text.StringBuilder("[");
 var t = project.Tables[tableName];
 int rc = t.RowCount;
@@ -202,6 +286,9 @@ for (int i = 0; i < rc; i++) {
 rows.Append("]");
 int pct = sumTotal > 0 ? (int)(sumDone * 100L / sumTotal) : 0;
 
+// ── Отправка обновлений ────────────────────────────────────────
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"state\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"style\":\"" + stateStyle + "\"}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"ctrl\",\"data\":{\"disabled\":" + dis.ToString() + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"tasks\",\"data\":{\"columns\":" + cols + ",\"rows\":" + rows.ToString() + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"text\":\"" + threads + "\"}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"progress\",\"data\":{\"value\":" + pct + ",\"total\":\"" + sumDone + " из " + sumTotal + "\"}}");
@@ -229,6 +316,8 @@ try {
   строки) — использовать статический класс в «Своём коде».
 - `ZennoPoster.GetThreadsCount("имя задачи")` — число активных потоков по
   имени задачи, Guid не нужен.
+- `ZennoPoster.StartTask("имя")` / `StopTask("имя")` / `InterruptTask("имя")` —
+  старт/мягкая остановка/жёсткая остановка проекта по имени.
 - `ClientWebSocket` отвечает на PING только пока вызывается `ReceiveAsync` —
   обязателен фоновый приёмный цикл, иначе сервер отвалит по ping_timeout.
 - Бесконечный цикл внутри C#-блока = ZP не может остановить поток. Цикл
@@ -243,8 +332,12 @@ try {
   `rows`, `total`, `src`) **сбрасываются**, чтобы не показывать протухшее.
 - ERROR-логи → push (rate-limit 20 сек на бота).
 - Манифест (`controls`, `name`, `version`, `sub`) сохраняется на диск.
+- Команды из UI → очередь `command_queue`, флушится при подключении бота.
+  В реальном времени шлётся по WS: `{"type":"command","cmd":{...}}`.
 
 `modules/bots/bots.js`:
+- `buttons`-карточка получает `id="btCtrlCard_<id>"` и кнопки — `data-action`.
+  `ctrl_update` с `{"disabled":["pause","stop"]}` включает/выключает кнопки.
 - `progress`-карточка получает `id` (`btCtrlCard_<id>`), иначе живые
   обновления не доходят.
 - `label` при `ctrl_update` без `style` сохраняет текущий класс (цвет).
@@ -253,6 +346,5 @@ try {
 
 ## TODO / возможные следующие шаги
 
-- Приём и обработка команд из horseoff в фоновом цикле (кнопки «Стоп»/«Старт»).
 - Отправка `stats` (KPI/графики) из ZennoPoster.
 - Скриншоты (тип контрола `image`).
