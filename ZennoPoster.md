@@ -150,7 +150,8 @@ C# в фоновом recv-цикле кладёт `action` в `HoBridge.PendingC
 Переменные проекта:
 - `horseoff_sklik_api` — API-ключ
 - `horseoff_sklik_task` — имя задачи ZP
-- `horseoff_stats_dir` — папка для статистики, например `C:\Users\...\K4_WB\System\logs`
+
+Папка статистики зашита в коде: `{project.Directory}\K4_WB\System\logs`.
 
 ```csharp
 public static class HoBridge {
@@ -252,7 +253,8 @@ string taskName = project.Variables["horseoff_sklik_task"].Value;
 HoBridge.PendingCmd  = "";
 HoBridge.PendingData = "";
 HoBridge.CmdState    = "";
-HoBridge.StatsDir    = project.Variables["horseoff_stats_dir"].Value;
+// Папка статистики — {-Project.Directory-}\K4_WB\System\logs
+HoBridge.StatsDir    = System.IO.Path.Combine(project.Directory, "K4_WB", "System", "logs");
 
 HoBridge.Ws = new System.Net.WebSockets.ClientWebSocket();
 HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
