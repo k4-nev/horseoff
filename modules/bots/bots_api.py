@@ -72,6 +72,33 @@ def _load_bot(bid): return _load(_bot_path(bid), None)
 def _save_bot(b): _save(_bot_path(b['id']), b)
 def _gen_key(): return 'hb_' + secrets.token_urlsafe(32)
 
+def _reset_all_offline():
+    """On server startup no bot is connected — clear stale online/status state.
+    Otherwise a bot that was 'online'/'завершает потоки' before a restart keeps
+    showing that phantom status until it's manually restarted."""
+    for entry in _load_index():
+        try:
+            bid = entry['id'] if isinstance(entry, dict) else entry
+            bot = _load_bot(bid)
+            if not bot:
+                continue
+            dirty = bot.get('status') != 'offline' or bot.get('status_text') \
+                or bot.get('status_dot') or bot.get('status_lock')
+            if not dirty:
+                continue
+            bot['status'] = 'offline'
+            bot['status_text'] = ''
+            bot['status_dot'] = ''
+            bot['status_lock'] = False
+            for ctrl in (bot.get('controls') or []):
+                for field in ('text', 'value', 'rows', 'total', 'src'):
+                    ctrl.pop(field, None)
+            _save_bot(bot)
+        except Exception as e:
+            print(f"[BOTS] reset offline error: {e}")
+
+_reset_all_offline()
+
 def _can_access(session, bot):
     if session['role'] in _OWNER_ROLES: return True
     return session['id'] in (bot.get('access_ids') or [])
@@ -462,7 +489,12 @@ async def handle_bot_ws(websocket):
                 elif mt == 'stats':
                     bot = _load_bot(bot_id)
                     if bot:
-                        stats = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
+                        # Block-based stats: bot declares which stat components it needs.
+                        if 'blocks' in msg:
+                            stats = {'blocks': msg['blocks']}
+                        else:
+                            # legacy kpi/hourly/daily
+                            stats = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
                         bot['stats'] = stats
                         _save_bot(bot)
                         _broadcast_bot({'type': 'bot_stats', 'bot_id': bot_id, 'stats': stats})

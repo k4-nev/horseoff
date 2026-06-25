@@ -488,35 +488,43 @@ try {
        .Append("\",\"trend\":\"").Append(deltaItems >= 0 ? "up" : "down").Append("\"},");
     kpi.Append("{\"label\":\"Товаров за неделю\",\"value\":\"").Append(weekTotalItems).Append("\"}]");
 
-    // Дневной график (hourly = по дням недели)
-    var hourly = new System.Text.StringBuilder("[");
+    // Линейный график — склики по дням недели
+    var line = new System.Text.StringBuilder("[");
     bool fh = true;
     for (int i = 0; i < wDates.Count; i++) {
         System.DateTime dtp = System.DateTime.Parse(wDates[i]);
         string lbl = ruDow[(int)dtp.DayOfWeek] + " " + dtp.ToString("dd.MM");
-        if (!fh) hourly.Append(","); fh = false;
-        hourly.Append("{\"label\":\"").Append(lbl).Append("\",\"v\":").Append(wDones[i]).Append("}");
+        if (!fh) line.Append(","); fh = false;
+        line.Append("{\"label\":\"").Append(lbl).Append("\",\"v\":").Append(wDones[i]).Append("}");
     }
-    hourly.Append("]");
+    line.Append("]");
 
-    // Топ-10 (daily = топ товаров)
+    // Топ-10 — список товаров (title=запрос, sub=артикул, value=скликов)
     var topList = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string,int>>();
     foreach (var kv in seenWeek)
         topList.Add(new System.Collections.Generic.KeyValuePair<string,int>(kv.Key, kv.Value));
     topList.Sort((a2, b2) => b2.Value.CompareTo(a2.Value));
     if (topList.Count > 10) topList.RemoveRange(10, topList.Count - 10);
-    var daily = new System.Text.StringBuilder("[");
+    var rank = new System.Text.StringBuilder("[");
     for (int i = 0; i < topList.Count; i++) {
         string[] parts = topList[i].Key.Split('\x01');
-        string q2 = parts.Length > 0 ? parts[0] : "";
-        string lbl2 = q2.Length > 12 ? q2.Substring(0, 12) : q2;
-        if (i > 0) daily.Append(",");
-        daily.Append("{\"label\":\"").Append(HoBridge.Esc(lbl2))
-             .Append("\",\"v\":").Append(topList[i].Value).Append("}");
+        string q2   = parts.Length > 0 ? parts[0] : "";
+        string art2 = parts.Length > 1 ? parts[1] : "";
+        if (i > 0) rank.Append(",");
+        rank.Append("{\"title\":\"").Append(HoBridge.Esc(q2))
+            .Append("\",\"sub\":\"").Append(HoBridge.Esc(art2))
+            .Append("\",\"value\":").Append(topList[i].Value).Append("}");
     }
-    daily.Append("]");
+    rank.Append("]");
 
-    HoBridge.Send("{\"type\":\"stats\",\"kpi\":" + kpi + ",\"hourly\":" + hourly + ",\"daily\":" + daily + "}");
+    // Блочный формат: бот сам объявляет, какие компоненты статистики ему нужны
+    var blocks = new System.Text.StringBuilder("[");
+    blocks.Append("{\"type\":\"kpi\",\"items\":").Append(kpi).Append("},");
+    blocks.Append("{\"type\":\"linechart\",\"title\":\"Склики по дням (неделя)\",\"data\":").Append(line).Append("},");
+    blocks.Append("{\"type\":\"ranklist\",\"title\":\"Топ-10 товаров за неделю\",\"items\":").Append(rank).Append("}");
+    blocks.Append("]");
+
+    HoBridge.Send("{\"type\":\"stats\",\"blocks\":" + blocks + "}");
 } catch {}
 
 // ── Отправка обновлений контролов ─────────────────────────────

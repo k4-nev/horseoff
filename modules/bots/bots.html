@@ -109,19 +109,9 @@
           </div>
         </div>
 
-        <!-- STATS TAB -->
+        <!-- STATS TAB (dynamic — built from bot-declared stat blocks) -->
         <div class="bt-pane" id="btPane-stats">
-          <div class="bt-stats-wrap">
-            <div class="bt-kpi-row" id="btKpiRow"></div>
-            <div class="bt-chart-card">
-              <div class="bt-chart-title">Склики по дням (неделя)</div>
-              <canvas class="bt-chart" id="btLineChart" height="140"></canvas>
-            </div>
-            <div class="bt-chart-card">
-              <div class="bt-chart-title">Топ-10 товаров за неделю</div>
-              <canvas class="bt-chart" id="btBarChart" height="200"></canvas>
-            </div>
-          </div>
+          <div class="bt-stats-wrap" id="btStatsContainer"></div>
         </div>
 
         <!-- LOG TAB -->

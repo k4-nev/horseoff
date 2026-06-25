@@ -11,6 +11,7 @@ var Bots = {
   _botLogs: {},
   _botControls: {},
   _botRunning: {},
+  _statsSig: null,
   _logMax: 500,
   _snippetMode: 'cs',
   _testBotEnabled: false,
@@ -70,13 +71,21 @@ var Bots = {
       ]}
     ],
     stats: {
-      kpi: [
-        { label: 'Обработано', value: '1 248', delta: '+84', trend: 'up' },
-        { label: 'Успешно', value: '1 102', delta: '+78', trend: 'up' },
-        { label: 'Ошибки', value: '146', delta: '-6', trend: 'down' }
-      ],
-      hourly: Array.from({length: 24}, (_, i) => ({ label: String(i).padStart(2,'0'), v: Math.floor(Math.random()*80+10) })),
-      daily: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => ({ label: d, v: Math.floor(Math.random()*200+50) }))
+      blocks: [
+        { type: 'kpi', items: [
+          { label: 'Скликов за неделю', value: '1 248', delta: '+84', trend: 'up' },
+          { label: 'Товаров сегодня', value: '12', delta: '+3', trend: 'up' },
+          { label: 'Товаров за неделю', value: '57' }
+        ]},
+        { type: 'linechart', title: 'Склики по дням (неделя)',
+          data: ['пт 20.06','сб 21.06','вс 22.06','пн 23.06','вт 24.06','ср 25.06','чт 26.06']
+            .map(d => ({ label: d, v: Math.floor(Math.random()*200+50) })) },
+        { type: 'ranklist', title: 'Топ-10 товаров за неделю', items: [
+          { title: 'Экдистерон', sub: '29189428', value: 1239 },
+          { title: 'Экдистерон', sub: '89275878', value: 988 },
+          { title: 'Экдистерон', sub: '89289875', value: 932 }
+        ]}
+      ]
     }
   },
 
@@ -186,6 +195,8 @@ var Bots = {
     this._selected = id;
     const b = this._bots.find(x => x.id === id);
     if (!b) return;
+    // Reset stats signature so the entrance animation plays fresh for this bot
+    this._statsSig = null;
     // Seed lock state from last known value (locks table tools until first WS update)
     this._botRunning[id] = b.status !== 'offline' && !!b.status_lock;
 
@@ -302,7 +313,7 @@ var Bots = {
     if (id === '__test__') {
       const b = Object.assign({}, this._TEST_BOT);
       this.renderControls(b.controls);
-      this._renderKpi(b.stats);
+      this.renderStats();
       this._renderSettings(b);
       return;
     }
@@ -317,7 +328,7 @@ var Bots = {
     const controls = b.controls || this._defaultControls();
     this._botControls[id] = controls;
     this.renderControls(controls);
-    this._renderKpi(b.stats);
+    this.renderStats();
     this._renderSettings(b);
   },
 
@@ -1339,31 +1350,125 @@ var Bots = {
     if (navigator.vibrate) navigator.vibrate([8, 40, 8]);
   },
 
-  // ─── Stats tab ──────────────────────────────────────────────
-  _renderKpi(stats) {
-    const row = document.getElementById('btKpiRow');
-    if (!row) return;
-    const items = stats && stats.kpi ? stats.kpi : [
-      { label: 'Обработано', value: '—', delta: null },
-      { label: 'Успешно', value: '—', delta: null },
-      { label: 'Ошибки', value: '—', delta: null }
-    ];
-    row.innerHTML = items.map((s, i) => `
-      <div class="bt-stat-card" style="animation-delay:${i*0.06}s">
-        <div class="bt-stat-val">${this._esc(String(s.value))}</div>
-        <div class="bt-stat-label">${this._esc(s.label)}</div>
-        ${s.delta ? `<div class="bt-stat-delta ${s.trend || 'up'}">${this._esc(s.delta)}</div>` : ''}
-      </div>`).join('');
-    this._drawCharts(stats);
+  // ─── Stats tab (block-based, declared by the bot) ────────────
+  // The bot sends {type:'stats', blocks:[...]} declaring which stat
+  // components it needs. Nothing is shown until those arrive. The
+  // entrance animation plays only on the first build (when structure
+  // changes); live data updates mutate values in place — no re-render,
+  // so the layout doesn't jump every 5 sec.
+  _statsBlocks() {
+    const b = this._bots.find(x => x.id === this._selected);
+    const stats = b && b.stats;
+    if (stats && Array.isArray(stats.blocks)) return stats.blocks;
+    // Back-compat: synthesize blocks from legacy kpi/hourly/daily
+    if (stats && (stats.kpi || stats.hourly || stats.daily)) {
+      const blocks = [];
+      if (stats.kpi) blocks.push({ type: 'kpi', items: stats.kpi });
+      if (stats.hourly) blocks.push({ type: 'linechart', title: 'По дням', data: stats.hourly });
+      if (stats.daily) blocks.push({ type: 'ranklist', title: 'Топ', items: stats.daily.map(d => ({ title: d.label, value: d.v })) });
+      return blocks;
+    }
+    return [];
   },
 
-  _drawCharts(stats) {
-    this._drawLineChart(stats && stats.hourly ? stats.hourly : []);
-    this._drawBarChart(stats && stats.daily ? stats.daily : []);
+  _statsSignature(blocks) {
+    return blocks.map(bl => {
+      if (bl.type === 'kpi') return 'kpi:' + (bl.items || []).length;
+      if (bl.type === 'linechart') return 'line:' + (bl.title || '');
+      if (bl.type === 'ranklist') return 'rank:' + (bl.title || '') + ':' + (bl.items || []).length;
+      return bl.type || '?';
+    }).join('|');
   },
 
-  _drawLineChart(data) {
-    const canvas = document.getElementById('btLineChart');
+  renderStats() {
+    const container = document.getElementById('btStatsContainer');
+    if (!container) return;
+    const blocks = this._statsBlocks();
+    if (!blocks.length) {
+      if (this._statsSig !== '__empty__') {
+        container.innerHTML = `<div class="bt-stats-empty">Бот ещё не передавал статистику</div>`;
+        this._statsSig = '__empty__';
+      }
+      return;
+    }
+    const sig = this._statsSignature(blocks);
+    // Same structure already on screen → update values in place (no jump)
+    if (sig === this._statsSig && container.children.length) {
+      this._updateStatsInPlace(blocks);
+      return;
+    }
+    // Structure changed (first build / different bot) → full render + animation
+    this._statsSig = sig;
+    container.innerHTML = blocks.map((bl, i) => this._statsBlockHtml(bl, i)).join('');
+    blocks.forEach((bl, i) => {
+      if (bl.type === 'linechart') this._drawLineChart(bl.data || [], 'btStatChart_' + i);
+    });
+  },
+
+  _statsBlockHtml(bl, i) {
+    if (bl.type === 'kpi') {
+      const items = bl.items || [];
+      return `<div class="bt-kpi-row" id="btKpiRow_${i}">${items.map((s, j) => `
+        <div class="bt-stat-card" style="animation-delay:${j*0.06}s">
+          <div class="bt-stat-val" id="btKpiVal_${i}_${j}">${this._esc(String(s.value))}</div>
+          <div class="bt-stat-label">${this._esc(s.label)}</div>
+          <div class="bt-stat-delta-slot" id="btKpiDelta_${i}_${j}">${this._kpiDeltaHtml(s)}</div>
+        </div>`).join('')}</div>`;
+    }
+    if (bl.type === 'linechart') {
+      return `<div class="bt-chart-card">
+          <div class="bt-chart-title">${this._esc(bl.title || '')}</div>
+          <canvas class="bt-chart" id="btStatChart_${i}" height="140"></canvas>
+        </div>`;
+    }
+    if (bl.type === 'ranklist') {
+      return `<div class="bt-chart-card">
+          <div class="bt-chart-title">${this._esc(bl.title || '')}</div>
+          <ol class="bt-rank-list" id="btRankList_${i}">${this._rankRowsHtml(bl.items || [])}</ol>
+        </div>`;
+    }
+    return '';
+  },
+
+  _kpiDeltaHtml(s) {
+    if (s.delta === undefined || s.delta === null || s.delta === '') return '';
+    const trend = s.trend || 'up';
+    return `<div class="bt-stat-delta ${trend}">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <polyline points="${trend === 'down' ? '6 9 12 15 18 9' : '18 15 12 9 6 15'}"/>
+        </svg>${this._esc(String(s.delta))}</div>`;
+  },
+
+  _rankRowsHtml(items) {
+    if (!items.length) return `<li class="bt-rank-empty">Нет данных</li>`;
+    return items.map((it, k) => `
+      <li class="bt-rank-item">
+        <span class="bt-rank-num">${k + 1}</span>
+        <span class="bt-rank-name">${this._esc(it.title || it.label || '')}${it.sub ? `<em>${this._esc(it.sub)}</em>` : ''}</span>
+        <span class="bt-rank-val">${this._esc(String(it.value !== undefined ? it.value : (it.v !== undefined ? it.v : '')))}</span>
+      </li>`).join('');
+  },
+
+  _updateStatsInPlace(blocks) {
+    blocks.forEach((bl, i) => {
+      if (bl.type === 'kpi') {
+        (bl.items || []).forEach((s, j) => {
+          const valEl = document.getElementById('btKpiVal_' + i + '_' + j);
+          if (valEl) valEl.textContent = String(s.value);
+          const dEl = document.getElementById('btKpiDelta_' + i + '_' + j);
+          if (dEl) dEl.innerHTML = this._kpiDeltaHtml(s);
+        });
+      } else if (bl.type === 'linechart') {
+        this._drawLineChart(bl.data || [], 'btStatChart_' + i);
+      } else if (bl.type === 'ranklist') {
+        const ol = document.getElementById('btRankList_' + i);
+        if (ol) ol.innerHTML = this._rankRowsHtml(bl.items || []);
+      }
+    });
+  },
+
+  _drawLineChart(data, canvasId) {
+    const canvas = document.getElementById(canvasId || 'btStatChart_0');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     canvas.width = canvas.offsetWidth || 600;
@@ -1406,51 +1511,6 @@ var Bots = {
     data.forEach((d, i) => {
       if (i % step === 0) {
         ctx.fillText(d.label || '', pad.l + (i / (data.length - 1 || 1)) * iW, H - 4);
-      }
-    });
-  },
-
-  _drawBarChart(data) {
-    const canvas = document.getElementById('btBarChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    canvas.width = canvas.offsetWidth || 600;
-    const W = canvas.width, H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-    if (!data.length) { this._drawChartEmpty(ctx, W, H); return; }
-    const max = Math.max(...data.map(d => d.v || 0), 1);
-    const rotate = data.length > 5;
-    const pad = { l: 10, r: 10, t: 10, b: rotate ? 80 : 24 };
-    const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
-    const barW = Math.max(6, iW / data.length - 4);
-    const isDark = !document.body.classList.contains('theme-light');
-    const textColor = isDark ? '#4a5568' : '#9aa3b0';
-    data.forEach((d, i) => {
-      const x = pad.l + (i + 0.5) * (iW / data.length);
-      const barH = ((d.v || 0) / max) * iH;
-      const y = pad.t + iH - barH;
-      const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-      grad.addColorStop(0, '#5cf08e'); grad.addColorStop(1, '#3bc96b');
-      ctx.fillStyle = grad;
-      const r = Math.min(4, barW / 2);
-      ctx.beginPath();
-      ctx.moveTo(x - barW / 2 + r, y); ctx.lineTo(x + barW / 2 - r, y);
-      ctx.arcTo(x + barW / 2, y, x + barW / 2, y + r, r);
-      ctx.lineTo(x + barW / 2, y + barH); ctx.lineTo(x - barW / 2, y + barH);
-      ctx.arcTo(x - barW / 2, y, x - barW / 2 + r, y, r);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = textColor;
-      ctx.font = '10px JetBrains Mono, monospace';
-      if (rotate) {
-        ctx.save();
-        ctx.translate(x, pad.t + iH + 8);
-        ctx.rotate(-Math.PI / 3);
-        ctx.textAlign = 'right';
-        ctx.fillText(d.label || '', 0, 0);
-        ctx.restore();
-      } else {
-        ctx.textAlign = 'center';
-        ctx.fillText(d.label || '', x, H - 4);
       }
     });
   },
@@ -1710,9 +1770,7 @@ var Bots = {
     }
     if (navigator.vibrate) navigator.vibrate(8);
     if (tab === 'stats') {
-      setTimeout(() => {
-        this._drawCharts(b && b.stats ? b.stats : null);
-      }, 50);
+      setTimeout(() => { this.renderStats(); }, 50);
     }
     if (tab === 'log' && this._autoScroll) {
       setTimeout(() => {
@@ -2114,10 +2172,13 @@ End If`;
         this._updateCtrl(data.ctrl_id, data.data || {});
       }
     } else if (data.type === 'bot_stats') {
+      const b = this._bots.find(b => b.id === data.bot_id);
+      if (b) b.stats = data.stats;
+      // Only re-render if this bot is open AND the stats tab is visible;
+      // otherwise the data is cached and rendered when the tab is opened.
       if (this._selected === data.bot_id) {
-        const b = this._bots.find(b => b.id === data.bot_id);
-        if (b) b.stats = data.stats;
-        this._renderKpi(data.stats);
+        const pane = document.getElementById('btPane-stats');
+        if (pane && pane.classList.contains('active')) this.renderStats();
       }
     } else if (data.type === 'bot_access_update') {
       // Access granted/revoked — reload bot list so bot appears/disappears for this user
