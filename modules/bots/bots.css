@@ -497,17 +497,19 @@ body.theme-light .bt-label-inner{background:#e9edf3;box-shadow:inset 0 2px 4px r
 .bt-table-tool svg{flex-shrink:0}
 
 /* table editor modal */
-.bt-edit-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;width:680px;max-width:calc(100vw - 32px);box-shadow:0 24px 60px rgba(0,0,0,0.3);animation:bt-slide-in 0.18s ease;display:flex;flex-direction:column;max-height:calc(100vh - 60px)}
+.bt-edit-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px 26px 22px;width:min(880px,calc(100vw - 32px));max-width:calc(100vw - 32px);box-shadow:0 24px 60px rgba(0,0,0,0.3);animation:bt-slide-in 0.18s ease;display:flex;flex-direction:column;max-height:calc(100vh - 60px)}
 .bt-edit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .bt-edit-close{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;transition:background 0.15s,color 0.15s}
 .bt-edit-close:hover{background:var(--surface2);color:var(--text)}
-.bt-edit-cols{display:flex;gap:12px;margin:14px 0 20px;flex:1;min-height:0;overflow:hidden}
-.bt-edit-col{flex:1;display:flex;flex-direction:column;min-width:0}
-.bt-edit-col-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim);margin-bottom:6px}
-.bt-edit-area{width:100%;flex:1;min-height:240px;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--text);white-space:pre;overflow:auto}
-.bt-edit-area:focus{outline:none;border-color:var(--accent)}
-.bt-edit-linenum{width:30px;flex-shrink:0;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--text-dim);text-align:right;padding-top:calc(6px + 10px);user-select:none;pointer-events:none}
-.bt-edit-linenum div{padding-right:6px;height:calc(12px * 1.6)}
+/* excel-style grid */
+.bt-xls-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:10px;margin:14px 0 20px}
+.bt-xls{display:grid;min-width:100%}
+.bt-xls-th{position:sticky;top:0;z-index:2;background:var(--surface2);color:var(--text-dim);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:7px 10px;border-bottom:1px solid var(--border);user-select:none}
+.bt-xls-corner{color:var(--text-dim);text-align:center}
+.bt-xls-th:not(.bt-xls-corner){border-left:1px solid var(--border)}
+.bt-xls-num{display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);background:var(--surface2);border-top:1px solid color-mix(in srgb,var(--border) 55%,transparent);user-select:none;min-width:36px}
+.bt-xls-cell{display:block;width:100%;height:32px;padding:0 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);background:transparent;border:none;border-top:1px solid color-mix(in srgb,var(--border) 55%,transparent);border-left:1px solid color-mix(in srgb,var(--border) 55%,transparent);outline:none;box-sizing:border-box}
+.bt-xls-cell:focus{background:color-mix(in srgb,var(--accent) 8%,transparent);border-color:var(--accent);position:relative;z-index:1;box-shadow:inset 0 0 0 1px var(--accent)}
 
 .bt-table-wrap{width:100%;overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
 .bt-table{width:100%;border-collapse:collapse;font-size:12px}

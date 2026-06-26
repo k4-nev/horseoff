@@ -1256,15 +1256,8 @@ var Bots = {
       const col = (ctrl.columns || []).find(c => (c.key || c) === key) || { key, label: key };
       return { key, label: col.label || key };
     });
-    const rows = ctrl.rows || [];
-    // Pre-fill each column textarea with its current values, one per line
-    const colsHtml = editCols.map(c => {
-      const vals = rows.map(r => (r[c.key] !== undefined ? String(r[c.key]) : '')).join('\n');
-      return `<div class="bt-edit-col">
-          <div class="bt-edit-col-label">${this._esc(c.label)}</div>
-          <textarea class="bt-edit-area" data-key="${this._esc(c.key)}" spellcheck="false" placeholder="Вставьте столбец...">${this._esc(vals)}</textarea>
-        </div>`;
-    }).join('');
+    const existingRows = ctrl.rows || [];
+    const EXTRA = 8; // empty trailing rows for easy entry
 
     const overlay = document.createElement('div');
     overlay.className = 'bt-confirm-overlay';
@@ -1275,55 +1268,179 @@ var Bots = {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div class="bt-confirm-sub">Каждая строка = одна запись. Столбцы вставляются скопом (как из Excel). Строки сопоставляются по порядку.</div>
-        <div class="bt-edit-cols"><div class="bt-edit-linenum" id="btEditLineNum"></div>${colsHtml}</div>
+        <div class="bt-confirm-sub">Вставляйте данные прямо из Excel. Tab — следующая ячейка, Enter — следующая строка.</div>
+        <div class="bt-xls-wrap">
+          <div class="bt-xls" id="btXls"></div>
+        </div>
         <div class="bt-confirm-actions">
           <button class="btn btn-secondary" id="btEditCancel">Отмена</button>
           <button class="btn btn-primary" id="btEditSave">Сохранить</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
+
+    // Build grid
+    const xls = overlay.querySelector('#btXls');
+    const nc = editCols.length;
+    xls.style.gridTemplateColumns = `36px repeat(${nc}, 1fr)`;
+
+    // Header
+    const corner = document.createElement('div');
+    corner.className = 'bt-xls-th bt-xls-corner';
+    corner.textContent = '#';
+    xls.appendChild(corner);
+    editCols.forEach(c => {
+      const th = document.createElement('div');
+      th.className = 'bt-xls-th';
+      th.textContent = c.label;
+      xls.appendChild(th);
+    });
+
+    // Determine initial row count
+    let nRows = Math.max(existingRows.length, 1) + EXTRA;
+    const allCells = []; // allCells[row][col]
+
+    const addRow = (ri, vals) => {
+      const numEl = document.createElement('div');
+      numEl.className = 'bt-xls-num';
+      numEl.textContent = ri + 1;
+      xls.appendChild(numEl);
+      const rowCells = [];
+      editCols.forEach((c, ci) => {
+        const inp = document.createElement('input');
+        inp.className = 'bt-xls-cell';
+        inp.type = 'text';
+        inp.spellcheck = false;
+        inp.dataset.r = ri;
+        inp.dataset.c = ci;
+        inp.value = (vals && vals[c.key] !== undefined) ? String(vals[c.key]) : '';
+        inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
+        inp.addEventListener('paste', e => this._xlsPaste(e, allCells, editCols.length));
+        inp.addEventListener('input', () => this._xlsGrow(allCells, xls, editCols, EXTRA));
+        xls.appendChild(inp);
+        rowCells.push(inp);
+      });
+      allCells.push(rowCells);
+    };
+
+    for (let ri = 0; ri < nRows; ri++) {
+      addRow(ri, existingRows[ri] || null);
+    }
+
+    this._xlsGrowFn = (newRow) => {
+      const ri = allCells.length;
+      const numEl = document.createElement('div');
+      numEl.className = 'bt-xls-num';
+      numEl.textContent = ri + 1;
+      xls.appendChild(numEl);
+      const rowCells = [];
+      editCols.forEach((c, ci) => {
+        const inp = document.createElement('input');
+        inp.className = 'bt-xls-cell';
+        inp.type = 'text';
+        inp.spellcheck = false;
+        inp.dataset.r = ri;
+        inp.dataset.c = ci;
+        inp.value = (newRow && newRow[ci] !== undefined) ? newRow[ci] : '';
+        inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
+        inp.addEventListener('paste', e => this._xlsPaste(e, allCells, editCols.length));
+        inp.addEventListener('input', () => this._xlsGrow(allCells, xls, editCols, EXTRA));
+        xls.appendChild(inp);
+        rowCells.push(inp);
+      });
+      allCells.push(rowCells);
+      return rowCells;
+    };
+
     const close = () => overlay.remove();
     overlay.querySelector('#btEditClose').onclick = close;
     overlay.querySelector('#btEditCancel').onclick = close;
     overlay.onclick = e => { if (e.target === overlay) close(); };
     overlay.querySelector('#btEditSave').onclick = () => {
-      this._tableSave(ctrlId, overlay, editCols.map(c => c.key));
+      this._tableSave(ctrlId, overlay, editCols.map(c => c.key), allCells);
     };
-    // Row numbers: sync with first textarea scroll/input
-    const lineNumEl = overlay.querySelector('#btEditLineNum');
-    const areas = Array.from(overlay.querySelectorAll('.bt-edit-area'));
-    const updateNums = () => {
-      const n = Math.max(...areas.map(a => a.value.split('\n').length), 1);
-      lineNumEl.innerHTML = Array.from({length: n}, (_, i) => `<div>${i + 1}</div>`).join('');
-    };
-    areas.forEach(a => {
-      a.addEventListener('input', updateNums);
-      a.addEventListener('scroll', () => { lineNumEl.scrollTop = a.scrollTop; });
-    });
-    updateNums();
     if (navigator.vibrate) navigator.vibrate(12);
   },
 
-  _tableSave(ctrlId, overlay, keys) {
-    // Read each column textarea into arrays of lines
-    const colData = {};
-    let maxLen = 0;
-    keys.forEach(k => {
-      const ta = overlay.querySelector(`textarea[data-key="${k}"]`);
-      const lines = (ta ? ta.value : '').split('\n').map(s => s.trim());
-      // drop trailing empty lines
-      while (lines.length && lines[lines.length - 1] === '') lines.pop();
-      colData[k] = lines;
-      if (lines.length > maxLen) maxLen = lines.length;
-    });
-    // Zip into rows by index; skip rows where all editable cells empty
-    const lines = [];
-    for (let i = 0; i < maxLen; i++) {
-      const cells = keys.map(k => (colData[k][i] || '').replace(/\t/g, ' '));
-      if (cells.every(c => c === '')) continue;
-      lines.push(cells.join('\t'));
+  _xlsKey(e, allCells) {
+    const r = +e.target.dataset.r, c = +e.target.dataset.c;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const nc = allCells[0].length;
+      const nr = allCells.length;
+      const nc2 = e.shiftKey ? c - 1 : c + 1;
+      if (nc2 >= 0 && nc2 < nc) { allCells[r][nc2].focus(); }
+      else if (!e.shiftKey && r + 1 < nr) { allCells[r + 1][0].focus(); }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (r + 1 < allCells.length) allCells[r + 1][c].focus();
+    } else if (e.key === 'ArrowUp' && r > 0) {
+      e.preventDefault(); allCells[r - 1][c].focus();
+    } else if (e.key === 'ArrowDown' && r + 1 < allCells.length) {
+      e.preventDefault(); allCells[r + 1][c].focus();
     }
+  },
+
+  _xlsPaste(e, allCells, nc) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const pasteRows = text.split(/\r?\n/).map(l => l.split('\t'));
+    const startR = +e.target.dataset.r, startC = +e.target.dataset.c;
+    pasteRows.forEach((pr, dR) => {
+      const ri = startR + dR;
+      // grow if needed
+      while (allCells.length <= ri) this._xlsGrowFn([]);
+      pr.forEach((val, dC) => {
+        const ci = startC + dC;
+        if (ci < nc && allCells[ri] && allCells[ri][ci]) {
+          allCells[ri][ci].value = val.trim();
+        }
+      });
+    });
+  },
+
+  _xlsGrow(allCells, xls, editCols, extra) {
+    // ensure there are always `extra` empty rows at the bottom
+    const nr = allCells.length;
+    let lastFilled = -1;
+    for (let i = nr - 1; i >= 0; i--) {
+      if (allCells[i].some(inp => inp.value.trim() !== '')) { lastFilled = i; break; }
+    }
+    const needed = lastFilled + 1 + extra;
+    if (needed > nr) {
+      for (let i = nr; i < needed; i++) {
+        const ri = allCells.length;
+        const numEl = document.createElement('div');
+        numEl.className = 'bt-xls-num';
+        numEl.textContent = ri + 1;
+        xls.appendChild(numEl);
+        const rowCells = [];
+        editCols.forEach((c, ci) => {
+          const inp = document.createElement('input');
+          inp.className = 'bt-xls-cell';
+          inp.type = 'text';
+          inp.spellcheck = false;
+          inp.dataset.r = ri;
+          inp.dataset.c = ci;
+          inp.value = '';
+          inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
+          inp.addEventListener('paste', e => this._xlsPaste(e, allCells, editCols.length));
+          inp.addEventListener('input', () => this._xlsGrow(allCells, xls, editCols, extra));
+          xls.appendChild(inp);
+          rowCells.push(inp);
+        });
+        allCells.push(rowCells);
+      }
+    }
+  },
+
+  _tableSave(ctrlId, overlay, keys, allCells) {
+    const lines = [];
+    allCells.forEach(rowCells => {
+      const cells = rowCells.map(inp => (inp.value || '').replace(/\t/g, ' '));
+      if (cells.every(c => c.trim() === '')) return;
+      lines.push(cells.join('\t'));
+    });
     const payload = this._b64(lines.join('\n'));
     this._sendCommand(ctrlId, 'load_table', payload);
     overlay.remove();
