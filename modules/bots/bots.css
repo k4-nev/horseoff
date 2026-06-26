@@ -490,11 +490,15 @@ body.theme-light .bt-label-inner{background:#e9edf3;box-shadow:inset 0 2px 4px r
 /* table */
 .bt-table-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .bt-table-tools{display:flex;gap:6px;flex-shrink:0}
-.bt-table-tool{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;transition:background 0.15s,border-color 0.15s,opacity 0.15s}
-.bt-table-tool:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.bt-table-tool{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;transition:background 0.15s,border-color 0.15s,opacity 0.15s,box-shadow 0.15s,transform 0.1s;box-shadow:0 1px 2px rgba(0,0,0,.1),0 2px 6px rgba(0,0,0,.07)}
+.bt-table-tool:hover:not(:disabled){border-color:var(--accent);color:var(--accent);box-shadow:0 2px 5px rgba(0,0,0,.14),0 4px 12px rgba(0,0,0,.1)}
+.bt-table-tool:active:not(:disabled){transform:scale(0.94);box-shadow:inset 0 1px 3px rgba(0,0,0,.15)}
 .bt-table-tool.danger:hover:not(:disabled){border-color:#e23355;color:#e23355}
 .bt-table-tool:disabled{opacity:0.4;cursor:not-allowed}
 .bt-table-tool svg{flex-shrink:0}
+body.theme-light .bt-table-tool{background:linear-gradient(180deg,#ffffff,#eef1f6);border-color:#dfe4ec;color:#4a5568;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(23,33,54,.08),0 3px 7px rgba(23,33,54,.07)}
+body.theme-light .bt-table-tool:hover:not(:disabled){background:linear-gradient(180deg,#fff,#e4e9f2);box-shadow:inset 0 1px 0 #fff,0 2px 5px rgba(23,33,54,.12),0 5px 14px rgba(23,33,54,.1)}
+body.theme-light .bt-table-tool:active:not(:disabled){background:linear-gradient(180deg,#eef1f6,#e4e8f0);box-shadow:inset 0 2px 4px rgba(23,33,54,.12);transform:scale(0.94)}
 
 /* table editor modal */
 .bt-edit-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px 26px 22px;width:min(880px,calc(100vw - 32px));max-width:calc(100vw - 32px);box-shadow:0 24px 60px rgba(0,0,0,0.3);animation:bt-slide-in 0.18s ease;display:flex;flex-direction:column;max-height:calc(100vh - 60px)}
@@ -510,6 +514,42 @@ body.theme-light .bt-label-inner{background:#e9edf3;box-shadow:inset 0 2px 4px r
 .bt-xls-num{display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);background:var(--surface2);border-top:1px solid color-mix(in srgb,var(--border) 55%,transparent);user-select:none;min-width:36px}
 .bt-xls-cell{display:block;width:100%;height:32px;padding:0 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);background:transparent;border:none;border-top:1px solid color-mix(in srgb,var(--border) 55%,transparent);border-left:1px solid color-mix(in srgb,var(--border) 55%,transparent);outline:none;box-sizing:border-box}
 .bt-xls-cell:focus{background:color-mix(in srgb,var(--accent) 8%,transparent);border-color:var(--accent);position:relative;z-index:1;box-shadow:inset 0 0 0 1px var(--accent)}
+
+/* ── Schedule / DateTime picker ─────────────────────────────── */
+.bt-ctrl--sched{}
+.bt-sched-display{display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-top:6px;transition:border-color 0.15s,background 0.15s}
+.bt-sched-display:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,var(--surface2))}
+.bt-sched-display svg:first-child{color:var(--accent);flex-shrink:0}
+.bt-sched-val-txt{flex:1;font-size:19px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text);letter-spacing:.5px}
+.bt-sched-edit-ico{color:var(--text-dim);flex-shrink:0;opacity:.6}
+.bt-sched-picker{overflow:hidden;max-height:0;opacity:0;transition:max-height 0.35s cubic-bezier(0.4,0,0.2,1),opacity 0.25s;padding:0 2px}
+.bt-sched-picker.open{max-height:700px;opacity:1;padding-top:16px}
+/* drums */
+.bt-sched-drums{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:16px}
+.bt-sched-sep{font-size:30px;font-weight:700;color:var(--text-dim);line-height:1;align-self:center;padding-bottom:4px}
+.bt-drum{display:flex;flex-direction:column;align-items:center;gap:6px}
+.bt-drum-btn{width:52px;height:38px;border:1px solid var(--border);background:var(--surface2);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:background 0.12s,color 0.12s,transform 0.1s,box-shadow 0.12s;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bt-drum-btn:hover{background:var(--accent);color:#000;border-color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.bt-drum-btn:active{transform:scale(0.88);box-shadow:inset 0 1px 3px rgba(0,0,0,.2)}
+.bt-drum-val{width:72px;height:64px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:700;background:var(--surface2);border:1px solid var(--border);border-radius:12px;color:var(--text);box-shadow:inset 0 1px 4px rgba(0,0,0,.08)}
+@keyframes bt-drum-flip{0%{opacity:0.2;transform:translateY(-10px) scale(0.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
+.bt-drum-flip{animation:bt-drum-flip 0.2s ease}
+/* calendar */
+.bt-sched-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.bt-sched-cal-head span{font-weight:600;font-size:14px;color:var(--text)}
+.bt-sched-cal-nav{width:32px;height:32px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);transition:all 0.15s;line-height:1;padding:0 0 1px}
+.bt-sched-cal-nav:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+.bt-sched-cal-nav:active{transform:scale(0.88)}
+.bt-sched-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:16px}
+.bt-sched-cal-dow{font-size:10px;font-weight:600;color:var(--text-dim);text-align:center;padding:4px 0}
+.bt-sched-cal-day{text-align:center;padding:7px 2px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text);transition:background 0.12s,color 0.12s,transform 0.1s;line-height:1}
+.bt-sched-cal-day:hover{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.bt-sched-cal-day:active{transform:scale(0.82)}
+.bt-sched-cal-day.selected{background:var(--accent);color:#000;font-weight:700}
+.bt-sched-cal-day.today{outline:1.5px solid var(--accent);outline-offset:-1px}
+body.theme-light .bt-drum-val{background:linear-gradient(180deg,#fff,#f4f6fb);box-shadow:inset 0 1px 0 #fff,0 1px 3px rgba(23,33,54,.1)}
+body.theme-light .bt-drum-btn{background:linear-gradient(180deg,#fff,#eef1f6);border-color:#dfe4ec;box-shadow:inset 0 1px 0 #fff,0 1px 3px rgba(23,33,54,.08)}
+body.theme-light .bt-drum-btn:hover{background:var(--accent);color:#000}
 
 .bt-table-wrap{width:100%;overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
 .bt-table{width:100%;border-collapse:collapse;font-size:12px}

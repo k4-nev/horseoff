@@ -1052,9 +1052,174 @@ var Bots = {
           </div>`;
         return wrap;
 
+      case 'schedule_time': {
+        wrap.className = 'bt-ctrl-card bt-ctrl--sched';
+        if (ctrl.id) wrap.id = 'btCtrlCard_' + ctrl.id;
+        const { h: th, mi: tmi } = this._parseSchedTime(ctrl.value);
+        wrap.innerHTML = `
+          <div class="bt-ctrl-label">${this._esc(ctrl.label || 'Время')}</div>
+          <div class="bt-sched-display" onclick="Bots._schedToggle('${ctrl.id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="bt-sched-val-txt" id="btSchedVal_${ctrl.id}">${this._fmtSchedTime(th, tmi)}</span>
+            <svg class="bt-sched-edit-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </div>
+          <div class="bt-sched-picker" id="btSchedPicker_${ctrl.id}" data-type="time" data-h="${th}" data-mi="${tmi}">
+            <div class="bt-sched-drums">
+              ${this._drumHtml(ctrl.id, 'H', th)}
+              <div class="bt-sched-sep">:</div>
+              ${this._drumHtml(ctrl.id, 'M', tmi)}
+            </div>
+            <button class="btn btn-primary" onclick="Bots._schedSave('${ctrl.id}')">Сохранить</button>
+          </div>`;
+        return wrap;
+      }
+
+      case 'schedule_datetime': {
+        wrap.className = 'bt-ctrl-card bt-ctrl--sched';
+        if (ctrl.id) wrap.id = 'btCtrlCard_' + ctrl.id;
+        const dt = this._parseSchedDt(ctrl.value);
+        const dtDisp = ctrl.value ? this._fmtSchedDtDisplay(dt.d, dt.mo, dt.y, dt.h, dt.mi) : '—';
+        wrap.innerHTML = `
+          <div class="bt-ctrl-label">${this._esc(ctrl.label || 'Дата и время')}</div>
+          <div class="bt-sched-display" onclick="Bots._schedToggle('${ctrl.id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="bt-sched-val-txt" id="btSchedVal_${ctrl.id}">${dtDisp}</span>
+            <svg class="bt-sched-edit-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </div>
+          <div class="bt-sched-picker" id="btSchedPicker_${ctrl.id}" data-type="datetime"
+               data-h="${dt.h}" data-mi="${dt.mi}" data-d="${dt.d}" data-mo="${dt.mo}" data-y="${dt.y}">
+            <div id="btSchedCal_${ctrl.id}">${this._schedCalHtml(ctrl.id, dt.d, dt.mo, dt.y)}</div>
+            <div class="bt-sched-drums">
+              ${this._drumHtml(ctrl.id, 'H', dt.h)}
+              <div class="bt-sched-sep">:</div>
+              ${this._drumHtml(ctrl.id, 'M', dt.mi)}
+            </div>
+            <button class="btn btn-primary" onclick="Bots._schedSave('${ctrl.id}')">Сохранить</button>
+          </div>`;
+        return wrap;
+      }
+
       default:
         return null;
     }
+  },
+
+  // ─── Schedule picker helpers ──────────────────────────────────
+  _parseSchedTime(val) {
+    const m = /(\d{1,2}):(\d{2})/.exec(val || '');
+    if (m) return { h: +m[1], mi: Math.round(+m[2] / 5) * 5 % 60 };
+    return { h: 0, mi: 0 };
+  },
+  _parseSchedDt(val) {
+    const m = /(\d{1,2})\.(\d{2})\.(\d{4})\s+(\d{1,2}):(\d{2})/.exec(val || '');
+    if (m) return { d:+m[1], mo:+m[2], y:+m[3], h:+m[4], mi: Math.round(+m[5]/5)*5%60 };
+    const now = new Date();
+    return { d: now.getDate(), mo: now.getMonth()+1, y: now.getFullYear(), h: 0, mi: 0 };
+  },
+  _fmtSchedTime(h, mi) {
+    return String(h).padStart(2,'0') + ':' + String(mi).padStart(2,'0');
+  },
+  _fmtSchedDt(d, mo, y, h, mi) {
+    return `${String(d).padStart(2,'0')}.${String(mo).padStart(2,'0')}.${y} ${h}:${String(mi).padStart(2,'0')}:00`;
+  },
+  _fmtSchedDtDisplay(d, mo, y, h, mi) {
+    const M = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+    return `${d} ${M[mo-1]} ${y}, ${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+  },
+  _drumHtml(id, field, val) {
+    const fid = field.toLowerCase();
+    const v = String(val).padStart(2,'0');
+    return `<div class="bt-drum">
+      <button class="bt-drum-btn" onclick="Bots._schedDrumStep('${id}','${fid}',1)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+      </button>
+      <div class="bt-drum-val" id="btSchedDrum${field}_${id}">${v}</div>
+      <button class="bt-drum-btn" onclick="Bots._schedDrumStep('${id}','${fid}',-1)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>`;
+  },
+  _schedToggle(id) {
+    const picker = document.getElementById('btSchedPicker_' + id);
+    if (!picker) return;
+    picker.classList.toggle('open');
+  },
+  _schedDrumStep(id, field, dir) {
+    const picker = document.getElementById('btSchedPicker_' + id);
+    if (!picker) return;
+    let h = +picker.dataset.h, mi = +picker.dataset.mi;
+    if (field === 'h')  { h  = (h + dir + 24) % 24; picker.dataset.h = h; }
+    if (field === 'm') { mi = ((mi/5 + dir + 12) % 12) * 5; picker.dataset.mi = mi; }
+    const hEl = document.getElementById('btSchedDrumH_' + id);
+    const mEl = document.getElementById('btSchedDrumM_' + id);
+    if (hEl) hEl.textContent = String(h).padStart(2,'0');
+    if (mEl) mEl.textContent = String(mi).padStart(2,'0');
+    const el = field === 'h' ? hEl : mEl;
+    if (el) { el.classList.remove('bt-drum-flip'); void el.offsetWidth; el.classList.add('bt-drum-flip'); }
+    if (navigator.vibrate) navigator.vibrate(6);
+  },
+  _schedSave(id) {
+    const picker = document.getElementById('btSchedPicker_' + id);
+    if (!picker) return;
+    const h = +picker.dataset.h, mi = +picker.dataset.mi;
+    const isDt = picker.dataset.type === 'datetime';
+    let value, dispText;
+    if (isDt) {
+      const d = +picker.dataset.d, mo = +picker.dataset.mo, y = +picker.dataset.y;
+      value    = this._fmtSchedDt(d, mo, y, h, mi);
+      dispText = this._fmtSchedDtDisplay(d, mo, y, h, mi);
+    } else {
+      value    = this._fmtSchedTime(h, mi);
+      dispText = value;
+    }
+    const txt = document.getElementById('btSchedVal_' + id);
+    if (txt) txt.textContent = dispText;
+    picker.classList.remove('open');
+    this._sendCommand(id, 'set', this._b64(value));
+    if (navigator.vibrate) navigator.vibrate(18);
+  },
+  _schedCalNav(id, delta) {
+    const picker = document.getElementById('btSchedPicker_' + id);
+    if (!picker) return;
+    let mo = +picker.dataset.mo, y = +picker.dataset.y;
+    mo += delta;
+    if (mo > 12) { mo = 1; y++; }
+    if (mo < 1)  { mo = 12; y--; }
+    picker.dataset.mo = mo; picker.dataset.y = y;
+    const grid = document.getElementById('btSchedCal_' + id);
+    if (grid) grid.innerHTML = this._schedCalHtml(id, +picker.dataset.d, mo, y);
+  },
+  _schedCalPick(id, day) {
+    const picker = document.getElementById('btSchedPicker_' + id);
+    if (!picker) return;
+    picker.dataset.d = day;
+    const grid = document.getElementById('btSchedCal_' + id);
+    if (grid) grid.innerHTML = this._schedCalHtml(id, day, +picker.dataset.mo, +picker.dataset.y);
+    if (navigator.vibrate) navigator.vibrate(8);
+  },
+  _schedCalHtml(id, selDay, mo, y) {
+    const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    const DOW    = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    const first  = new Date(y, mo-1, 1).getDay();
+    const offset = (first + 6) % 7;
+    const days   = new Date(y, mo, 0).getDate();
+    const now    = new Date();
+    let html = `<div class="bt-sched-cal-head">
+      <button class="bt-sched-cal-nav" onclick="Bots._schedCalNav('${id}',-1)">&#8249;</button>
+      <span>${MONTHS[mo-1]} ${y}</span>
+      <button class="bt-sched-cal-nav" onclick="Bots._schedCalNav('${id}',1)">&#8250;</button>
+    </div><div class="bt-sched-cal-grid">`;
+    DOW.forEach(d => { html += `<div class="bt-sched-cal-dow">${d}</div>`; });
+    for (let i = 0; i < offset; i++) html += '<div></div>';
+    for (let d = 1; d <= days; d++) {
+      const sel = d === selDay;
+      const tod = d === now.getDate() && mo === now.getMonth()+1 && y === now.getFullYear();
+      let cls = 'bt-sched-cal-day';
+      if (sel) cls += ' selected';
+      else if (tod) cls += ' today';
+      html += `<div class="${cls}" onclick="Bots._schedCalPick('${id}',${d})">${d}</div>`;
+    }
+    return html + '</div>';
   },
 
   // ─── Live control update (Etap 3) ────────────────────────────
@@ -1104,6 +1269,23 @@ var Bots = {
           b.disabled = data.disabled.includes(b.dataset.action);
           b.style.opacity = b.disabled ? '0.4' : '';
         });
+      }
+    } else if (card && card.classList.contains('bt-ctrl--sched')) {
+      if (data.value !== undefined) {
+        const txt = document.getElementById('btSchedVal_' + ctrlId);
+        const picker = document.getElementById('btSchedPicker_' + ctrlId);
+        if (txt && picker) {
+          if (picker.dataset.type === 'datetime') {
+            const dt = this._parseSchedDt(data.value);
+            txt.textContent = this._fmtSchedDtDisplay(dt.d, dt.mo, dt.y, dt.h, dt.mi);
+            picker.dataset.h = dt.h; picker.dataset.mi = dt.mi;
+            picker.dataset.d = dt.d; picker.dataset.mo = dt.mo; picker.dataset.y = dt.y;
+          } else {
+            const { h, mi } = this._parseSchedTime(data.value);
+            txt.textContent = this._fmtSchedTime(h, mi);
+            picker.dataset.h = h; picker.dataset.mi = mi;
+          }
+        }
       }
     } else if (card) {
       // progress card
@@ -1257,7 +1439,7 @@ var Bots = {
       return { key, label: col.label || key };
     });
     const existingRows = ctrl.rows || [];
-    const EXTRA = 8; // empty trailing rows for easy entry
+    const EXTRA = 1; // always one empty row below last filled
 
     const overlay = document.createElement('div');
     overlay.className = 'bt-confirm-overlay';
