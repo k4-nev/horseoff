@@ -372,7 +372,7 @@ var Bots = {
   _GAP_PX: 10,
 
   _defHeight(type) {
-    return {textarea:2,table:3,code:2,image:2,section:3,stat:1}[type] || 1;
+    return {textarea:2,table:3,code:2,image:2,section:3,stat:1,schedule_time:1,schedule_datetime:1}[type] || 1;
   },
 
   _defWidth(type) {
@@ -1142,7 +1142,20 @@ var Bots = {
   _schedToggle(id) {
     const picker = document.getElementById('btSchedPicker_' + id);
     if (!picker) return;
-    picker.classList.toggle('open');
+    const opening = !picker.classList.contains('open');
+    // close all other pickers
+    document.querySelectorAll('.bt-sched-picker.open').forEach(p => p.classList.remove('open'));
+    if (opening) {
+      picker.classList.add('open');
+      if (!this._schedOutListener) {
+        this._schedOutListener = ev => {
+          if (!ev.target.closest('.bt-ctrl--sched')) {
+            document.querySelectorAll('.bt-sched-picker.open').forEach(p => p.classList.remove('open'));
+          }
+        };
+        document.addEventListener('click', this._schedOutListener, true);
+      }
+    }
   },
   _schedDrumStep(id, field, dir) {
     const picker = document.getElementById('btSchedPicker_' + id);
