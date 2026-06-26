@@ -2,6 +2,18 @@
 
 ## Deploy commands
 
+**ВАЖНО (формат выдачи команд):** когда после изменений нужно скинуть
+пользователю команды на загрузку, всегда давать ТОЛЬКО изменённые файлы,
+каждый отдельной строкой `scp ...` в одном блоке кода. НЕ объединять через
+`&&`, НЕ делать одной командой, НЕ разбивать на несколько блоков кода.
+Пример:
+
+```bash
+scp modules/bots/bots.js root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp modules/bots/bots.css root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp pwa/sw.js root@157.22.207.243:/opt/horseoff-v2/pwa/
+```
+
 After making changes, run from the repo root on a machine with SSH access:
 
 ```bash
