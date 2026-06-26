@@ -1056,11 +1056,12 @@ var Bots = {
         wrap.className = 'bt-ctrl-card bt-ctrl--sched';
         if (ctrl.id) wrap.id = 'btCtrlCard_' + ctrl.id;
         const { h: th, mi: tmi } = this._parseSchedTime(ctrl.value);
+        const tDisp = (ctrl.value && String(ctrl.value).trim()) ? this._fmtSchedTime(th, tmi) : '—';
         wrap.innerHTML = `
           <div class="bt-ctrl-label">${this._esc(ctrl.label || 'Время')}</div>
           <div class="bt-sched-display" onclick="Bots._schedToggle('${ctrl.id}')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <span class="bt-sched-val-txt" id="btSchedVal_${ctrl.id}">${this._fmtSchedTime(th, tmi)}</span>
+            <span class="bt-sched-val-txt" id="btSchedVal_${ctrl.id}">${tDisp}</span>
             <svg class="bt-sched-edit-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </div>
           <div class="bt-sched-picker" id="btSchedPicker_${ctrl.id}" data-type="time" data-h="${th}" data-mi="${tmi}">
@@ -1187,8 +1188,12 @@ var Bots = {
     }
     const txt = document.getElementById('btSchedVal_' + id);
     if (txt) txt.textContent = dispText;
+    // keep local cache in sync so reopening the picker / next ctrl_update is consistent
+    const ctrl = this._findCtrl(id);
+    if (ctrl) ctrl.value = value;
     picker.classList.remove('open');
     this._sendCommand(id, 'set', this._b64(value));
+    Shell.toast('Отправлено боту: ' + dispText);
     if (navigator.vibrate) navigator.vibrate(18);
   },
   _schedCalNav(id, delta) {
@@ -1287,16 +1292,24 @@ var Bots = {
       if (data.value !== undefined) {
         const txt = document.getElementById('btSchedVal_' + ctrlId);
         const picker = document.getElementById('btSchedPicker_' + ctrlId);
-        if (txt && picker) {
+        // не трогаем UI, пока пользователь редактирует (picker открыт)
+        if (txt && picker && !picker.classList.contains('open')) {
+          const empty = !data.value || !String(data.value).trim();
           if (picker.dataset.type === 'datetime') {
-            const dt = this._parseSchedDt(data.value);
-            txt.textContent = this._fmtSchedDtDisplay(dt.d, dt.mo, dt.y, dt.h, dt.mi);
-            picker.dataset.h = dt.h; picker.dataset.mi = dt.mi;
-            picker.dataset.d = dt.d; picker.dataset.mo = dt.mo; picker.dataset.y = dt.y;
+            if (empty) { txt.textContent = '—'; }
+            else {
+              const dt = this._parseSchedDt(data.value);
+              txt.textContent = this._fmtSchedDtDisplay(dt.d, dt.mo, dt.y, dt.h, dt.mi);
+              picker.dataset.h = dt.h; picker.dataset.mi = dt.mi;
+              picker.dataset.d = dt.d; picker.dataset.mo = dt.mo; picker.dataset.y = dt.y;
+            }
           } else {
-            const { h, mi } = this._parseSchedTime(data.value);
-            txt.textContent = this._fmtSchedTime(h, mi);
-            picker.dataset.h = h; picker.dataset.mi = mi;
+            if (empty) { txt.textContent = '—'; }
+            else {
+              const { h, mi } = this._parseSchedTime(data.value);
+              txt.textContent = this._fmtSchedTime(h, mi);
+              picker.dataset.h = h; picker.dataset.mi = mi;
+            }
           }
         }
       }
@@ -1491,70 +1504,57 @@ var Bots = {
       xls.appendChild(th);
     });
 
+    // Shared context for all xls helpers
+    const ctx = { allCells: [], xls, editCols, EXTRA };
+    this._xlsCtx = ctx;
+
     // Determine initial row count
-    let nRows = Math.max(existingRows.length, 1) + EXTRA;
-    const allCells = []; // allCells[row][col]
-
-    const addRow = (ri, vals) => {
-      const numEl = document.createElement('div');
-      numEl.className = 'bt-xls-num';
-      numEl.textContent = ri + 1;
-      xls.appendChild(numEl);
-      const rowCells = [];
-      editCols.forEach((c, ci) => {
-        const inp = document.createElement('input');
-        inp.className = 'bt-xls-cell';
-        inp.type = 'text';
-        inp.spellcheck = false;
-        inp.dataset.r = ri;
-        inp.dataset.c = ci;
-        inp.value = (vals && vals[c.key] !== undefined) ? String(vals[c.key]) : '';
-        inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
-        inp.addEventListener('paste', e => this._xlsPaste(e, allCells, editCols.length));
-        inp.addEventListener('input', () => this._xlsGrow(allCells, xls, editCols, EXTRA));
-        xls.appendChild(inp);
-        rowCells.push(inp);
-      });
-      allCells.push(rowCells);
-    };
-
+    const nRows = Math.max(existingRows.length, 1) + EXTRA;
     for (let ri = 0; ri < nRows; ri++) {
-      addRow(ri, existingRows[ri] || null);
+      this._xlsAddRow(existingRows[ri] || null);
     }
 
-    this._xlsGrowFn = (newRow) => {
-      const ri = allCells.length;
-      const numEl = document.createElement('div');
-      numEl.className = 'bt-xls-num';
-      numEl.textContent = ri + 1;
-      xls.appendChild(numEl);
-      const rowCells = [];
-      editCols.forEach((c, ci) => {
-        const inp = document.createElement('input');
-        inp.className = 'bt-xls-cell';
-        inp.type = 'text';
-        inp.spellcheck = false;
-        inp.dataset.r = ri;
-        inp.dataset.c = ci;
-        inp.value = (newRow && newRow[ci] !== undefined) ? newRow[ci] : '';
-        inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
-        inp.addEventListener('paste', e => this._xlsPaste(e, allCells, editCols.length));
-        inp.addEventListener('input', () => this._xlsGrow(allCells, xls, editCols, EXTRA));
-        xls.appendChild(inp);
-        rowCells.push(inp);
-      });
-      allCells.push(rowCells);
-      return rowCells;
-    };
-
-    const close = () => overlay.remove();
+    const close = () => { this._xlsCtx = null; overlay.remove(); };
     overlay.querySelector('#btEditClose').onclick = close;
     overlay.querySelector('#btEditCancel').onclick = close;
     overlay.onclick = e => { if (e.target === overlay) close(); };
     overlay.querySelector('#btEditSave').onclick = () => {
-      this._tableSave(ctrlId, overlay, editCols.map(c => c.key), allCells);
+      this._tableSave(ctrlId, overlay, editCols.map(c => c.key), ctx.allCells);
     };
     if (navigator.vibrate) navigator.vibrate(12);
+  },
+
+  // Appends one row to the active grid. `vals` may be an object keyed by col,
+  // an array of cell strings, or null for an empty row.
+  _xlsAddRow(vals) {
+    const ctx = this._xlsCtx;
+    if (!ctx) return null;
+    const { allCells, xls, editCols, EXTRA } = ctx;
+    const ri = allCells.length;
+    const numEl = document.createElement('div');
+    numEl.className = 'bt-xls-num';
+    numEl.textContent = ri + 1;
+    xls.appendChild(numEl);
+    const rowCells = [];
+    editCols.forEach((c, ci) => {
+      const inp = document.createElement('input');
+      inp.className = 'bt-xls-cell';
+      inp.type = 'text';
+      inp.spellcheck = false;
+      inp.dataset.r = ri;
+      inp.dataset.c = ci;
+      let v = '';
+      if (Array.isArray(vals)) v = vals[ci] !== undefined ? vals[ci] : '';
+      else if (vals && vals[c.key] !== undefined) v = String(vals[c.key]);
+      inp.value = v;
+      inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
+      inp.addEventListener('paste', e => this._xlsPaste(e));
+      inp.addEventListener('input', () => this._xlsEnsureTrailing());
+      xls.appendChild(inp);
+      rowCells.push(inp);
+    });
+    allCells.push(rowCells);
+    return rowCells;
   },
 
   _xlsKey(e, allCells) {
@@ -1576,57 +1576,40 @@ var Bots = {
     }
   },
 
-  _xlsPaste(e, allCells, nc) {
+  _xlsPaste(e) {
     e.preventDefault();
+    const ctx = this._xlsCtx;
+    if (!ctx) return;
+    const nc = ctx.editCols.length;
     const text = (e.clipboardData || window.clipboardData).getData('text');
     const pasteRows = text.split(/\r?\n/).map(l => l.split('\t'));
+    // trailing empty line from Excel copy → drop it
+    while (pasteRows.length > 1 && pasteRows[pasteRows.length-1].every(c => c === '')) pasteRows.pop();
     const startR = +e.target.dataset.r, startC = +e.target.dataset.c;
     pasteRows.forEach((pr, dR) => {
       const ri = startR + dR;
-      // grow if needed
-      while (allCells.length <= ri) this._xlsGrowFn([]);
+      while (ctx.allCells.length <= ri) this._xlsAddRow(null);
       pr.forEach((val, dC) => {
         const ci = startC + dC;
-        if (ci < nc && allCells[ri] && allCells[ri][ci]) {
-          allCells[ri][ci].value = val.trim();
+        if (ci < nc && ctx.allCells[ri] && ctx.allCells[ri][ci]) {
+          ctx.allCells[ri][ci].value = val.trim();
         }
       });
     });
+    this._xlsEnsureTrailing();
   },
 
-  _xlsGrow(allCells, xls, editCols, extra) {
-    // ensure there are always `extra` empty rows at the bottom
-    const nr = allCells.length;
+  // Keep exactly EXTRA empty rows below the last filled row
+  _xlsEnsureTrailing() {
+    const ctx = this._xlsCtx;
+    if (!ctx) return;
+    const { allCells, EXTRA } = ctx;
     let lastFilled = -1;
-    for (let i = nr - 1; i >= 0; i--) {
+    for (let i = allCells.length - 1; i >= 0; i--) {
       if (allCells[i].some(inp => inp.value.trim() !== '')) { lastFilled = i; break; }
     }
-    const needed = lastFilled + 1 + extra;
-    if (needed > nr) {
-      for (let i = nr; i < needed; i++) {
-        const ri = allCells.length;
-        const numEl = document.createElement('div');
-        numEl.className = 'bt-xls-num';
-        numEl.textContent = ri + 1;
-        xls.appendChild(numEl);
-        const rowCells = [];
-        editCols.forEach((c, ci) => {
-          const inp = document.createElement('input');
-          inp.className = 'bt-xls-cell';
-          inp.type = 'text';
-          inp.spellcheck = false;
-          inp.dataset.r = ri;
-          inp.dataset.c = ci;
-          inp.value = '';
-          inp.addEventListener('keydown', e => this._xlsKey(e, allCells));
-          inp.addEventListener('paste', e => this._xlsPaste(e, allCells, editCols.length));
-          inp.addEventListener('input', () => this._xlsGrow(allCells, xls, editCols, extra));
-          xls.appendChild(inp);
-          rowCells.push(inp);
-        });
-        allCells.push(rowCells);
-      }
-    }
+    const needed = lastFilled + 1 + EXTRA;
+    while (allCells.length < needed) this._xlsAddRow(null);
   },
 
   _tableSave(ctrlId, overlay, keys, allCells) {
