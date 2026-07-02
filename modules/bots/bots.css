@@ -129,6 +129,7 @@
 .bt-panes{flex:1;overflow:hidden;position:relative}
 .bt-pane{position:absolute;inset:0;overflow-y:auto;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity 0.2s ease,transform 0.2s ease;padding:20px;display:flex;flex-direction:column}
 .bt-pane#btPane-controls{padding:0}
+.bt-pane#btPane-log{padding:0}
 .bt-pane.active{opacity:1;transform:translateY(0);pointer-events:auto}
 
 /* ════════════════════════════════════════
@@ -358,23 +359,33 @@ body.theme-light .bt-ctrl--buttons .bt-btn-group{background:#e9edf3;box-shadow:i
 /* ════════════════════════════════════════
    LOG TAB
    ════════════════════════════════════════ */
-.bt-log-wrap{height:100%;display:flex;flex-direction:column;gap:0;padding:0;margin:-20px}
-.bt-log-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.bt-log-wrap{height:100%;display:flex;flex-direction:column;gap:0;padding:0;margin:0}
+.bt-log-toolbar{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;position:sticky;top:0;z-index:5}
 .bt-log-count{font-size:12px;color:var(--text-dim);font-family:'JetBrains Mono',monospace}
 .bt-log-actions{display:flex;align-items:center;gap:12px}
 .bt-log-clear-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:5px 12px;font-size:12px;color:var(--text-dim);cursor:pointer;font-family:inherit;transition:all 0.18s}
 .bt-log-clear-btn:hover{border-color:var(--danger);color:var(--danger)}
 .bt-log-clear-btn:active{transform:scale(0.95)}
-.bt-log-console{flex:1;overflow-y:auto;background:#0a0c14;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color:#c9d0e0}
-.bt-log-line{display:flex;gap:10px;padding:1px 0;transition:background 0.1s;border-radius:3px}
-.bt-log-line:hover{background:rgba(255,255,255,0.04);padding-left:4px;margin-left:-4px}
-.bt-log-time{color:#4a5568;flex-shrink:0}
-.bt-log-level{flex-shrink:0;font-weight:700;min-width:52px}
-.bt-log-level.INFO{color:#5e7bd4}
-.bt-log-level.WARN{color:#f0b429}
-.bt-log-level.ERROR{color:#e23355}
-.bt-log-level.SUCCESS{color:#3bc96b}
-.bt-log-msg{color:#c9d0e0;word-break:break-all}
+/* console adapts to theme — светлый фон в светлой теме */
+.bt-log-console{flex:1;overflow-y:auto;background:#0e111a;padding:8px;font-size:12.5px;line-height:1.5;color:#c9d0e0}
+.bt-log-line{display:flex;gap:10px;align-items:baseline;padding:6px 10px;border-radius:8px;transition:background 0.1s}
+.bt-log-line:hover{background:rgba(255,255,255,0.05)}
+.bt-log-time{color:#6b7488;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:11px}
+.bt-log-level{flex-shrink:0;font-weight:700;font-size:10px;letter-spacing:0.3px;padding:2px 7px;border-radius:6px}
+.bt-log-level.INFO{color:#7d97e0;background:rgba(94,123,212,0.16)}
+.bt-log-level.WARN{color:#f0b429;background:rgba(240,180,41,0.16)}
+.bt-log-level.ERROR{color:#f0637e;background:rgba(226,51,85,0.16)}
+.bt-log-level.SUCCESS{color:#4fd486;background:rgba(59,201,107,0.16)}
+.bt-log-msg{flex:1;color:#c9d0e0;word-break:break-word}
+/* light theme — консоль светлая, не чёрная */
+body.theme-light .bt-log-console{background:#f4f6fb;color:#2a3142}
+body.theme-light .bt-log-line:hover{background:rgba(23,33,54,0.05)}
+body.theme-light .bt-log-time{color:#98a1b4}
+body.theme-light .bt-log-msg{color:#2a3142}
+body.theme-light .bt-log-level.INFO{color:#3f5fc0;background:rgba(63,95,192,0.12)}
+body.theme-light .bt-log-level.WARN{color:#c47f06;background:rgba(196,127,6,0.14)}
+body.theme-light .bt-log-level.ERROR{color:#d0293f;background:rgba(208,41,63,0.12)}
+body.theme-light .bt-log-level.SUCCESS{color:#1f9a52;background:rgba(31,154,82,0.14)}
 
 /* ════════════════════════════════════════
    SETTINGS TAB
@@ -652,12 +663,14 @@ body.theme-light .bt-sched-picker{box-shadow:0 10px 40px rgba(23,33,54,.18)}
   .bt-settings-wrap{max-width:100%;padding:0 12px}
   .bt-settings-row{flex-direction:column}
   .bt-stats-wrap{padding:0 12px}
-  .bt-log-wrap{padding:0 12px}
+  .bt-log-wrap{padding:0}
   .bt-apikey-field{flex-wrap:wrap}
   .bt-apikey-field .bt-input{min-width:0}
 
   /* Log */
-  .bt-log-console{font-size:11px}
+  .bt-log-console{font-size:11.5px;padding:6px}
+  .bt-log-toolbar{padding:10px 14px}
+  .bt-log-line{padding:6px 8px;gap:8px}
 
   /* Tabs scroll horizontally */
   .bt-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
