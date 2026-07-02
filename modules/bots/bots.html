@@ -119,6 +119,12 @@
           <div class="bt-log-wrap">
             <div class="bt-log-toolbar">
               <span class="bt-log-count" id="btLogCount">0 записей</span>
+              <div class="bt-log-filters" id="btLogFilters">
+                <button class="bt-log-filter INFO" data-level="INFO" onclick="Bots.toggleLogFilter('INFO', this)">INFO</button>
+                <button class="bt-log-filter SUCCESS" data-level="SUCCESS" onclick="Bots.toggleLogFilter('SUCCESS', this)">SUCCESS</button>
+                <button class="bt-log-filter WARN" data-level="WARN" onclick="Bots.toggleLogFilter('WARN', this)">WARN</button>
+                <button class="bt-log-filter ERROR" data-level="ERROR" onclick="Bots.toggleLogFilter('ERROR', this)">ERROR</button>
+              </div>
               <div class="bt-log-actions">
                 <label class="bt-autoscroll-toggle">
                   <input type="checkbox" id="btAutoScroll" checked onchange="Bots.onAutoScrollChange(this.checked)"/>

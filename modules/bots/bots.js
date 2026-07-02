@@ -13,6 +13,7 @@ var Bots = {
   _botRunning: {},
   _statsSig: null,
   _logMax: 500,
+  _logHidden: [],
   _snippetMode: 'cs',
   _testBotEnabled: false,
   _editMode: false,
@@ -326,7 +327,7 @@ var Bots = {
   _renderLogs(id) {
     const el = document.getElementById('btLogConsole');
     if (!el) return;
-    const logs = this._botLogs[id] || [];
+    const logs = (this._botLogs[id] || []).filter(l => !this._logHidden.includes(l.level));
     el.innerHTML = logs.map(({ ts, level, msg }) =>
       `<div class="bt-log-line"><span class="bt-log-time">${ts}</span>` +
       `<span class="bt-log-level ${level}">[${level}]</span>` +
@@ -334,6 +335,14 @@ var Bots = {
     const countEl = document.getElementById('btLogCount');
     if (countEl) countEl.textContent = logs.length + ' записей';
     if (this._autoScroll) el.scrollTop = el.scrollHeight;
+  },
+
+  toggleLogFilter(level, el) {
+    const i = this._logHidden.indexOf(level);
+    if (i >= 0) { this._logHidden.splice(i, 1); el.classList.remove('off'); }
+    else { this._logHidden.push(level); el.classList.add('off'); }
+    if (this._selected) this._renderLogs(this._selected);
+    if (navigator.vibrate) navigator.vibrate(10);
   },
 
   // ─── Controls rendering ─────────────────────────────────────
@@ -1836,15 +1845,16 @@ var Bots = {
       this._botLogs[id].push({ ts, level, msg });
       if (this._botLogs[id].length > this._logMax) this._botLogs[id].shift();
     }
+    // Respect active level filter — hidden levels don't render but stay cached
+    if (this._logHidden.includes(level)) return;
     const line = document.createElement('div');
     line.className = 'bt-log-line';
     line.innerHTML = `<span class="bt-log-time">${ts}</span>
       <span class="bt-log-level ${level}">[${level}]</span>
       <span class="bt-log-msg">${this._esc(msg)}</span>`;
     console_.appendChild(line);
-    const logLen = id && this._botLogs[id] ? this._botLogs[id].length : 0;
     const countEl = document.getElementById('btLogCount');
-    if (countEl) countEl.textContent = logLen + ' записей';
+    if (countEl) countEl.textContent = console_.children.length + ' записей';
     if (this._autoScroll) console_.scrollTop = console_.scrollHeight;
   },
 

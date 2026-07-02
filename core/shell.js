@@ -321,30 +321,36 @@ const Shell = {
   },
 
   _initSwUpdateCheck() {
-    if (!('serviceWorker' in navigator)) return;
-    // Show update banner when a new SW takes control (don't force-reload)
     var self = this;
-    navigator.serviceWorker.addEventListener('controllerchange', function() {
-      self._showUpdateBanner();
-    });
-    // Force SW update check every 5 minutes
-    var self = this;
-    setInterval(function() {
-      navigator.serviceWorker.getRegistration().then(function(reg) {
-        if (reg) reg.update();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        self._showUpdateBanner();
       });
-    }, 5 * 60 * 1000);
-    // Check server version every 10 min, reload if changed
-    setInterval(async function() {
+    }
+    // Lightweight server-version check — the primary trigger.
+    self._checkVersion = async function() {
+      if (self._checkingVersion) return;
+      self._checkingVersion = true;
       try {
         var v = await self.api('/api/version');
         if (v && v.version && v.version !== self.appVersion) {
           self.appVersion = v.version;
-          // Show update banner instead of hard reload
           self._showUpdateBanner();
         }
-      } catch(e) {}
-    }, 10 * 60 * 1000);
+      } catch (e) {}
+      self._checkingVersion = false;
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function(reg) { if (reg) reg.update(); });
+      }
+    };
+    // Мгновенно при возврате в приложение (открыл вкладку/свернул-развернул PWA)
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') self._checkVersion();
+    });
+    window.addEventListener('focus', function() { self._checkVersion(); });
+    // Фоновая подстраховка каждую минуту, пока приложение открыто
+    setInterval(self._checkVersion, 60 * 1000);
+    self._checkVersion();
   },
 
   _showUpdateBanner() {
