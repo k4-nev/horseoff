@@ -459,15 +459,8 @@ async def handle_bot_ws(websocket):
                         _save_bot(bot)
                     _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
                                     'ts': ts, 'level': level, 'msg': text})
-                    # Push on ERROR-level logs, rate-limited per bot
-                    if level == 'ERROR':
-                        now = time.monotonic()
-                        if now - _push_cooldown.get(bot_id, 0) >= _PUSH_ERROR_COOLDOWN:
-                            _push_cooldown[bot_id] = now
-                            b = _load_bot(bot_id)
-                            if b:
-                                _notify_bot_users(b, f'⚠️ {b.get("name", "Бот")}: ошибка',
-                                                  (text or 'Произошла ошибка')[:140])
+                    # Push-уведомления из логов отключены (лог только копится,
+                    # без пушей на ERROR). Явный push шлётся только через 'event'.
 
                 elif mt == 'event':
                     # Bot explicitly requests a push notification
