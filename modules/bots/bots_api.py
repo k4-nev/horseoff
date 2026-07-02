@@ -142,6 +142,7 @@ def _bot_detail(bot, session):
         **_bot_summary(bot),
         'api_key': bot.get('api_key', '') if session['role'] in _OWNER_ROLES else '',
         'controls': bot.get('controls'),
+        'tabs': bot.get('tabs'),
         'stats': bot.get('stats'),
         'logs': bot.get('logs') or [],
         'access': access_users,
@@ -436,13 +437,14 @@ async def handle_bot_ws(websocket):
                 elif mt == 'manifest':
                     bot = _load_bot(bot_id)
                     if bot:
-                        for field in ('name', 'version', 'sub', 'controls'):
+                        for field in ('name', 'version', 'sub', 'controls', 'tabs'):
                             if msg.get(field) is not None:
                                 bot[field] = msg[field]
                         _save_bot(bot)
                         _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id,
                                         'status': 'online', 'version': bot.get('version', ''),
-                                        'sub': bot.get('sub', ''), 'controls': bot.get('controls')})
+                                        'sub': bot.get('sub', ''), 'controls': bot.get('controls'),
+                                        'tabs': bot.get('tabs')})
 
                 elif mt == 'log':
                     level = (msg.get('level') or 'INFO').upper()

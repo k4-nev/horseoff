@@ -68,6 +68,7 @@
         <button class="bt-tab active" id="btTab-controls" onclick="Bots.switchTab('controls')">Управление</button>
         <button class="bt-tab" id="btTab-stats" onclick="Bots.switchTab('stats')">Статистика</button>
         <button class="bt-tab" id="btTab-log" onclick="Bots.switchTab('log')">Лог</button>
+        <button class="bt-tab" id="btTab-params" onclick="Bots.switchTab('params')">Параметры</button>
         <button class="bt-tab" id="btTab-settings" onclick="Bots.switchTab('settings')">Настройки</button>
       </div>
 
@@ -112,6 +113,17 @@
         <!-- STATS TAB (dynamic — built from bot-declared stat blocks) -->
         <div class="bt-pane" id="btPane-stats">
           <div class="bt-stats-wrap" id="btStatsContainer"></div>
+        </div>
+
+        <!-- PARAMS TAB (входящие параметры проекта, применяемые при запуске) -->
+        <div class="bt-pane" id="btPane-params">
+          <div class="bt-params-wrap" id="btParamsContainer">
+            <div class="bt-params-empty">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              <div class="bt-params-empty-title">Параметры проекта</div>
+              <div class="bt-params-empty-sub">Входящие настройки, применяемые при запуске проекта. Скоро здесь можно будет управлять ими прямо из horseoff.</div>
+            </div>
+          </div>
         </div>
 
         <!-- LOG TAB -->

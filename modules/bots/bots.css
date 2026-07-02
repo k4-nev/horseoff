@@ -344,6 +344,13 @@ body.theme-light .bt-ctrl--buttons .bt-btn-group{background:#e9edf3;box-shadow:i
 /* Empty stats placeholder */
 .bt-stats-empty{padding:48px 20px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--border);border-radius:14px}
 
+/* Params tab (входящие параметры проекта — задел на будущее) */
+.bt-params-wrap{max-width:760px}
+.bt-params-empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:56px 24px;text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:14px}
+.bt-params-empty svg{color:var(--text-dim);opacity:0.6}
+.bt-params-empty-title{font-size:15px;font-weight:700;color:var(--text)}
+.bt-params-empty-sub{font-size:13px;color:var(--text-dim);max-width:380px;line-height:1.5}
+
 /* Rank list (top-N) */
 .bt-rank-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:none}
 .bt-rank-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:9px;transition:background 0.15s}
@@ -673,6 +680,7 @@ body.theme-light .bt-sched-picker{box-shadow:0 10px 40px rgba(23,33,54,.18)}
   .bt-settings-wrap{max-width:100%;padding:0 12px}
   .bt-settings-row{flex-direction:column}
   .bt-stats-wrap{padding:0 12px}
+  .bt-params-wrap{padding:0 12px}
   .bt-log-wrap{padding:0}
   .bt-apikey-field{flex-wrap:wrap}
   .bt-apikey-field .bt-input{min-width:0}

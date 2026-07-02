@@ -242,6 +242,9 @@ var Bots = {
       this._showOnlineState(b);
     }
 
+    // Apply which optional tabs this bot declares (stats/log/params)
+    this._applyTabVisibility(b);
+
     // Reset to controls tab
     this.switchTab('controls');
 
@@ -316,6 +319,7 @@ var Bots = {
     this.renderControls(controls);
     this.renderStats();
     this._renderSettings(b);
+    this._applyTabVisibility(b);
 
     // Logs are server-side source of truth (survive reload/restart)
     if (Array.isArray(b.logs)) {
@@ -2066,6 +2070,21 @@ var Bots = {
   },
 
   // ─── Tab switching ───────────────────────────────────────────
+  // Optional tabs (stats/log/params) are shown only if the bot declares them
+  // in its manifest `tabs`. Управление и Настройки — всегда.
+  // Back-compat: bot без поля tabs → показываем stats+log (как раньше), params скрыт.
+  _applyTabVisibility(b) {
+    const OPTIONAL = ['stats', 'log', 'params'];
+    const declared = Array.isArray(b && b.tabs) ? b.tabs : ['stats', 'log'];
+    OPTIONAL.forEach(t => {
+      const btn = document.getElementById('btTab-' + t);
+      if (btn) btn.style.display = declared.includes(t) ? '' : 'none';
+    });
+    // если активная вкладка оказалась скрытой — уходим на Управление
+    const activeBtn = document.querySelector('.bt-tab.active');
+    if (activeBtn && activeBtn.style.display === 'none') this.switchTab('controls');
+  },
+
   switchTab(tab) {
     // Guard: if in edit mode and switching away from controls, show save modal
     if (this._editMode && tab !== 'controls') {
@@ -2437,12 +2456,16 @@ End If`;
 
   onWS(data) {
     if (data.type === 'bot_update') {
-      const { bot_id, status, controls, version, sub, status_text, status_dot, status_lock } = data;
+      const { bot_id, status, controls, version, sub, status_text, status_dot, status_lock, tabs } = data;
       const idx = this._bots.findIndex(b => b.id === bot_id);
       if (idx >= 0) {
         if (status !== undefined) this._bots[idx].status = status;
         if (version !== undefined) this._bots[idx].version = version;
         if (sub !== undefined) this._bots[idx].sub = sub;
+        if (tabs !== undefined) {
+          this._bots[idx].tabs = tabs;
+          if (this._selected === bot_id) this._applyTabVisibility(this._bots[idx]);
+        }
         if (status_text !== undefined) this._bots[idx].status_text = status_text;
         if (status_dot !== undefined) this._bots[idx].status_dot = status_dot;
         if (status_lock !== undefined) {
