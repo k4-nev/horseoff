@@ -162,6 +162,10 @@ public static class HoBridge {
     public static string PendingCtrlId = "";
     public static string CmdState      = "";
     public static string StatsDir      = "";
+    // Базовая линия для дельт: сколько скликов у товара мы уже учли.
+    // Живёт, пока жив процесс ZennoPoster (static).
+    public static System.Collections.Generic.Dictionary<string,int> LastDone =
+        new System.Collections.Generic.Dictionary<string,int>();
 
     public static void Send(string msg) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(msg);
@@ -238,6 +242,42 @@ public static class HoBridge {
                     }
                 }
             } catch {}
+        } catch {}
+    }
+
+    // НАКОПИТЕЛЬНО добавляет дельты скликов в файл дня.
+    // Файл дня никогда не уменьшается — только растёт. Ключ = "запрос\x01артикул".
+    public static void AddDayStat(string date,
+            System.Collections.Generic.Dictionary<string,int> itemDeltas) {
+        if (string.IsNullOrEmpty(StatsDir)) return;
+        try {
+            int done; int ic;
+            var fi = ReadDayStat(date, out done, out ic);
+            // существующие данные дня → словарь
+            var map = new System.Collections.Generic.Dictionary<string,int>();
+            foreach (string[] row in fi) {
+                string k = row[0] + "\x01" + row[1];
+                int v = 0; int.TryParse(row[2], out v);
+                if (map.ContainsKey(k)) map[k] += v; else map[k] = v;
+            }
+            // прибавляем дельты
+            int deltaSum = 0;
+            foreach (var kv in itemDeltas) {
+                deltaSum += kv.Value;
+                if (map.ContainsKey(kv.Key)) map[kv.Key] += kv.Value;
+                else map[kv.Key] = kv.Value;
+            }
+            done += deltaSum;
+            // словарь → список и запись
+            var outFi = new System.Collections.Generic.List<string[]>();
+            foreach (var kv in map) {
+                string[] parts = kv.Key.Split('\x01');
+                outFi.Add(new string[] {
+                    parts.Length > 0 ? parts[0] : "",
+                    parts.Length > 1 ? parts[1] : "",
+                    kv.Value.ToString() });
+            }
+            WriteDayStat(date, done, outFi);
         } catch {}
     }
 }
@@ -422,14 +462,17 @@ for (int i = 0; i < disabledBtns.Length; i++) {
 }
 dis.Append("]");
 
-// ── Таблица + прогресс ─────────────────────────────────────────
+// ── Таблица + прогресс + ДЕЛЬТЫ скликов ───────────────────────
 // Если у строки статус "Артикул пропал из выдачи" — товар скликан:
 // за максимум берём done (уже выполненные), а не total (пороговое значение).
+// Статистика ведётся НАКОПИТЕЛЬНО: считаем приращение done между итерациями
+// и прибавляем его в файл ТЕКУЩЕГО дня. Файл дня никогда не уменьшается.
+// Сброс таблицы / новый запуск / новый день ничего не затирают.
 var rows = new System.Text.StringBuilder("[");
 var t = project.Tables[tableName];
 int rc = t.RowCount;
 int sumDone = 0, sumTotal = 0;
-var finishedItems = new System.Collections.Generic.List<string[]>();
+var itemDeltas = new System.Collections.Generic.Dictionary<string,int>();
 for (int i = 0; i < rc; i++) {
     string rowQ      = t.GetCell(0, i) ?? "";
     string rowArt    = t.GetCell(1, i) ?? "";
@@ -441,10 +484,20 @@ for (int i = 0; i < rc; i++) {
     // Скликанный товар: его максимум = done (больше не вырастет)
     sumTotal += isPropan ? done : total;
     sumDone  += done;
-    // В рейтинг/статистику попадает ЛЮБОЙ товар, по которому был хоть один склик
-    // (не только пропавшие из выдачи — те просто перестают расти).
-    if (done > 0)
-        finishedItems.Add(new string[] { rowQ, rowArt, done.ToString() });
+    // Дельта скликов с прошлой итерации (по ключу запрос+артикул)
+    string dKey = rowQ + "\x01" + rowArt;
+    int prev;
+    if (HoBridge.LastDone.TryGetValue(dKey, out prev)) {
+        if (done > prev) {
+            int dd2 = done - prev;
+            if (itemDeltas.ContainsKey(dKey)) itemDeltas[dKey] += dd2;
+            else itemDeltas[dKey] = dd2;
+        }
+        // done < prev — таблицу перезалили/сбросили: просто обновляем базу, ничего не вычитаем
+    }
+    // Первое наблюдение товара — только фиксируем базу (не считаем дельту,
+    // чтобы после перезапуска ZP не задвоить уже учтённые склики)
+    HoBridge.LastDone[dKey] = done;
     if (i > 0) rows.Append(",");
     rows.Append("{")
         .Append("\"q\":\"").Append(HoBridge.Esc(rowQ)).Append("\",")
@@ -457,12 +510,13 @@ for (int i = 0; i < rc; i++) {
 rows.Append("]");
 int pct = sumTotal > 0 ? (int)(sumDone * 100L / sumTotal) : 0;
 
-// ── Статистика (запись в файл + отправка) ─────────────────────
+// ── Статистика (накопление в файл дня + отправка) ─────────────
 try {
     string today = System.DateTime.Now.ToString("yyyy-MM-dd");
     string yesterday = System.DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
-    // Запись сегодняшних данных
-    HoBridge.WriteDayStat(today, sumDone, finishedItems);
+    // Прибавляем дельты в файл СЕГОДНЯШНЕГО дня (создаст файл, если его нет).
+    // На границе суток дельты автоматически пойдут в файл нового дня.
+    HoBridge.AddDayStat(today, itemDeltas);
 
     // Сбор данных за 7 дней (от старого к новому)
     var wDates = new System.Collections.Generic.List<string>();
@@ -478,25 +532,26 @@ try {
         wFis.Add(fi);
     }
 
-    // Вчерашние данные для дельт
-    int prevDone = 0; int prevIc = 0;
-    if (!string.IsNullOrEmpty(yesterday)) {
-        for (int i = 0; i < wDates.Count; i++) {
-            if (wDates[i] == yesterday) { prevDone = wDones[i]; prevIc = wFis[i].Count; break; }
-        }
+    // Сегодня / вчера / неделя
+    int todayDone = 0; int todayIc = 0;
+    int prevDone  = 0; int prevIc  = 0;
+    int weekDone  = 0;
+    for (int i = 0; i < wDates.Count; i++) {
+        weekDone += wDones[i];
+        if (wDates[i] == today)     { todayDone = wDones[i]; todayIc = wFis[i].Count; }
+        if (wDates[i] == yesterday) { prevDone  = wDones[i]; prevIc  = wFis[i].Count; }
     }
-    int todayDone = sumDone;
-    int todayIc   = finishedItems.Count;
     int deltaDone  = todayDone - prevDone;
     int deltaItems = todayIc   - prevIc;
 
-    // Уникальные товары за всю неделю
+    // Товары за неделю: СУММА скликов по дням (файлы теперь хранят дневные приросты)
     var seenWeek = new System.Collections.Generic.Dictionary<string, int>();
     for (int i = 0; i < wFis.Count; i++) {
         foreach (string[] fi in wFis[i]) {
             string key = fi[0] + "\x01" + fi[1];
             int dv = 0; int.TryParse(fi[2], out dv);
-            if (!seenWeek.ContainsKey(key) || seenWeek[key] < dv) seenWeek[key] = dv;
+            if (seenWeek.ContainsKey(key)) seenWeek[key] += dv;
+            else seenWeek[key] = dv;
         }
     }
     int weekTotalItems = seenWeek.Count;
@@ -504,15 +559,13 @@ try {
     // KPI
     string[] ruDow = new string[] {"вс","пн","вт","ср","чт","пт","сб"};
     var kpi = new System.Text.StringBuilder("[");
-    kpi.Append("{\"label\":\"Скликов за неделю\",\"value\":\"").Append(todayDone)
+    kpi.Append("{\"label\":\"Скликов сегодня\",\"value\":\"").Append(todayDone)
        .Append("\",\"delta\":\"").Append(deltaDone >= 0 ? "+" : "").Append(deltaDone)
        .Append("\",\"trend\":\"").Append(deltaDone >= 0 ? "up" : "down").Append("\"},");
-    kpi.Append("{\"label\":\"Товаров скликано сегодня\",\"value\":\"").Append(todayIc)
-       .Append("\",\"delta\":\"").Append(deltaItems >= 0 ? "+" : "").Append(deltaItems)
-       .Append("\",\"trend\":\"").Append(deltaItems >= 0 ? "up" : "down").Append("\"},");
+    kpi.Append("{\"label\":\"Скликов за неделю\",\"value\":\"").Append(weekDone).Append("\"},");
     kpi.Append("{\"label\":\"Товаров за неделю\",\"value\":\"").Append(weekTotalItems).Append("\"}]");
 
-    // Линейный график — склики по дням недели
+    // Линейный график — склики по дням недели (дневные приросты, не снапшоты)
     var line = new System.Text.StringBuilder("[");
     bool fh = true;
     for (int i = 0; i < wDates.Count; i++) {
@@ -523,7 +576,7 @@ try {
     }
     line.Append("]");
 
-    // Топ-10 — список товаров (title=запрос, sub=артикул, value=скликов)
+    // Топ-10 — список товаров (title=запрос, sub=артикул, value=сумма скликов за неделю)
     var topList = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string,int>>();
     foreach (var kv in seenWeek)
         topList.Add(new System.Collections.Generic.KeyValuePair<string,int>(kv.Key, kv.Value));
