@@ -286,17 +286,20 @@ public static class HoBridge {
 ### Блок 1 — подключение + манифест (ОДИН раз в начале)
 
 ```csharp
-string apiKey   = project.Variables["horseoff_sklik_api"].Value;
-string wsUrl    = "wss://ТВОЙ_ДОМЕН/ws/bots";
+string apiDomain = project.Variables["horseoff_domain"].Value;
+string apiKey = project.Variables["horseoff_sklik_api"].Value;
+string wsUrl  = "wss://" + apiDomain + "/ws/bots";
 string taskName = project.Variables["horseoff_sklik_task"].Value;
+string projectDirectoryName = project.Variables["project_name"].Value;
+string versionProject = project.Variables["project_version"].Value;
 
 // Сброс состояния при новом подключении
 HoBridge.PendingCmd    = "";
 HoBridge.PendingData   = "";
 HoBridge.PendingCtrlId = "";
 HoBridge.CmdState      = "";
-// Папка статистики — {-Project.Directory-}\K4_WB\System\logs
-HoBridge.StatsDir    = System.IO.Path.Combine(project.Directory, "K4_WB", "System", "logs");
+// Папка статистики/логов — {-Project.Directory-}\{project_name}\System\logs
+HoBridge.StatsDir    = System.IO.Path.Combine(project.Directory, projectDirectoryName, "System", "logs");
 
 HoBridge.Ws = new System.Net.WebSockets.ClientWebSocket();
 HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
@@ -307,7 +310,7 @@ HoBridge.Send("{\"type\":\"auth\",\"api_key\":\"" + HoBridge.Esc(apiKey) + "\"}"
 
 // manifest — сохранится на сервере, шлём один раз
 string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"label\":\"Артикул\"},{\"key\":\"status\",\"label\":\"Статус\"},{\"key\":\"total\",\"label\":\"Кол-во\"},{\"key\":\"done\",\"label\":\"Выполнено\"}]";
-HoBridge.Send("{\"type\":\"manifest\",\"version\":\"1.0\",\"sub\":\"Склик конкурентов\",\"controls\":["
+HoBridge.Send("{\"type\":\"manifest\",\"version\":\"" + versionProject + "\",\"sub\":\"Склик конкурентов\",\"controls\":["
     + "{\"type\":\"section\",\"label\":\"Управление\"},"
     + "{\"type\":\"buttons\",\"id\":\"ctrl\",\"buttons\":["
     +   "{\"label\":\"Запустить\",\"action\":\"start\",\"style\":\"primary\"},"
@@ -637,6 +640,99 @@ try {
     }
 } catch {}
 ```
+
+### Универсальный лог-блок (в проекте «Склик», вместо обычных SendToLog)
+
+Один C#-блок, который заменяет обычные `SendToLog`: пишет событие в
+JSON-файл дня (его читает мост) И дублирует в родной лог ZennoPoster
+с правильным цветом. Многопоточно-безопасен (именованный Mutex).
+
+Файл: `{project.Directory}\{project_name}\System\logs\events_sklik_YYYY-MM-DD.log`
+(тот же каталог, что `HoBridge.StatsDir` в мосте — мост читает отсюда).
+
+Формат строки (JSONL, одна строка = событие):
+```json
+{"ts":"2026-07-02 10:08:01","level":"SUCCESS","msg":"Все задачи выполнены","proxy":"ok","proc":"4389831804"}
+```
+
+Входные переменные проекта:
+- `log_message` — текст события (обязательно)
+- `log_level` — `INFO | WARN | ERROR | SUCCESS` (по умолчанию `INFO`)
+- `log_proxy` — (необязательно) прокси, доп. поле
+- `log_proc` — (необязательно) id процесса/потока
+
+```csharp
+// ─── Универсальный лог-блок проекта «Склик» ───────────────────
+string msg   = "";
+string level = "INFO";
+string proxy = "";
+string proc  = "";
+try { msg   = project.Variables["log_message"].Value; } catch {}
+try { level = project.Variables["log_level"].Value;   } catch {}
+try { proxy = project.Variables["log_proxy"].Value;   } catch {}
+try { proc  = project.Variables["log_proc"].Value;    } catch {}
+
+if (msg == null) msg = "";
+level = (level ?? "").Trim().ToUpper();
+if (level != "WARN" && level != "ERROR" && level != "SUCCESS") level = "INFO";
+
+// JSON-экранирование
+System.Func<string,string> esc = (s) => {
+    if (s == null) return "";
+    return s.Replace("\\","\\\\").Replace("\"","\\\"")
+            .Replace("\n","\\n").Replace("\r","").Replace("\t"," ");
+};
+
+string ts = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+var sb = new System.Text.StringBuilder();
+sb.Append("{\"ts\":\"").Append(ts)
+  .Append("\",\"level\":\"").Append(level)
+  .Append("\",\"msg\":\"").Append(esc(msg)).Append("\"");
+if (!string.IsNullOrEmpty(proxy)) sb.Append(",\"proxy\":\"").Append(esc(proxy)).Append("\"");
+if (!string.IsNullOrEmpty(proc))  sb.Append(",\"proc\":\"").Append(esc(proc)).Append("\"");
+sb.Append("}");
+string line = sb.ToString();
+
+// ── Запись в JSON-файл дня (потокобезопасно через Mutex) ──────
+try {
+    string dir = System.IO.Path.Combine(project.Directory,
+        project.Variables["project_name"].Value, "System", "logs");
+    if (!System.IO.Directory.Exists(dir))
+        System.IO.Directory.CreateDirectory(dir);
+    string file = System.IO.Path.Combine(dir,
+        "events_sklik_" + System.DateTime.Now.ToString("yyyy-MM-dd") + ".log");
+
+    using (var mtx = new System.Threading.Mutex(false, "HorseoffSklikLogWrite")) {
+        bool owned = false;
+        try {
+            try { owned = mtx.WaitOne(5000); }
+            catch (System.Threading.AbandonedMutexException) { owned = true; }
+            System.IO.File.AppendAllText(file, line + "\n", System.Text.Encoding.UTF8);
+        } finally {
+            if (owned) mtx.ReleaseMutex();
+        }
+    }
+} catch {}
+
+// ── Дублируем в родной лог ZennoPoster с цветом ───────────────
+try {
+    var lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Info;
+    var lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Default;
+    if (level == "SUCCESS")    { lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Info;    lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Green; }
+    else if (level == "WARN")  { lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Warning; lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Orange; }
+    else if (level == "ERROR") { lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Error;   lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Red; }
+
+    string logText = msg;
+    if (!string.IsNullOrEmpty(proxy)) logText += "\nПрокси: " + proxy;
+    if (!string.IsNullOrEmpty(proc))  logText += "\nПроцесс: " + proc;
+
+    project.SendToLog(logText, lt, false, lc);
+} catch {}
+```
+
+**Про `return null;`:** если тип блока у тебя object-возвращающий (как Блок 2)
+и ZP ругается «An object of a type convertible to object is required» —
+добавь `return null;` в самый конец. Если это простой C#-action — не нужен.
 
 ## Грабли C# в ZennoPoster (важно помнить)
 
