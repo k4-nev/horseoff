@@ -166,6 +166,9 @@ public static class HoBridge {
     // Живёт, пока жив процесс ZennoPoster (static).
     public static System.Collections.Generic.Dictionary<string,int> LastDone =
         new System.Collections.Generic.Dictionary<string,int>();
+    // Чтение файла событий (лог Склика) по смещению.
+    public static string EvtDate   = "";
+    public static long   EvtOffset = -1;   // -1 = не инициализировано → прыгаем в конец
 
     public static void Send(string msg) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(msg);
@@ -280,6 +283,48 @@ public static class HoBridge {
             WriteDayStat(date, done, outFi);
         } catch {}
     }
+
+    // Читает НОВЫЕ строки events-файла текущего дня. Возвращает список {level, msg}.
+    // Потокобезопасно к писателю (FileShare.ReadWrite), читает только целые строки.
+    public static System.Collections.Generic.List<string[]> ReadNewEvents() {
+        var outList = new System.Collections.Generic.List<string[]>();
+        if (string.IsNullOrEmpty(StatsDir)) return outList;
+        try {
+            string today = System.DateTime.Now.ToString("yyyy-MM-dd");
+            string file = System.IO.Path.Combine(StatsDir, "events_sklik_" + today + ".log");
+            // смена суток → новый файл, читаем с конца
+            if (EvtDate != today) { EvtDate = today; EvtOffset = -1; }
+            if (!System.IO.File.Exists(file)) return outList;
+            long len = new System.IO.FileInfo(file).Length;
+            // первая инициализация после коннекта → прыгаем в конец (без бэкфилла)
+            if (EvtOffset < 0) { EvtOffset = len; return outList; }
+            if (len < EvtOffset) EvtOffset = 0; // файл усечён/пересоздан
+            if (len == EvtOffset) return outList;
+            string content;
+            using (var fs = new System.IO.FileStream(file, System.IO.FileMode.Open,
+                    System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite)) {
+                fs.Seek(EvtOffset, System.IO.SeekOrigin.Begin);
+                using (var sr = new System.IO.StreamReader(fs, System.Text.Encoding.UTF8))
+                    content = sr.ReadToEnd();
+            }
+            // читаем только до последнего перевода строки (незавершённую строку не трогаем)
+            int lastNl = content.LastIndexOf('\n');
+            if (lastNl < 0) return outList;
+            string consumed = content.Substring(0, lastNl + 1);
+            EvtOffset += System.Text.Encoding.UTF8.GetByteCount(consumed);
+            foreach (string raw in consumed.Split('\n')) {
+                string ln = raw.Trim();
+                if (ln.Length == 0) continue;
+                var mL = System.Text.RegularExpressions.Regex.Match(ln, "\"level\"\\s*:\\s*\"([^\"]*)\"");
+                var mM = System.Text.RegularExpressions.Regex.Match(ln, "\"msg\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+                string lvl = mL.Success ? mL.Groups[1].Value : "INFO";
+                string m   = mM.Success ? mM.Groups[1].Value : "";
+                m = m.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\\\", "\\");
+                outList.Add(new string[] { lvl, m });
+            }
+        } catch {}
+        return outList;
+    }
 }
 ```
 
@@ -298,6 +343,8 @@ HoBridge.PendingCmd    = "";
 HoBridge.PendingData   = "";
 HoBridge.PendingCtrlId = "";
 HoBridge.CmdState      = "";
+HoBridge.EvtDate       = "";   // events-файл читаем с конца после реконнекта
+HoBridge.EvtOffset     = -1;
 // Папка статистики/логов — {-Project.Directory-}\{project_name}\System\logs
 HoBridge.StatsDir    = System.IO.Path.Combine(project.Directory, projectDirectoryName, "System", "logs");
 
@@ -615,6 +662,14 @@ try {
     if (sTbl != null) {
         regularReport = sTbl.GetCell(3, 0) ?? ""; // D0 — регулярный отчёт (HH:MM)
         finalReport   = sTbl.GetCell(3, 1) ?? ""; // D1 — финальный отчёт (DD.MM.YYYY H:MM:SS)
+    }
+} catch {}
+
+// ── Новые события из файла лога Склика → в horseoff ───────────
+try {
+    foreach (string[] ev in HoBridge.ReadNewEvents()) {
+        HoBridge.Send("{\"type\":\"log\",\"level\":\"" + HoBridge.Esc(ev[0])
+            + "\",\"msg\":\"" + HoBridge.Esc(ev[1]) + "\"}");
     }
 } catch {}
 

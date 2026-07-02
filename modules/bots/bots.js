@@ -250,23 +250,8 @@ var Bots = {
       this.renderControls(cachedControls);
     }
 
-    // Restore cached logs
-    const cachedLogs = this._botLogs[id] || [];
-    const logConsole = document.getElementById('btLogConsole');
-    if (logConsole) {
-      logConsole.innerHTML = '';
-      cachedLogs.forEach(({ ts, level, msg }) => {
-        const line = document.createElement('div');
-        line.className = 'bt-log-line';
-        line.innerHTML = `<span class="bt-log-time">${ts}</span>
-          <span class="bt-log-level ${level}">[${level}]</span>
-          <span class="bt-log-msg">${this._esc(msg)}</span>`;
-        logConsole.appendChild(line);
-      });
-      const countEl = document.getElementById('btLogCount');
-      if (countEl) countEl.textContent = cachedLogs.length + ' записей';
-      if (this._autoScroll) logConsole.scrollTop = logConsole.scrollHeight;
-    }
+    // Restore cached logs instantly (server data reloads in _loadBotDetails)
+    this._renderLogs(id);
 
     // Load full bot data
     this._loadBotDetails(id);
@@ -330,6 +315,25 @@ var Bots = {
     this.renderControls(controls);
     this.renderStats();
     this._renderSettings(b);
+
+    // Logs are server-side source of truth (survive reload/restart)
+    if (Array.isArray(b.logs)) {
+      this._botLogs[id] = b.logs.slice(-this._logMax);
+      this._renderLogs(id);
+    }
+  },
+
+  _renderLogs(id) {
+    const el = document.getElementById('btLogConsole');
+    if (!el) return;
+    const logs = this._botLogs[id] || [];
+    el.innerHTML = logs.map(({ ts, level, msg }) =>
+      `<div class="bt-log-line"><span class="bt-log-time">${ts}</span>` +
+      `<span class="bt-log-level ${level}">[${level}]</span>` +
+      `<span class="bt-log-msg">${this._esc(msg)}</span></div>`).join('');
+    const countEl = document.getElementById('btLogCount');
+    if (countEl) countEl.textContent = logs.length + ' записей';
+    if (this._autoScroll) el.scrollTop = el.scrollHeight;
   },
 
   // ─── Controls rendering ─────────────────────────────────────
@@ -1822,11 +1826,10 @@ var Bots = {
   },
 
   // ─── Log tab ────────────────────────────────────────────────
-  addLogLine(level, msg) {
+  addLogLine(level, msg, ts) {
     const console_ = document.getElementById('btLogConsole');
     if (!console_) return;
-    const now = new Date();
-    const ts = now.toTimeString().slice(0, 8);
+    if (!ts) ts = new Date().toTimeString().slice(0, 8);
     const id = this._selected;
     if (id) {
       if (!this._botLogs[id]) this._botLogs[id] = [];
@@ -1853,6 +1856,10 @@ var Bots = {
     const countEl = document.getElementById('btLogCount');
     if (countEl) countEl.textContent = '0 записей';
     if (navigator.vibrate) navigator.vibrate(20);
+    // Wipe on server too, so it stays cleared after reload
+    if (id && id !== '__test__') {
+      Shell.api(`/api/mod/bots/${id}/clear_log`, { method: 'POST', body: '{}' });
+    }
   },
 
   onAutoScrollChange(val) {
@@ -2457,8 +2464,21 @@ End If`;
         }
       }
     } else if (data.type === 'bot_log') {
+      // keep per-bot cache fresh even for bots that aren't open
+      if (!this._botLogs[data.bot_id]) this._botLogs[data.bot_id] = [];
+      if (this._selected !== data.bot_id) {
+        this._botLogs[data.bot_id].push({ ts: data.ts || '', level: data.level || 'INFO', msg: data.msg || '' });
+        if (this._botLogs[data.bot_id].length > this._logMax) this._botLogs[data.bot_id].shift();
+      } else {
+        this.addLogLine(data.level || 'INFO', data.msg || '', data.ts);
+      }
+    } else if (data.type === 'bot_log_clear') {
+      this._botLogs[data.bot_id] = [];
       if (this._selected === data.bot_id) {
-        this.addLogLine(data.level || 'INFO', data.msg || '');
+        const el = document.getElementById('btLogConsole');
+        if (el) el.innerHTML = '';
+        const countEl = document.getElementById('btLogCount');
+        if (countEl) countEl.textContent = '0 записей';
       }
     } else if (data.type === 'ctrl_update') {
       // Update controls cache

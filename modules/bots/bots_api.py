@@ -143,6 +143,7 @@ def _bot_detail(bot, session):
         'api_key': bot.get('api_key', '') if session['role'] in _OWNER_ROLES else '',
         'controls': bot.get('controls'),
         'stats': bot.get('stats'),
+        'logs': bot.get('logs') or [],
         'access': access_users,
     }
 
@@ -306,6 +307,13 @@ def handle_post(handler, session, path, data=None):
             _save_bot(bot)
             return _json(handler, 200, {'ok': True})
 
+        # POST /api/mod/bots/:id/clear_log — wipe stored logs
+        if sub == 'clear_log':
+            bot['logs'] = []
+            _save_bot(bot)
+            _broadcast_bot({'type': 'bot_log_clear', 'bot_id': bot_id})
+            return _json(handler, 200, {'ok': True})
+
     return _json(handler, 404, {'error': 'Not found'})
 
 
@@ -439,8 +447,18 @@ async def handle_bot_ws(websocket):
                 elif mt == 'log':
                     level = (msg.get('level') or 'INFO').upper()
                     text = msg.get('msg', '')
+                    ts = time.strftime('%H:%M:%S')
+                    # Persist last 500 log lines per bot (survive reload/restart)
+                    bot = _load_bot(bot_id)
+                    if bot:
+                        logs = bot.get('logs') or []
+                        logs.append({'ts': ts, 'level': level, 'msg': text})
+                        if len(logs) > 500:
+                            logs = logs[-500:]
+                        bot['logs'] = logs
+                        _save_bot(bot)
                     _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
-                                    'level': level, 'msg': text})
+                                    'ts': ts, 'level': level, 'msg': text})
                     # Push on ERROR-level logs, rate-limited per bot
                     if level == 'ERROR':
                         now = time.monotonic()
