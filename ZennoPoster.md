@@ -253,6 +253,31 @@ public static class HoBridge {
         } catch {}
     }
 
+    // Пульс: возраст последней отметки «модуль жив» в секундах (999999 если нет).
+    // Склик отмечает _alive.txt при каждой минутной проверке — пока он включён,
+    // возраст < 90 сек даже без активных потоков.
+    public static double AliveAgeSec() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return 999999;
+            string f = System.IO.Path.Combine(StatsDir, "_alive.txt");
+            if (!System.IO.File.Exists(f)) return 999999;
+            string s = System.IO.File.ReadAllText(f, System.Text.Encoding.UTF8).Trim();
+            System.DateTime ts;
+            if (System.DateTime.TryParse(s, out ts))
+                return (System.DateTime.Now - ts).TotalSeconds;
+            return (System.DateTime.Now - System.IO.File.GetLastWriteTime(f)).TotalSeconds;
+        } catch { return 999999; }
+    }
+    // Освежить пульс из моста (грейс сразу после Старта, пока склик не проснулся).
+    public static void TouchAlive() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return;
+            if (!System.IO.Directory.Exists(StatsDir)) System.IO.Directory.CreateDirectory(StatsDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(StatsDir, "_alive.txt"),
+                System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), System.Text.Encoding.UTF8);
+        } catch {}
+    }
+
     public static int Num(string s) {
         if (string.IsNullOrEmpty(s)) return 0;
         var m = System.Text.RegularExpressions.Regex.Match(s, "\\d+");
@@ -498,7 +523,7 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
     HoBridge.PendingCmd    = "";
     HoBridge.PendingCtrlId = "";
     try {
-        if (cmd == "start") { ZennoPoster.StartTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
+        if (cmd == "start") { ZennoPoster.StartTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); HoBridge.TouchAlive(); }
         else if (cmd == "pause") { ZennoPoster.StopTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
         else if (cmd == "stop")  { ZennoPoster.InterruptTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
         else if (cmd == "clear_table") {
@@ -536,24 +561,26 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
 }
 
 // ── Состояние ZennoPoster ──────────────────────────────────────
-// Источник истины «модуль включён» = наша команда (CmdState), сохранённая
-// в файл и переживающая перезапуск ZP. GetTaskInfo не используем — он у нас
-// отдаёт пусто/NullReference. Потоки только различают: >0 «работает», 0 «ждёт».
+// Признак «модуль включён»: пульс склика (_alive.txt, обновляется при каждой
+// минутной проверке) ЛИБО активные потоки. Стоп из horseoff = красное сразу.
+// GetTaskInfo не используем — отдаёт пусто/NullReference.
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
 // после перезапуска ZP static сбрасывается — восстанавливаем команду из файла
 if (string.IsNullOrEmpty(HoBridge.CmdState)) HoBridge.LoadCmd();
 
+// «жив» = есть потоки ИЛИ пульс свежий (< 90 сек; проверки раз в минуту)
+bool alive = threads > 0 || HoBridge.AliveAgeSec() < 90;
+
 string stateText; string dotClass;
 string[] disabledBtns;
 bool locked;
-if (HoBridge.CmdState == "start") {
-    // модуль ВКЛЮЧЁН в ZennoPoster
-    if (threads > 0) { stateText = threads + " потоков активно"; dotClass = "online"; }
-    else             { stateText = "Ожидает потоки";            dotClass = "idle";   }
-    disabledBtns = new string[] {"start"};
-    locked = true;
+if (HoBridge.CmdState == "stop") {
+    // явный стоп из horseoff
+    stateText = "Склик остановлен"; dotClass = "offline";
+    disabledBtns = new string[] {"pause", "stop"};
+    locked = false;
 } else if (HoBridge.CmdState == "pause") {
     if (threads > 0) {
         stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
@@ -565,12 +592,18 @@ if (HoBridge.CmdState == "start") {
         locked = false;
     }
 } else {
-    // stop или пусто (первый запуск)
+    // start или пусто — решаем по пульсу
     if (threads > 0) {
-        stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
-        disabledBtns = new string[] {"pause"};
+        stateText = threads + " потоков активно"; dotClass = "online";
+        disabledBtns = new string[] {"start"};
+        locked = true;
+    } else if (alive) {
+        // включён, но потоков нет (ждёт план, минутные проверки идут)
+        stateText = "Ожидает потоки"; dotClass = "idle";
+        disabledBtns = new string[] {"start"};
         locked = true;
     } else {
+        // пульса нет > 90 сек: реально выключен / отключили в ZP / ZP перезапустился
         stateText = "Склик остановлен"; dotClass = "offline";
         disabledBtns = new string[] {"pause", "stop"};
         locked = false;
@@ -853,6 +886,27 @@ try {
 **Про `return null;`:** если тип блока у тебя object-возвращающий (как Блок 2)
 и ZP ругается «An object of a type convertible to object is required» —
 добавь `return null;` в самый конец. Если это простой C#-action — не нужен.
+
+### Heartbeat-блок склика (пульс «модуль жив»)
+
+Нужен, чтобы horseoff отличал «включён, но ждёт план» (потоков 0, но задача
+активна) от «полностью выключен». Склик раз в минуту поднимает потоки-проверки —
+в них и ставим пульс. Блок отмечает `_alive.txt`; мост считает возраст отметки:
+свежая (< 90 сек) → «Ожидает потоки», старая → «Остановлен».
+
+**Куда ставить:** в цикл минутной проверки задач (тот, что раз в минуту смотрит,
+есть ли работа) — в самое начало, чтобы отмечался каждый проход. Больше нигде
+не нужно: пока идут потоки, мост и так видит «работает».
+
+```csharp
+try {
+    string dir = System.IO.Path.Combine(project.Directory,
+        project.Variables["project_name"].Value, "System", "logs");
+    if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
+    System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "_alive.txt"),
+        System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), System.Text.Encoding.UTF8);
+} catch {}
+```
 
 ## Склик WB — вариант без расписания отчётов
 
