@@ -235,6 +235,24 @@ public static class HoBridge {
                 .Replace("\n","\\n").Replace("\r","").Replace("\t"," ");
     }
 
+    // Персист команды (start/pause/stop) — переживает перезапуск ZennoPoster.
+    public static void SaveCmd() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return;
+            if (!System.IO.Directory.Exists(StatsDir)) System.IO.Directory.CreateDirectory(StatsDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(StatsDir, "_cmd_state.txt"),
+                CmdState ?? "", System.Text.Encoding.UTF8);
+        } catch {}
+    }
+    public static void LoadCmd() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return;
+            string f = System.IO.Path.Combine(StatsDir, "_cmd_state.txt");
+            if (System.IO.File.Exists(f))
+                CmdState = System.IO.File.ReadAllText(f, System.Text.Encoding.UTF8).Trim();
+        } catch {}
+    }
+
     public static int Num(string s) {
         if (string.IsNullOrEmpty(s)) return 0;
         var m = System.Text.RegularExpressions.Regex.Match(s, "\\d+");
@@ -480,9 +498,9 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
     HoBridge.PendingCmd    = "";
     HoBridge.PendingCtrlId = "";
     try {
-        if (cmd == "start") { ZennoPoster.StartTask(taskName); HoBridge.CmdState = cmd; }
-        else if (cmd == "pause") { ZennoPoster.StopTask(taskName); HoBridge.CmdState = cmd; }
-        else if (cmd == "stop")  { ZennoPoster.InterruptTask(taskName); HoBridge.CmdState = cmd; }
+        if (cmd == "start") { ZennoPoster.StartTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
+        else if (cmd == "pause") { ZennoPoster.StopTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
+        else if (cmd == "stop")  { ZennoPoster.InterruptTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
         else if (cmd == "clear_table") {
             project.Tables[tableName].Clear();
         }
@@ -518,43 +536,45 @@ if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
 }
 
 // ── Состояние ZennoPoster ──────────────────────────────────────
+// Источник истины «модуль включён» = наша команда (CmdState), сохранённая
+// в файл и переживающая перезапуск ZP. GetTaskInfo не используем — он у нас
+// отдаёт пусто/NullReference. Потоки только различают: >0 «работает», 0 «ждёт».
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
-bool? sysEnabled = null;
-try {
-    string xml = ZennoPoster.GetTaskInfo(taskName);
-    var me = System.Text.RegularExpressions.Regex.Match(xml ?? "",
-        "<IsEnable>\\s*(true|false)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    if (me.Success) sysEnabled = me.Groups[1].Value.ToLower() == "true";
-} catch {}
-
-bool enabled = sysEnabled.HasValue ? sysEnabled.Value : (HoBridge.CmdState == "start");
+// после перезапуска ZP static сбрасывается — восстанавливаем команду из файла
+if (string.IsNullOrEmpty(HoBridge.CmdState)) HoBridge.LoadCmd();
 
 string stateText; string dotClass;
 string[] disabledBtns;
 bool locked;
-if (enabled) {
-    if (threads >= 2) { stateText = threads + " потоков активно"; dotClass = "online"; }
-    else              { stateText = "Ожидает задачу";            dotClass = "idle";   }
+if (HoBridge.CmdState == "start") {
+    // модуль ВКЛЮЧЁН в ZennoPoster
+    if (threads > 0) { stateText = threads + " потоков активно"; dotClass = "online"; }
+    else             { stateText = "Ожидает потоки";            dotClass = "idle";   }
     disabledBtns = new string[] {"start"};
     locked = true;
-} else if (threads >= 2) {
-    stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
-    disabledBtns = new string[] {"pause"};
-    locked = true;
 } else if (HoBridge.CmdState == "pause") {
-    stateText = "На паузе"; dotClass = "idle";
-    disabledBtns = new string[] {"pause", "stop"};
-    locked = false;
-} else if (HoBridge.CmdState == "stop") {
-    stateText = "Склик остановлен"; dotClass = "offline";
-    disabledBtns = new string[] {"pause", "stop"};
-    locked = false;
+    if (threads > 0) {
+        stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
+        disabledBtns = new string[] {"pause"};
+        locked = true;
+    } else {
+        stateText = "На паузе"; dotClass = "idle";
+        disabledBtns = new string[] {"pause", "stop"};
+        locked = false;
+    }
 } else {
-    stateText = "Склик остановлен"; dotClass = "offline";
-    disabledBtns = new string[] {"pause", "stop"};
-    locked = false;
+    // stop или пусто (первый запуск)
+    if (threads > 0) {
+        stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
+        disabledBtns = new string[] {"pause"};
+        locked = true;
+    } else {
+        stateText = "Склик остановлен"; dotClass = "offline";
+        disabledBtns = new string[] {"pause", "stop"};
+        locked = false;
+    }
 }
 
 var dis = new System.Text.StringBuilder("[");
