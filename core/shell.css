@@ -90,6 +90,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .sidebar-module{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:#3a3a50;cursor:pointer;transition:all 0.2s;background:transparent;border:none}
 .sidebar-module:hover{color:var(--accent);box-shadow:0 0 12px rgba(0,212,170,0.15)}
 .sidebar-module.active{color:var(--accent);background:rgba(0,212,170,0.1)}
+/* WB-модуль — фирменная фиолетово-розовая подцветка сайдбара */
+.sidebar-module[data-id="wb"]:hover{color:#cb11ab;box-shadow:0 0 12px rgba(203,17,171,0.18)}
+.sidebar-module[data-id="wb"].active{color:#cb11ab;background:rgba(203,17,171,0.12)}
 .sidebar-module svg{width:18px;height:18px}
 .sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto}
 .sidebar-btn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;background:none;border:none}
@@ -269,6 +272,7 @@ body.theme-light .prof-pin-row{background:linear-gradient(180deg,rgb(255,255,255
 .ico-messenger{-webkit-mask-image:url(/svg/messenger.svg);mask-image:url(/svg/messenger.svg)}
 .ico-profile{-webkit-mask-image:url(/svg/profile.svg);mask-image:url(/svg/profile.svg)}
 .ico-bots{-webkit-mask-image:url(/svg/bots.svg);mask-image:url(/svg/bots.svg)}
+.ico-wb{-webkit-mask-image:url(/svg/wb.svg);mask-image:url(/svg/wb.svg)}
 
 /* Role badges */
 .role-badge{line-height:1;display:inline-flex;align-items:center;padding:3px 11px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase}
