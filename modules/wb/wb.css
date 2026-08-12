@@ -126,7 +126,8 @@
 .wb-dd.open .wb-dd-btn{border-color:var(--accent)}
 .wb-dd-btn svg{opacity:.5;transition:transform .18s;flex-shrink:0}
 .wb-dd.open .wb-dd-btn svg{transform:rotate(180deg)}
-.wb-dd-list{position:absolute;top:calc(100% + 5px);left:0;right:0;min-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 36px rgba(0,0,0,.22);padding:5px;z-index:120;display:none;max-height:240px;overflow-y:auto}
+/* список — fixed, чтобы не обрезался overflow-контейнерами (карточки/скролл) */
+.wb-dd-list{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 36px rgba(0,0,0,.28);padding:5px;z-index:1200;display:none;max-height:260px;overflow-y:auto}
 .wb-dd.open .wb-dd-list{display:block}
 .wb-dd-opt{padding:9px 11px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
 .wb-dd-opt:hover{background:var(--surface2)}
@@ -179,15 +180,15 @@ body.theme-light .wb-subtab:not(.active):hover{color:var(--text)}
 /* day strip */
 .wb-daystrip{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:2px;scrollbar-width:none;flex:1}
 .wb-daystrip::-webkit-scrollbar{display:none}
-.wb-day{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;height:48px;padding:0 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;min-width:58px;transition:background .22s cubic-bezier(.4,0,.2,1),border-color .22s,box-shadow .22s,transform .14s}
-.wb-day:hover{border-color:var(--accent)}
-.wb-day:active{transform:scale(.93)}
-.wb-day.past{opacity:.45}
-.wb-day.active{background:var(--accent);border-color:var(--accent);box-shadow:0 3px 12px var(--accent-glow)}
-.wb-day-dow{font-size:14px;font-weight:800;text-transform:uppercase;color:var(--text);line-height:1.15}
+.wb-day{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:56px;height:56px;padding:0;border-radius:14px;border:1px solid var(--border);background:linear-gradient(180deg,var(--surface),var(--surface2));cursor:pointer;transition:border-color .2s,box-shadow .2s,background .22s}
+.wb-day:hover{border-color:var(--accent);animation:wb-day-wobble 1.1s ease-in-out infinite}
+.wb-day.past{opacity:.5}
+.wb-day.active{background:linear-gradient(180deg,var(--accent),var(--accent-dark));border-color:var(--accent);box-shadow:0 4px 14px var(--accent-glow),0 1px 3px rgba(0,0,0,.15)}
+.wb-day-dow{font-size:15px;font-weight:800;text-transform:uppercase;color:var(--text);line-height:1.1}
 .wb-day-num{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text-dim);line-height:1.1}
-.wb-day.active .wb-day-dow{color:#000}
-.wb-day.active .wb-day-num{color:rgba(0,0,0,.6)}
+.wb-day.active .wb-day-dow{color:#fff}
+.wb-day.active .wb-day-num{color:rgba(255,255,255,.75)}
+@keyframes wb-day-wobble{0%,100%{transform:rotate(0deg)}25%{transform:rotate(-0.8deg)}75%{transform:rotate(0.8deg)}}
 .wb-month-sep{display:flex;align-items:center;padding:0 4px;color:var(--text-dim);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;writing-mode:horizontal-tb;border-left:1px solid var(--border);align-self:stretch}
 
 /* calendar popover */
@@ -257,7 +258,9 @@ body.theme-light .wb-subtab:not(.active):hover{color:var(--text)}
 .wb-field label{display:block;font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:6px}
 .wb-input{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font:inherit;color:var(--text);outline:none}
 .wb-input:focus{border-color:var(--accent)}
-select.wb-input{appearance:none;cursor:pointer}
+.wb-input[type="date"],.wb-input[type="time"]{cursor:pointer;font-family:'JetBrains Mono',monospace}
+.wb-input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.6;filter:invert(1)}
+body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacity:.5}
 
 @media (max-width:900px){
   .wb-kpi-row{grid-template-columns:repeat(2,1fr)}

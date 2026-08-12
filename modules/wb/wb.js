@@ -4,7 +4,7 @@
    ═══════════════════════════════════════════════════════════ */
 var WB = {
   _servers: [], _active: null, _tab: 'accounts', _testOn: false,
-  _sel: {}, _regSub: 'pool', _revSub: 'products', _revView: 'grid',
+  _sel: {}, _regSub: 'pool', _revSub: 'products', _revView: 'grid', _genderVal: 50,
   // покупки
   _buyDates: ['2026-08-05','2026-08-10','2026-08-11','2026-08-12','2026-08-16','2026-08-23','2026-09-05','2026-09-12'],
   _activeDay: '2026-08-11',
@@ -24,6 +24,9 @@ var WB = {
         if (!(t.closest && t.closest('.wb-dd'))) document.querySelectorAll('.wb-dd.open').forEach(d => d.classList.remove('open'));
         if (!(t.closest && t.closest('.wb-cal-anchor')) && this._calOpen) { this._calOpen = false; const p = document.getElementById('wbCalPop'); if (p) p.classList.remove('open'); }
       });
+      // скролл — закрыть открытые дропдауны (список позиционируется fixed)
+      document.addEventListener('scroll', () => this._ddCloseAll(), true);
+      window.addEventListener('resize', () => this._ddCloseAll());
       // смена модуля Horseoff → закрыть выдвижной сайдбар серверов
       if (window.Shell && Shell.switchModule && !Shell._wbHooked) {
         const orig = Shell.switchModule.bind(Shell);
@@ -48,8 +51,20 @@ var WB = {
     const el = document.getElementById('dd-' + id); if (!el) return;
     const open = el.classList.contains('open');
     document.querySelectorAll('.wb-dd.open').forEach(d => d.classList.remove('open'));
-    if (!open) el.classList.add('open');
+    if (!open) {
+      el.classList.add('open');
+      const btn = el.querySelector('.wb-dd-btn'), list = el.querySelector('.wb-dd-list');
+      const r = btn.getBoundingClientRect();
+      const w = Math.max(r.width, 150);
+      list.style.width = w + 'px';
+      let left = r.left, top = r.bottom + 5;
+      // не вылезать за правый край / низ вьюпорта
+      if (left + w > window.innerWidth - 8) left = window.innerWidth - 8 - w;
+      list.style.left = Math.max(8, left) + 'px';
+      list.style.top = top + 'px';
+    }
   },
+  _ddCloseAll() { document.querySelectorAll('.wb-dd.open').forEach(d => d.classList.remove('open')); },
   _ddPick(id, opt) {
     const val = opt.textContent;
     this._ddVal[id] = val;
@@ -208,7 +223,7 @@ var WB = {
       body = `
         <div class="wb-hud">
           <div class="wb-cap"><span class="wb-cap-lbl">Автопланирование</span></div>
-          <div class="wb-cap"><span class="wb-ava f sm">Ж</span><input type="range" class="wb-slider" value="50"><span class="wb-ava m sm">М</span></div>
+          <div class="wb-cap" onmouseenter="WB._genderHover(true)" onmouseleave="WB._genderHover(false)"><span class="wb-ava f sm" id="wbGaF">Ж</span><input type="range" class="wb-slider" id="wbGenderSlider" min="0" max="100" value="${this._genderVal}" oninput="WB._genderInput()"><span class="wb-ava m sm" id="wbGaM">М</span></div>
           <div class="wb-cap"><span class="wb-cap-lbl">Кол-во</span><div class="wb-step"><button onclick="WB._toast()">−</button><span class="v wb-mono">10</span><button onclick="WB._toast()">+</button></div></div>
           <div class="wb-cap"><span class="wb-cap-lbl">В пуле</span><b class="wb-mono">${pool.length}</b></div>
           <span class="wb-spacer"></span>
@@ -243,19 +258,34 @@ var WB = {
   },
   _regTab(t) { this._regSub = t; this._renderActive(); },
 
+  // ползунок полов: при наведении/движении в кружках проценты, иначе Ж/М
+  _genderInput() { const s = document.getElementById('wbGenderSlider'); if (s) { this._genderVal = +s.value; this._genderShow(true); } },
+  _genderHover(on) { this._genderShow(on); },
+  _genderShow(pct) {
+    const f = document.getElementById('wbGaF'), m = document.getElementById('wbGaM'); if (!f || !m) return;
+    if (pct) { f.textContent = (100 - this._genderVal); m.textContent = this._genderVal; f.style.fontSize = m.style.fontSize = '10px'; }
+    else { f.textContent = 'Ж'; m.textContent = 'М'; f.style.fontSize = m.style.fontSize = ''; }
+  },
+
   // ═══ 5.3 ПРОГРЕВ ═══
   _renderWarmup(pane, s) {
-    const rows = s.accounts.slice(0, 8).map((a, i) => {
-      const notStarted = i % 3 === 0;
-      const prog = notStarted
-        ? `<span class="wb-cell" style="width:210px;color:var(--text-dim);font-size:12px;display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>по расписанию в <b class="wb-mono" style="color:var(--text)">14:30</b></span>`
-        : `<div class="wb-cell" style="width:210px;display:flex;align-items:center;gap:8px"><div class="wb-prog" style="flex:1"><div style="width:${30 + i * 8}%"></div></div><span class="wb-mono" style="font-size:12px;color:var(--text)">${30 + i * 8}%</span></div>`;
-      return `<div class="wb-row" style="min-width:780px">${this._ava(a.gender)}<div class="wb-cell" style="width:190px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div>${prog}<div class="wb-cell" style="width:110px">${this._badge(notStarted ? 'ожидает' : (i === 4 ? 'ошибка' : 'в работе'))}</div><span class="wb-spacer"></span><button class="btn btn-secondary sm" onclick="WB._toast()">Снять на сегодня</button></div>`;
-    }).join('');
+    const accSt = ['Прогретый', 'Доставка', 'Ожидает на ПВЗ', 'Проверка', 'Прошел', 'Новый'];
+    const execSt = ['Выполнен', 'В работе', 'Ожидает', 'Ошибка'];
+    const times = ['14:30', '09:15', '—', '16:40', '11:00', '13:20', '18:05', '10:10'];
+    const rows = s.accounts.slice(0, 8).map((a, i) => `
+      <div class="wb-row" style="min-width:860px">
+        ${this._ava(a.gender)}
+        <div class="wb-cell" style="width:200px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div>
+        <div class="wb-cell wb-mono" style="width:80px;color:var(--text)">${times[i]}</div>
+        <div class="wb-cell" style="width:170px">${this._badge(accSt[i % accSt.length])}</div>
+        <div class="wb-cell" style="width:150px">${this._badge(execSt[i % execSt.length])}</div>
+        <span class="wb-spacer"></span>
+        <button class="btn btn-secondary sm" onclick="WB._toast()">Снять на сегодня</button>
+      </div>`).join('');
     pane.innerHTML = `
       <div class="wb-card" style="display:flex;align-items:center;gap:10px;color:var(--text-dim);font-size:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Прогрев планируется вне интерфейса и выполняется автоматически в течение дня. Здесь — только просмотр.</div>
       <div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:780px"><span style="width:30px"></span><span style="width:190px">Аккаунт</span><span style="width:210px">Прогресс</span><span style="width:110px">Статус</span><span class="wb-spacer"></span><span></span></div>
+        <div class="wb-thead" style="min-width:860px"><span style="width:30px"></span><span style="width:200px">Аккаунт</span><span style="width:80px">Время</span><span style="width:170px">Статус</span><span style="width:150px">Статус выполнения</span><span class="wb-spacer"></span><span></span></div>
         ${rows}
       </div></div>`;
   },
@@ -444,7 +474,13 @@ var WB = {
   _ava(g) { return `<div class="wb-ava ${g}">${g === 'f' ? 'Ж' : 'М'}</div>`; },
   _chev() { return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity:.6"><polyline points="6 9 12 15 18 9"/></svg>`; },
   _badge(status) {
-    const map = { 'активен': 'green', 'прошел': 'green', 'получен': 'blue', 'опубликован': 'green', 'не прошел': 'red', 'ошибка': 'red', 'новый': 'gray', 'написан': 'gray', 'ожидает в пвз': 'yellow', 'ожидает': 'yellow', 'в работе': 'blue', 'готов к регистрации': 'gray', 'запланирован': 'blue' };
+    const map = {
+      'активен': 'green', 'прошел': 'green', 'получен': 'blue', 'опубликован': 'green', 'не прошел': 'red', 'ошибка': 'red', 'новый': 'gray', 'написан': 'gray', 'ожидает в пвз': 'yellow', 'ожидает': 'yellow', 'в работе': 'blue', 'готов к регистрации': 'gray', 'запланирован': 'blue',
+      // Прогрев — статус выполнения
+      'Выполнен': 'green', 'В работе': 'blue', 'Ожидает': 'yellow', 'Ошибка': 'red',
+      // Прогрев — статус аккаунта
+      'Прогретый': 'green', 'Прошел': 'green', 'Доставка': 'blue', 'Ожидает на ПВЗ': 'yellow', 'Проверка': 'blue', 'Новый': 'gray'
+    };
     return `<span class="wb-badge ${map[status] || 'gray'}">${this._esc(status)}</span>`;
   },
   _prodChips(products, showN) {
