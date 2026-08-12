@@ -295,6 +295,7 @@ var WB = {
   // ═══ 5.4 ПОКУПКИ — новый OrderRow ═══
   _BANKS: ['Выбрать банк', 'Сбербанк', 'Т-Банк', 'Альфа-Банк', 'ВТБ'],
   _ordState: {},
+  _ordTimers: {},
 
   _buyRows(s) {
     const p = s.products, mk = (n) => p.concat(p).slice(0, n).map((x, i) => ({ id: 'i' + i, art: x.article, kw: x.keyword }));
@@ -315,6 +316,11 @@ var WB = {
     return `<div class="wb-ord-wrap">${head}${rows.map(r => this._ordRowHtml(r)).join('')}</div>`;
   },
   _renderBuyCards() { const s = this._srv(), el = document.getElementById('wbBuyCards'); if (s && el) el.innerHTML = this._buyCardsHtml(s); },
+  _buyStats(rows) {
+    const c = { total: rows.length, sched: 0, work: 0, done: 0, err: 0 };
+    rows.forEach(r => { const k = r.status.kind; if (k === 'scheduled') c.sched++; else if (k === 'in_progress') c.work++; else if (k === 'paid') c.done++; else if (k === 'error') c.err++; });
+    return `<div class="wb-ord-stats"><span>Всего<b>${c.total}</b></span><span>Запланировано<b>${c.sched}</b></span><span>В работе<b>${c.work}</b></span><span>Выполнено<b>${c.done}</b></span><span class="err">Ошибка<b>${c.err}</b></span></div>`;
+  },
 
   _ordSeg(total, step, isErr) {
     let h = '';
@@ -338,20 +344,30 @@ var WB = {
   },
   _ordStatus(r) {
     const st = r.status;
-    if (st.kind === 'in_progress') return `${this._ordSeg(st.total, st.step, false)}<div class="wb-ord-st-txt">${this._esc(st.label)} · ${st.step} из ${st.total}</div>`;
+    if (st.kind === 'in_progress') {
+      const pay = this._ordState[r.id].pay;
+      const txt = pay === 'going' ? 'Выхожу на оплату…' : pay === 'paying' ? 'Ожидаю оплату по QR-коду' : `${this._esc(st.label)} · ${st.step} из ${st.total}`;
+      return `${this._ordSeg(st.total, st.step, false)}<div class="wb-ord-st-txt">${txt}</div>`;
+    }
     if (st.kind === 'error') return `${this._ordSeg(st.total, st.step, true)}<div class="wb-ord-st-err">${this._esc(st.message)}</div><div class="wb-ord-st-code">${this._esc(st.code)}</div>`;
-    if (st.kind === 'paid') return `<div class="wb-ord-st-flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#30b46c" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg><span class="ttl">Оплачено</span><span class="meta">${this._esc(st.paidAt)} · ${this._esc(st.bank)}</span></div>`;
+    if (st.kind === 'paid') return `<div class="wb-ord-st-flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#30b46c" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg><span class="ttl ok">Оплачено</span><span class="meta">${this._esc(st.paidAt)} · ${this._esc(st.bank)}</span></div>`;
     return `<div class="wb-ord-st-flex"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#a1a1a6" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span class="ttl">Запланирован на</span><span class="meta wb-ord-mono">${this._esc(st.date)} · ${this._esc(st.time)}</span></div>`;
   },
   _ordAction(r) {
     const st = r.status;
     if (st.kind === 'in_progress') {
-      const bank = this._ordState[r.id].bank, dis = bank === 'Выбрать банк';
+      const s = this._ordState[r.id], bank = s.bank, dis = bank === 'Выбрать банк';
+      // выхожу на оплату — банк зафиксирован, изменить нельзя
+      if (s.pay === 'going') return `<div class="wb-ord-act"><span class="wb-ord-timer" id="otimer-${r.id}">${st.timer}</span><div class="wb-ord-pill"><button class="wb-ord-bank locked">${bank}</button></div></div>`;
+      // на оплате — QR + подсвеченный банк + красный обратный таймер
+      if (s.pay === 'paying') return `<div class="wb-ord-act"><span class="wb-ord-timer red" id="otimer-${r.id}">${this._fmt(s.sec == null ? 240 : s.sec)}</span>
+        <div class="wb-ord-pill"><button class="wb-ord-bank locked">${bank}</button><button class="wb-ord-qr" onclick="WB._pickupCode()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="18" y1="14" x2="21" y2="14"/><line x1="21" y1="18" x2="21" y2="21"/></svg>QR-Код</button></div></div>`;
+      // обычное — селект банка + Оплатить
       const opts = this._BANKS.map(b => `<div class="wb-ord-bank-opt ${b === bank ? 'sel' : ''}" onclick="WB._ordBankPick('${r.id}','${b}',event)">${b}</div>`).join('');
-      return `<div class="wb-ord-act"><span class="wb-ord-timer">${st.timer}</span>
+      return `<div class="wb-ord-act"><span class="wb-ord-timer" id="otimer-${r.id}">${st.timer}</span>
         <div class="wb-ord-pill" id="pill-${r.id}">
           <button class="wb-ord-bank" onclick="WB._ordBank('${r.id}',event)"><span id="bank-lbl-${r.id}">${bank}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="wb-ord-pay" id="pay-${r.id}" ${dis ? 'disabled' : ''} onclick="WB._toast()">Оплатить</button>
+          <button class="wb-ord-pay" id="pay-${r.id}" ${dis ? 'disabled' : ''} onclick="WB._ordPayStart('${r.id}')">Оплатить</button>
           <div class="wb-ord-bank-list">${opts}</div>
         </div></div>`;
     }
@@ -359,17 +375,36 @@ var WB = {
     if (st.kind === 'paid') return `<div class="wb-ord-act"></div>`;
     return `<div class="wb-ord-act"><button class="wb-ord-sbtn edit" onclick="WB._ordEdit('${r.id}',true)">Изменить</button><button class="wb-ord-sbtn del" onclick="WB._toast()">Удалить</button></div>`;
   },
+  _ordCells(r) {
+    return `<div class="wb-ord-cell wb-ord-client"><div class="wb-ord-ava ${r.gender}">${r.gender === 'f' ? 'Ж' : 'М'}</div><div style="min-width:0"><div class="wb-ord-name">${this._esc(r.name)}</div><div class="wb-ord-phone wb-ord-mono">${this._esc(r.phone)}</div></div></div>
+      <div class="wb-ord-cell">${this._ordItems(r)}</div>
+      <div class="wb-ord-cell">${this._ordAddr(r)}</div>
+      <div class="wb-ord-cell">${this._ordStatus(r)}</div>
+      <div class="wb-ord-cell">${this._ordAction(r)}</div>`;
+  },
   _ordRowHtml(r) {
-    return `<div class="wb-ord-row" id="ord-${r.id}">
-      <div class="wb-ord-grid wb-ord-main">
-        <div class="wb-ord-cell wb-ord-client"><div class="wb-ord-ava ${r.gender}">${r.gender === 'f' ? 'Ж' : 'М'}</div><div style="min-width:0"><div class="wb-ord-name">${this._esc(r.name)}</div><div class="wb-ord-phone wb-ord-mono">${this._esc(r.phone)}</div></div></div>
-        <div class="wb-ord-cell">${this._ordItems(r)}</div>
-        <div class="wb-ord-cell">${this._ordAddr(r)}</div>
-        <div class="wb-ord-cell">${this._ordStatus(r)}</div>
-        <div class="wb-ord-cell">${this._ordAction(r)}</div>
-      </div>
-      ${r.status.kind === 'scheduled' ? this._ordEditForm(r) : ''}
-    </div>`;
+    return `<div class="wb-ord-row" id="ord-${r.id}"><div class="wb-ord-grid wb-ord-main">${this._ordCells(r)}</div>${r.status.kind === 'scheduled' ? this._ordEditForm(r) : ''}</div>`;
+  },
+  _ordUpdateRow(id) {
+    const row = document.getElementById('ord-' + id), r = (this._ordRows || []).find(x => x.id === id);
+    if (!row || !r) return;
+    const main = row.querySelector('.wb-ord-main'); if (main) main.innerHTML = this._ordCells(r);
+  },
+  _fmt(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + String(s).padStart(2, '0'); },
+  _ordPayStart(id) {
+    const s = this._ordState[id]; if (!s || s.bank === 'Выбрать банк') return;
+    s.pay = 'going'; this._ordUpdateRow(id);
+    setTimeout(() => { const st = this._ordState[id]; if (st) { st.pay = 'paying'; st.sec = 240; this._ordUpdateRow(id); this._ordStartTimer(id); } }, 1400);
+  },
+  _ordStartTimer(id) {
+    if (this._ordTimers[id]) clearInterval(this._ordTimers[id]);
+    this._ordTimers[id] = setInterval(() => {
+      const s = this._ordState[id];
+      if (!s || s.pay !== 'paying') { clearInterval(this._ordTimers[id]); return; }
+      s.sec = Math.max(0, (s.sec || 0) - 1);
+      const el = document.getElementById('otimer-' + id); if (el) el.textContent = this._fmt(s.sec);
+      if (s.sec <= 0) clearInterval(this._ordTimers[id]);
+    }, 1000);
   },
   _ordEditForm(r) {
     const st = this._ordState[r.id];
@@ -442,8 +477,8 @@ var WB = {
         <button class="btn btn-secondary" onclick="WB._massBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Массовый залив</button>
         <button class="btn btn-primary" onclick="WB._singleBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Одиночный выкуп</button>
       </div>
-      <div class="wb-sec-h" style="margin-top:2px"><h3>Сегодня</h3><span style="color:var(--text-dim);font-size:12px;font-weight:600">4 выкупа в работе</span></div>
-      <div id="wbBuyCards" style="display:flex;flex-direction:column;gap:12px">${this._buyCardsHtml(s)}</div>`;
+      ${this._buyStats(this._buyRows(s))}
+      <div id="wbBuyCards">${this._buyCardsHtml(s)}</div>`;
     requestAnimationFrame(() => this._wireStrip());
   },
 
