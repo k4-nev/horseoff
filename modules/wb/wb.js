@@ -23,7 +23,9 @@ var WB = {
         const t = e.target;
         if (!(t.closest && t.closest('.wb-dd'))) document.querySelectorAll('.wb-dd.open').forEach(d => d.classList.remove('open'));
         if (!(t.closest && t.closest('.wb-cal-anchor')) && this._calOpen) { this._calOpen = false; const p = document.getElementById('wbCalPop'); if (p) p.classList.remove('open'); }
+        if (!(t.closest && t.closest('.wb-ord-items, .wb-ord-addr, .wb-ord-pill'))) this._ordCloseOverlays();
       });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { this._ordCloseOverlays(); this._ddCloseAll(); } });
       // скролл — закрыть открытые дропдауны (список позиционируется fixed)
       document.addEventListener('scroll', () => this._ddCloseAll(), true);
       window.addEventListener('resize', () => this._ddCloseAll());
@@ -290,32 +292,144 @@ var WB = {
       </div></div>`;
   },
 
-  // ═══ 5.4 ПОКУПКИ ═══
+  // ═══ 5.4 ПОКУПКИ — новый OrderRow ═══
+  _BANKS: ['Выбрать банк', 'Сбербанк', 'Т-Банк', 'Альфа-Банк', 'ВТБ'],
+  _ordState: {},
+
+  _buyRows(s) {
+    const p = s.products, mk = (n) => p.concat(p).slice(0, n).map((x, i) => ({ id: 'i' + i, art: x.article, kw: x.keyword }));
+    const addr = { short: 'Москва, ул. Ленина, 12', full: 'г. Москва, ул. Ленина, д. 12, корп. 3, кв. 45, подъезд 2, домофон 45К, ПВЗ Wildberries (вход со двора)' };
+    return [
+      { id: 'o1', name: 'Анна Петрова', phone: '+7 921 400-11-84', gender: 'f', items: mk(5), address: addr, status: { kind: 'in_progress', step: 5, total: 7, label: 'Ожидаю подтверждения оплаты', timer: '02:41' } },
+      { id: 'o2', name: 'Максим Орлов', phone: '+7 921 400-11-85', gender: 'm', items: mk(4), address: { short: 'Санкт-Петербург, Невский пр., 28', full: 'г. Санкт-Петербург, Невский проспект, д. 28, лит. А, кв. 112, ПВЗ Wildberries' }, status: { kind: 'error', step: 3, total: 7, message: 'Не удалось добавить товар в корзину', code: 'ERR_ADD_ITEM_500' } },
+      { id: 'o3', name: 'Елена Кузнецова', phone: '+7 921 400-11-86', gender: 'f', items: mk(2), address: addr, status: { kind: 'paid', paidAt: '12 мая, 14:22', bank: 'Сбербанк' } },
+      { id: 'o4', name: 'Даниил Козлов', phone: '+7 921 400-11-87', gender: 'm', items: mk(3), address: addr, status: { kind: 'scheduled', date: '14.05.2026', time: '09:00' } },
+      { id: 'o5', name: 'Ольга Морозова', phone: '+7 921 400-11-88', gender: 'f', items: mk(1), address: addr, status: { kind: 'in_progress', step: 2, total: 7, label: 'Смотрю товары', timer: '30:30' } },
+    ];
+  },
   _buyCardsHtml(s) {
-    const stageNames = ['Проверка аккаунта','Смотрю товары','Смотрю конкурентов','Добавляю товар','Выбираю ПВЗ','Ожидаю подтверждение оплаты','Проверяю оплату'];
-    return s.accounts.slice(0, 5).map((a, i) => {
-      const planned = i >= 4, noAcc = i === 3, stage = [2, 5, 6, 3, 0][i];
-      const tcls = ['green', 'yellow', 'red', 'green', 'green'][i], timers = ['01:33:40', '15:40', '04:20', '30:30', ''];
-      const seg = `<div class="wb-seg">${stageNames.map((_, si) => `<span class="${si < stage ? 'on' : ''}"></span>`).join('')}</div>`;
-      const stageBlock = planned
-        ? `<span style="color:var(--text-dim);font-size:12px">запуск <b class="wb-mono" style="color:var(--text)">10:00–14:00</b></span>`
-        : `<div class="wb-stage-head"><span class="wb-stage-name">${stageNames[Math.min(stage, 6)]}</span><span class="wb-stage-cnt">${stage} / 7</span></div>${seg}`;
-      const nameBlock = noAcc ? `<span style="color:var(--danger);font-weight:700">Нет аккаунта</span>`
-        : `<div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div>`;
-      let sub = '';
-      if (stage === 5 && !planned) sub = `<div class="wb-buy-sub"><span class="wb-cap-lbl">Оплата:</span>${this._dd('bank' + i, ['Выбрать банк', 'Сбербанк', 'Т-Банк', 'Альфа-Банк', 'ВТБ'], 'Выбрать банк', 170)}<span class="wb-spacer"></span><button class="btn btn-primary sm" onclick="WB._toast()">Оплатить</button></div>`;
-      if (i === 2) sub = `<div class="wb-buy-sub"><span class="wb-badge red">Ошибка выполнения</span><span class="wb-spacer"></span><button class="btn btn-danger sm" onclick="WB._toast()">Перезапуск</button></div>`;
-      return `<div class="wb-buy"><div class="wb-buy-main">
-        ${this._ava(a.gender)}
-        <div class="wb-cell" style="width:150px">${nameBlock}</div>
-        <div class="wb-cell" style="width:170px">${this._prodChips(s.products, 1)}</div>
-        <div class="wb-cell" style="width:200px">${stageBlock}</div>
-        <span class="wb-spacer"></span>
-        ${planned ? '' : `<span class="wb-timer ${tcls}">${timers[i]}</span>`}
-      </div>${sub}</div>`;
-    }).join('');
+    const rows = this._buyRows(s);
+    this._ordRows = rows;
+    rows.forEach(r => { if (!this._ordState[r.id]) this._ordState[r.id] = { bank: 'Выбрать банк', skus: r.items.map(i => i.art), keywords: r.items.map(i => i.kw) }; });
+    const head = `<div class="wb-ord-grid wb-ord-head"><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span><span>Действие</span></div>`;
+    return `<div class="wb-ord-wrap">${head}${rows.map(r => this._ordRowHtml(r)).join('')}</div>`;
   },
   _renderBuyCards() { const s = this._srv(), el = document.getElementById('wbBuyCards'); if (s && el) el.innerHTML = this._buyCardsHtml(s); },
+
+  _ordSeg(total, step, isErr) {
+    let h = '';
+    for (let i = 0; i < total; i++) h += `<span class="${i < step ? 'on' : (isErr && i === step ? 'err' : '')}"></span>`;
+    return `<div class="wb-ord-seg">${h}</div>`;
+  },
+  _ordItems(r) {
+    const n = r.items.length, show = Math.min(3, n), more = n - show;
+    let ph = '';
+    for (let i = 0; i < show; i++) ph += `<div class="wb-ord-photo"></div>`;
+    ph += more > 0 ? `<div class="wb-ord-more">+${more}</div>` : `<button class="wb-ord-dots" aria-label="Товары аккаунта">···</button>`;
+    const list = r.items.map(it => `<div class="wb-ord-pop-row"><div class="wb-ord-pop-ph"></div><div><div class="wb-ord-pop-art wb-ord-mono">${it.art}</div><div class="wb-ord-pop-kw">${this._esc(it.kw)}</div></div></div>`).join('');
+    return `<div class="wb-ord-items" onclick="WB._ordPop('${r.id}','items',event)">${ph}
+      <div class="wb-ord-pop wb-ord-pop-items" id="pop-items-${r.id}"><div class="wb-ord-pop-title">Товары аккаунта</div>${list}</div></div>`;
+  },
+  _ordAddr(r) {
+    return `<div class="wb-ord-addr" onclick="WB._ordPop('${r.id}','addr',event)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span class="wb-ord-addr-txt">${this._esc(r.address.short)}</span>
+      <div class="wb-ord-pop wb-ord-pop-addr" id="pop-addr-${r.id}"><div class="lbl">Адрес доставки</div><div class="txt">${this._esc(r.address.full)}</div></div></div>`;
+  },
+  _ordStatus(r) {
+    const st = r.status;
+    if (st.kind === 'in_progress') return `${this._ordSeg(st.total, st.step, false)}<div class="wb-ord-st-txt">${this._esc(st.label)} · ${st.step} из ${st.total}</div>`;
+    if (st.kind === 'error') return `${this._ordSeg(st.total, st.step, true)}<div class="wb-ord-st-err">${this._esc(st.message)}</div><div class="wb-ord-st-code">${this._esc(st.code)}</div>`;
+    if (st.kind === 'paid') return `<div class="wb-ord-st-flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#30b46c" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg><span class="ttl">Оплачено</span><span class="meta">${this._esc(st.paidAt)} · ${this._esc(st.bank)}</span></div>`;
+    return `<div class="wb-ord-st-flex"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#a1a1a6" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span class="ttl">Запланирован на</span><span class="meta wb-ord-mono">${this._esc(st.date)} · ${this._esc(st.time)}</span></div>`;
+  },
+  _ordAction(r) {
+    const st = r.status;
+    if (st.kind === 'in_progress') {
+      const bank = this._ordState[r.id].bank, dis = bank === 'Выбрать банк';
+      const opts = this._BANKS.map(b => `<div class="wb-ord-bank-opt ${b === bank ? 'sel' : ''}" onclick="WB._ordBankPick('${r.id}','${b}',event)">${b}</div>`).join('');
+      return `<div class="wb-ord-act"><span class="wb-ord-timer">${st.timer}</span>
+        <div class="wb-ord-pill" id="pill-${r.id}">
+          <button class="wb-ord-bank" onclick="WB._ordBank('${r.id}',event)"><span id="bank-lbl-${r.id}">${bank}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="wb-ord-pay" id="pay-${r.id}" ${dis ? 'disabled' : ''} onclick="WB._toast()">Оплатить</button>
+          <div class="wb-ord-bank-list">${opts}</div>
+        </div></div>`;
+    }
+    if (st.kind === 'error') return `<div class="wb-ord-act"><button class="wb-ord-retry" onclick="WB._toast()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Повторить</button></div>`;
+    if (st.kind === 'paid') return `<div class="wb-ord-act"></div>`;
+    return `<div class="wb-ord-act"><button class="wb-ord-sbtn edit" onclick="WB._ordEdit('${r.id}',true)">Изменить</button><button class="wb-ord-sbtn del" onclick="WB._toast()">Удалить</button></div>`;
+  },
+  _ordRowHtml(r) {
+    return `<div class="wb-ord-row" id="ord-${r.id}">
+      <div class="wb-ord-grid wb-ord-main">
+        <div class="wb-ord-cell wb-ord-client"><div class="wb-ord-ava ${r.gender}">${r.gender === 'f' ? 'Ж' : 'М'}</div><div style="min-width:0"><div class="wb-ord-name">${this._esc(r.name)}</div><div class="wb-ord-phone wb-ord-mono">${this._esc(r.phone)}</div></div></div>
+        <div class="wb-ord-cell">${this._ordItems(r)}</div>
+        <div class="wb-ord-cell">${this._ordAddr(r)}</div>
+        <div class="wb-ord-cell">${this._ordStatus(r)}</div>
+        <div class="wb-ord-cell">${this._ordAction(r)}</div>
+      </div>
+      ${r.status.kind === 'scheduled' ? this._ordEditForm(r) : ''}
+    </div>`;
+  },
+  _ordEditForm(r) {
+    const st = this._ordState[r.id];
+    return `<div class="wb-ord-edit">
+      <div class="wb-ord-erow1">
+        <div><div class="wb-ord-flbl">Артикулы</div><div class="wb-ord-tags" id="tags-skus-${r.id}">${this._ordChipsHtml(r.id, 'skus')}<input placeholder="Добавить артикул" oninput="this.value=this.value.replace(/\\D/g,'')" onkeydown="WB._ordChipKey(event,'${r.id}','skus',this)"></div><div class="wb-ord-hint">Enter — добавить, только цифры</div></div>
+        <div><div class="wb-ord-flbl">Ключевые слова</div><div class="wb-ord-tags" id="tags-keywords-${r.id}">${this._ordChipsHtml(r.id, 'keywords')}<input placeholder="Добавить слово" onkeydown="WB._ordChipKey(event,'${r.id}','keywords',this)"></div><div class="wb-ord-hint">Ищем товар по названию, если артикул неизвестен</div></div>
+      </div>
+      <div class="wb-ord-erow2">
+        <div><div class="wb-ord-flbl">Адрес доставки</div><input class="wb-ord-finput" value="${this._esc(r.address.short)}"></div>
+        <div><div class="wb-ord-flbl">Дата</div><input class="wb-ord-finput mono" value="${r.status.date}"></div>
+        <div><div class="wb-ord-flbl">Время</div><input class="wb-ord-finput mono" value="${r.status.time}"></div>
+      </div>
+      <div class="wb-ord-eact"><button class="cancel" onclick="WB._ordEdit('${r.id}',false)">Отмена</button><button class="save" onclick="WB._ordEdit('${r.id}',false)">Сохранить</button></div>
+    </div>`;
+  },
+  _ordChipsHtml(id, kind) {
+    return (this._ordState[id][kind] || []).map((v, i) => `<span class="wb-ord-chip ${kind === 'skus' ? 'sku' : 'kw'}">${this._esc(v)}<b onclick="WB._ordChipDel('${id}','${kind}',${i})">✕</b></span>`).join('');
+  },
+
+  // взаимодействия
+  _ordCloseOverlays() { document.querySelectorAll('.wb-ord-pop.open,.wb-ord-pill.open').forEach(el => el.classList.remove('open')); },
+  _ordPop(id, which, e) {
+    if (e) e.stopPropagation();
+    const el = document.getElementById('pop-' + which + '-' + id); if (!el) return;
+    const open = el.classList.contains('open');
+    this._ordCloseOverlays();
+    if (!open) el.classList.add('open');
+  },
+  _ordBank(id, e) {
+    if (e) e.stopPropagation();
+    const pill = document.getElementById('pill-' + id); if (!pill) return;
+    const open = pill.classList.contains('open');
+    this._ordCloseOverlays();
+    if (!open) pill.classList.add('open');
+  },
+  _ordBankPick(id, val, e) {
+    if (e) e.stopPropagation();
+    this._ordState[id].bank = val;
+    const lbl = document.getElementById('bank-lbl-' + id); if (lbl) lbl.textContent = val;
+    const pay = document.getElementById('pay-' + id); if (pay) pay.disabled = (val === 'Выбрать банк');
+    const pill = document.getElementById('pill-' + id);
+    if (pill) { pill.querySelectorAll('.wb-ord-bank-opt').forEach(o => o.classList.toggle('sel', o.textContent === val)); pill.classList.remove('open'); }
+  },
+  _ordEdit(id, on) { const row = document.getElementById('ord-' + id); if (row) row.classList.toggle('editing', on); },
+  _ordChipKey(e, id, kind, input) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const v = input.value.trim(); if (!v) return;
+    this._ordState[id][kind].push(v);
+    input.value = '';
+    this._ordRefreshChips(id, kind);
+  },
+  _ordChipDel(id, kind, idx) { this._ordState[id][kind].splice(idx, 1); this._ordRefreshChips(id, kind); },
+  _ordRefreshChips(id, kind) {
+    const cont = document.getElementById('tags-' + kind + '-' + id); if (!cont) return;
+    const isSku = kind === 'skus';
+    cont.innerHTML = this._ordChipsHtml(id, kind) + `<input placeholder="${isSku ? 'Добавить артикул' : 'Добавить слово'}" ${isSku ? "oninput=\"this.value=this.value.replace(/\\D/g,'')\"" : ''} onkeydown="WB._ordChipKey(event,'${id}','${kind}',this)">`;
+    const inp = cont.querySelector('input'); if (inp) inp.focus();
+  },
 
   _renderPurchases(pane, s) {
     pane.innerHTML = `
