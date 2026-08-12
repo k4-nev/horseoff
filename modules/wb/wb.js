@@ -56,7 +56,25 @@ var WB = {
     if (navigator.vibrate) navigator.vibrate(15);
   },
 
-  addServer() { if (window.Shell && Shell.toast) Shell.toast('Управление серверами появится позже'); },
+  addServer() {
+    this.openModal(`<div class="wb-modal-h"><h3>Новый сервер</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
+      <div class="wb-field"><label>Название сервера</label><input class="wb-input" id="wbNewSrvName" placeholder="Server-RU-02" autofocus></div>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:14px">Пока сервер создаётся локально (без бэкенда) — для дебага интерфейса. Реальная привязка появится позже.</p>
+      <button class="btn btn-primary wide" onclick="WB._createServer()">Создать сервер</button>`, 460);
+    setTimeout(() => { const el = document.getElementById('wbNewSrvName'); if (el) el.focus(); }, 50);
+  },
+  _createServer() {
+    const el = document.getElementById('wbNewSrvName');
+    const name = el ? el.value.trim() : '';
+    if (!name) { if (window.Shell && Shell.toast) Shell.toast('Введите название сервера'); return; }
+    const base = this._buildTest();
+    const srv = { id: 's' + Date.now(), name: name, status: 'online', accounts: base.accounts.slice(0, 8), products: base.products };
+    this._servers.push(srv);
+    this.closeModal();
+    this._renderServers();
+    this.selectServer(srv.id);
+    if (window.Shell && Shell.toast) Shell.toast('Сервер создан');
+  },
 
   _renderServers() {
     const el = document.getElementById('wbServerList');
@@ -75,8 +93,13 @@ var WB = {
     if (foot) foot.innerHTML = `<b>${online}</b> / ${this._servers.length} онлайн`;
   },
 
-  selectServer(id) { this._active = id; this._sel = {}; this._renderServers(); this._renderHeader(); this._renderActive(); if (navigator.vibrate) navigator.vibrate(8); },
+  selectServer(id) { this._active = id; this._sel = {}; this._renderServers(); this._renderHeader(); this._renderActive(); this.closeSide(); if (navigator.vibrate) navigator.vibrate(8); },
   _srv() { return this._servers.find(s => s.id === this._active); },
+
+  // выдвижной сайдбар серверов
+  toggleSide() { document.getElementById('wbWrap').classList.toggle('side-open'); if (navigator.vibrate) navigator.vibrate(8); },
+  openSide() { document.getElementById('wbWrap').classList.add('side-open'); },
+  closeSide() { document.getElementById('wbWrap').classList.remove('side-open'); },
 
   _renderHeader() {
     const s = this._srv();
@@ -97,7 +120,7 @@ var WB = {
   _renderActive() {
     const s = this._srv(), pane = document.getElementById('wbPane-' + this._tab);
     if (!pane) return;
-    if (!s) { pane.innerHTML = this._emptyState('Выбери сервер', 'Слева выбери сервер или включи «Тестовый сервер» для просмотра интерфейса.'); return; }
+    if (!s) { pane.innerHTML = this._emptyState('Сервер не выбран', 'Открой список серверов и выбери сервер, либо включи «Тестовый сервер» для просмотра интерфейса.', '<button class="btn btn-primary" onclick="WB.openSide()">Показать серверы</button>'); return; }
     ({ accounts: () => this._renderAccounts(pane, s), reg: () => this._renderReg(pane, s), warmup: () => this._renderWarmup(pane, s),
        purchases: () => this._renderPurchases(pane, s), pickup: () => this._renderPickup(pane, s), reviews: () => this._renderReviews(pane, s),
        stats: () => this._renderStats(pane, s) }[this._tab] || (() => {}))();
@@ -386,8 +409,8 @@ var WB = {
     if (more > 0) h += ` <span class="wb-prod-more" title="${products.slice(showN).map(p => p.article + ' · ' + p.keyword).join('\n')}">+${more}</span>`;
     return h;
   },
-  _emptyState(title, sub) {
-    return `<div class="wb-empty"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><div class="wb-empty-title">${title}</div><div>${sub}</div></div>`;
+  _emptyState(title, sub, action) {
+    return `<div class="wb-empty"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><div class="wb-empty-title">${title}</div><div>${sub}</div>${action ? '<div style="margin-top:6px">' + action + '</div>' : ''}</div>`;
   },
   _toast() { if (window.Shell && Shell.toast) Shell.toast('Серверная логика будет реализована позже'); if (navigator.vibrate) navigator.vibrate(10); },
   _esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
