@@ -291,9 +291,9 @@ var WB = {
   },
 
   // ═══ 5.4 ПОКУПКИ ═══
-  _renderPurchases(pane, s) {
+  _buyCardsHtml(s) {
     const stageNames = ['Проверка аккаунта','Смотрю товары','Смотрю конкурентов','Добавляю товар','Выбираю ПВЗ','Ожидаю подтверждение оплаты','Проверяю оплату'];
-    const cards = s.accounts.slice(0, 5).map((a, i) => {
+    return s.accounts.slice(0, 5).map((a, i) => {
       const planned = i >= 4, noAcc = i === 3, stage = [2, 5, 6, 3, 0][i];
       const tcls = ['green', 'yellow', 'red', 'green', 'green'][i], timers = ['01:33:40', '15:40', '04:20', '30:30', ''];
       const seg = `<div class="wb-seg">${stageNames.map((_, si) => `<span class="${si < stage ? 'on' : ''}"></span>`).join('')}</div>`;
@@ -314,6 +314,10 @@ var WB = {
         ${planned ? '' : `<span class="wb-timer ${tcls}">${timers[i]}</span>`}
       </div>${sub}</div>`;
     }).join('');
+  },
+  _renderBuyCards() { const s = this._srv(), el = document.getElementById('wbBuyCards'); if (s && el) el.innerHTML = this._buyCardsHtml(s); },
+
+  _renderPurchases(pane, s) {
     pane.innerHTML = `
       <div class="wb-toolbar">
         ${this._dayStrip()}
@@ -325,7 +329,7 @@ var WB = {
         <button class="btn btn-primary" onclick="WB._singleBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Одиночный выкуп</button>
       </div>
       <div class="wb-sec-h" style="margin-top:2px"><h3>Сегодня</h3><span style="color:var(--text-dim);font-size:12px;font-weight:600">4 выкупа в работе</span></div>
-      ${cards}`;
+      <div id="wbBuyCards" style="display:flex;flex-direction:column;gap:12px">${this._buyCardsHtml(s)}</div>`;
     requestAnimationFrame(() => this._wireStrip());
   },
 
@@ -337,11 +341,27 @@ var WB = {
       if (prevMonth === null || m !== prevMonth) html += `<div class="wb-sep-slot"><div class="wb-month-sep">${this._MONTHS[m]}</div></div>`;
       prevMonth = m;
       const past = d < today;
-      html += `<div class="wb-day-slot"><div class="wb-day ${past ? 'past' : ''} ${ds === this._activeDay ? 'active' : ''}" onclick="WB._pickDay('${ds}')"><span class="wb-day-dow">${this._DOW[d.getDay()]}</span><span class="wb-day-num">${String(d.getDate()).padStart(2, '0')}</span></div></div>`;
+      html += `<div class="wb-day-slot"><div class="wb-day ${past ? 'past' : ''} ${ds === this._activeDay ? 'active' : ''}" data-ds="${ds}" onclick="WB._pickDay('${ds}',false)"><span class="wb-day-dow">${this._DOW[d.getDay()]}</span><span class="wb-day-num">${String(d.getDate()).padStart(2, '0')}</span></div></div>`;
     });
     return `<div class="wb-daystrip" id="wbDayStrip">${html}</div>`;
   },
-  _pickDay(ds) { this._activeDay = ds; const d = new Date(ds + 'T00:00:00'); this._calY = d.getFullYear(); this._calM = d.getMonth(); this._calOpen = false; this._renderActive(); },
+  // Точечное обновление: лента НЕ пересоздаётся (без вспышек/дёрганья).
+  // fromCal=true — выбор из календаря, центрируем плитку; клик по плитке — нет.
+  _pickDay(ds, fromCal) {
+    this._activeDay = ds;
+    const strip = document.getElementById('wbDayStrip');
+    if (strip) strip.querySelectorAll('.wb-day').forEach(el => el.classList.toggle('active', el.dataset.ds === ds));
+    if (this._calOpen) {
+      const d = new Date(ds + 'T00:00:00'); this._calY = d.getFullYear(); this._calM = d.getMonth();
+      const p = document.getElementById('wbCalPop'); if (p) p.innerHTML = this._calHtml();
+    }
+    this._renderBuyCards();
+    if (fromCal && strip) {
+      const tile = strip.querySelector('.wb-day.active');
+      if (tile) { const slot = tile.parentElement; strip.scrollTo({ left: slot.offsetLeft - strip.clientWidth / 2 + slot.offsetWidth / 2, behavior: 'smooth' }); }
+      requestAnimationFrame(() => this._stripScale(strip));
+    }
+  },
 
   // прокрутка ленты дат (колесо/драг) + плавное уменьшение крайних плиток
   _wireStrip() {
@@ -376,7 +396,7 @@ var WB = {
 
   // календарь
   _toggleCal() { this._calOpen = !this._calOpen; const p = document.getElementById('wbCalPop'); if (p) { p.classList.toggle('open', this._calOpen); p.innerHTML = this._calHtml(); } },
-  _calNav(delta) { this._calM += delta; if (this._calM < 0) { this._calM = 11; this._calY--; } if (this._calM > 11) { this._calM = 0; this._calY++; } const p = document.getElementById('wbCalPop'); if (p) p.innerHTML = this._calHtml(); },
+  _calNav(delta, e) { if (e) e.stopPropagation(); this._calM += delta; if (this._calM < 0) { this._calM = 11; this._calY--; } if (this._calM > 11) { this._calM = 0; this._calY++; } const p = document.getElementById('wbCalPop'); if (p) p.innerHTML = this._calHtml(); },
   _calHtml() {
     const y = this._calY, m = this._calM;
     const first = new Date(y, m, 1), lead = (first.getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate();
@@ -386,10 +406,10 @@ var WB = {
     for (let d = 1; d <= days; d++) {
       const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isHas = has.has(key), isAct = key === this._activeDay;
-      cells += `<div class="wb-cal-day ${isHas ? 'has' : ''} ${isAct ? 'active' : ''}" ${isHas ? `onclick="WB._pickDay('${key}')"` : ''}>${d}</div>`;
+      cells += `<div class="wb-cal-day ${isHas ? 'has' : ''} ${isAct ? 'active' : ''}" ${isHas ? `onclick="WB._pickDay('${key}',true)"` : ''}>${d}</div>`;
     }
     return `
-      <div class="wb-cal-head"><button class="wb-cal-nav" onclick="WB._calNav(-1)">‹</button><span class="wb-cal-title">${this._MONTHS[m]} ${y}</span><button class="wb-cal-nav" onclick="WB._calNav(1)">›</button></div>
+      <div class="wb-cal-head"><button class="wb-cal-nav" onclick="WB._calNav(-1,event)">‹</button><span class="wb-cal-title">${this._MONTHS[m]} ${y}</span><button class="wb-cal-nav" onclick="WB._calNav(1,event)">›</button></div>
       <div class="wb-cal-grid">${['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'].map(d => `<div class="wb-cal-dow">${d}</div>`).join('')}${cells}</div>
       <div class="wb-cal-legend"><span><i style="background:var(--accent)"></i>есть выкуп</span><span><i style="background:var(--surface2)"></i>нет данных</span></div>`;
   },
