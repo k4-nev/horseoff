@@ -12,7 +12,51 @@ var WB = {
   _MONTHS: ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
   _DOW: ['вс','пн','вт','ср','чт','пт','сб'],
 
-  init() { this._renderServers(); this._renderHeader(); this._renderActive(); },
+  _ddVal: {},
+
+  init() {
+    this._renderServers(); this._renderHeader(); this._renderActive();
+    if (!this._wired) {
+      this._wired = true;
+      // клик мимо — закрыть открытые дропдауны и календарь
+      document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!(t.closest && t.closest('.wb-dd'))) document.querySelectorAll('.wb-dd.open').forEach(d => d.classList.remove('open'));
+        if (!(t.closest && t.closest('.wb-cal-anchor')) && this._calOpen) { this._calOpen = false; const p = document.getElementById('wbCalPop'); if (p) p.classList.remove('open'); }
+      });
+      // смена модуля Horseoff → закрыть выдвижной сайдбар серверов
+      if (window.Shell && Shell.switchModule && !Shell._wbHooked) {
+        const orig = Shell.switchModule.bind(Shell);
+        Shell.switchModule = function (id) { WB.closeSide(); return orig(id); };
+        Shell._wbHooked = true;
+      }
+    }
+  },
+
+  // кастомный дропдаун (стилизованный, вместо нативного select)
+  _dd(id, opts, val, width) {
+    this._ddVal[id] = val;
+    const style = width === 'full' ? 'display:block;width:100%' : (width ? 'width:' + width + 'px' : '');
+    const chev = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`;
+    return `<div class="wb-dd" id="dd-${id}" style="${style}">
+      <button class="wb-dd-btn" onclick="WB._ddToggle('${id}',event)"><span id="dd-lbl-${id}">${this._esc(val)}</span>${chev}</button>
+      <div class="wb-dd-list">${opts.map(o => `<div class="wb-dd-opt ${o === val ? 'sel' : ''}" onclick="WB._ddPick('${id}',this)">${this._esc(o)}</div>`).join('')}</div>
+    </div>`;
+  },
+  _ddToggle(id, e) {
+    if (e) e.stopPropagation();
+    const el = document.getElementById('dd-' + id); if (!el) return;
+    const open = el.classList.contains('open');
+    document.querySelectorAll('.wb-dd.open').forEach(d => d.classList.remove('open'));
+    if (!open) el.classList.add('open');
+  },
+  _ddPick(id, opt) {
+    const val = opt.textContent;
+    this._ddVal[id] = val;
+    const lbl = document.getElementById('dd-lbl-' + id); if (lbl) lbl.textContent = val;
+    const el = document.getElementById('dd-' + id);
+    if (el) { el.classList.remove('open'); el.querySelectorAll('.wb-dd-opt').forEach(o => o.classList.toggle('sel', o === opt)); }
+  },
 
   // ─── мок тестового сервера ───────────────────────────────
   _buildTest() {
@@ -130,14 +174,14 @@ var WB = {
   _renderAccounts(pane, s) {
     const selCount = Object.values(this._sel).filter(Boolean).length;
     const rows = s.accounts.map(a => `
-      <div class="wb-row" style="min-width:880px">
+      <div class="wb-row" style="min-width:960px">
         <span class="wb-chk ${this._sel[a.id] ? 'on' : ''}" onclick="WB._toggleSel('${a.id}')"></span>
         ${this._ava(a.gender)}
         <div class="wb-cell" style="width:180px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div>
         <div class="wb-cell wb-mono" style="width:60px;color:var(--text-dim);font-size:12px">${a.lastLogin}</div>
         <div class="wb-cell" style="width:120px">${this._badge(a.status)}</div>
         <div class="wb-cell wb-mono" style="width:150px;font-size:12px"><div style="color:var(--text)">${a.article}</div><div style="color:var(--text-dim)">${this._esc(a.keyword)}</div></div>
-        <div class="wb-cell" style="width:130px;color:var(--text-dim)" title="${this._esc(a.pvz)}">${this._esc(a.city)}</div>
+        <div class="wb-cell" style="width:210px;color:var(--text-dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${this._esc(a.pvz || '')}">${a.pvz ? this._esc(a.pvz) : '—'}</div>
         <span class="wb-spacer"></span>
         <button class="btn btn-secondary sm" onclick="WB._toast()">Архив</button>
       </div>`).join('');
@@ -149,7 +193,7 @@ var WB = {
       </div>
       ${selCount ? `<div class="wb-bulk">Выбрано: <b>${selCount}</b><span class="wb-spacer"></span><button class="btn btn-secondary sm" onclick="WB._toast()">Архивировать</button><button class="btn btn-secondary sm" onclick="WB._clearSel()">Снять выделение</button></div>` : ''}
       <div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:880px"><span style="width:17px"></span><span style="width:30px"></span><span style="width:180px">Аккаунт</span><span style="width:60px">Вход</span><span style="width:120px">Статус</span><span style="width:150px">Артикул / ключ</span><span style="width:130px">Город</span><span class="wb-spacer"></span><span></span></div>
+        <div class="wb-thead" style="min-width:960px"><span style="width:17px"></span><span style="width:30px"></span><span style="width:180px">Аккаунт</span><span style="width:60px">Вход</span><span style="width:120px">Статус</span><span style="width:150px">Артикул / ключ</span><span style="width:210px">Последний ПВЗ</span><span class="wb-spacer"></span><span></span></div>
         ${rows}
       </div></div>`;
   },
@@ -225,17 +269,18 @@ var WB = {
       const seg = `<div class="wb-seg">${stageNames.map((_, si) => `<span class="${si < stage ? 'on' : ''}"></span>`).join('')}</div>`;
       const stageBlock = planned
         ? `<span style="color:var(--text-dim);font-size:12px">запуск <b class="wb-mono" style="color:var(--text)">10:00–14:00</b></span>`
-        : `<div style="width:100%"><div class="wb-stage-head"><span class="wb-stage-name">${stageNames[Math.min(stage, 6)]}</span><span class="wb-stage-cnt">${stage} / 7</span></div>${seg}</div>`;
+        : `<div class="wb-stage-head"><span class="wb-stage-name">${stageNames[Math.min(stage, 6)]}</span><span class="wb-stage-cnt">${stage} / 7</span></div>${seg}`;
       const nameBlock = noAcc ? `<span style="color:var(--danger);font-weight:700">Нет аккаунта</span>`
         : `<div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div>`;
       let sub = '';
-      if (stage === 5 && !planned) sub = `<div class="wb-buy-sub"><span class="wb-cap-lbl">Оплата:</span><select class="wb-input" style="width:160px;padding:7px 11px"><option>Выбрать банк</option><option>Сбербанк</option><option>Т-Банк</option><option>Альфа-Банк</option><option>ВТБ</option></select><span class="wb-spacer"></span><button class="btn btn-primary sm" onclick="WB._toast()">Оплатить</button></div>`;
+      if (stage === 5 && !planned) sub = `<div class="wb-buy-sub"><span class="wb-cap-lbl">Оплата:</span>${this._dd('bank' + i, ['Выбрать банк', 'Сбербанк', 'Т-Банк', 'Альфа-Банк', 'ВТБ'], 'Выбрать банк', 170)}<span class="wb-spacer"></span><button class="btn btn-primary sm" onclick="WB._toast()">Оплатить</button></div>`;
       if (i === 2) sub = `<div class="wb-buy-sub"><span class="wb-badge red">Ошибка выполнения</span><span class="wb-spacer"></span><button class="btn btn-danger sm" onclick="WB._toast()">Перезапуск</button></div>`;
       return `<div class="wb-buy"><div class="wb-buy-main">
         ${this._ava(a.gender)}
         <div class="wb-cell" style="width:150px">${nameBlock}</div>
-        <div class="wb-cell" style="width:150px">${this._prodChips(s.products, 1)}</div>
-        <div class="wb-cell" style="flex:1;min-width:200px">${stageBlock}</div>
+        <div class="wb-cell" style="width:170px">${this._prodChips(s.products, 1)}</div>
+        <div class="wb-cell" style="width:200px">${stageBlock}</div>
+        <span class="wb-spacer"></span>
         ${planned ? '' : `<span class="wb-timer ${tcls}">${timers[i]}</span>`}
       </div>${sub}</div>`;
     }).join('');
@@ -365,7 +410,7 @@ var WB = {
     this.openModal(`<div class="wb-modal-h"><h3>Одиночный выкуп</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
       <div style="display:flex;gap:10px;margin-bottom:14px"><div class="wb-cap" style="flex:1"><span class="wb-ava f sm">Ж</span><span class="wb-cap-lbl">Доступно</span><b>18</b></div><div class="wb-cap" style="flex:1"><span class="wb-ava m sm">М</span><span class="wb-cap-lbl">Доступно</span><b>11</b></div></div>
       <div class="wb-field"><label>Товары (артикул + ключевое слово)</label><input class="wb-input" placeholder="187264500 · платье летнее"><div style="margin-top:7px"><button class="btn btn-secondary sm" onclick="WB._toast()">+ Добавить товар</button></div></div>
-      <div class="wb-field"><label>Пол</label><select class="wb-input"><option>Любой</option><option>Женский</option><option>Мужской</option></select></div>
+      <div class="wb-field"><label>Пол</label>${this._dd('sb-gender', ['Любой', 'Женский', 'Мужской'], 'Любой', 'full')}</div>
       <div class="wb-field"><label>Адрес ПВЗ</label><input class="wb-input" placeholder="Город, улица…"></div>
       <div style="display:flex;gap:10px"><div class="wb-field" style="flex:1"><label>Дата</label><input class="wb-input" type="date"></div><div class="wb-field" style="flex:1"><label>С</label><input class="wb-input" type="time"></div><div class="wb-field" style="flex:1"><label>До</label><input class="wb-input" type="time"></div></div>
       <button class="btn btn-primary wide" onclick="WB.closeModal()">Запустить выкуп</button>`);
@@ -383,7 +428,7 @@ var WB = {
   _composer() {
     this.openModal(`<div class="wb-modal-h"><h3>Новый отзыв</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
       <div class="wb-field"><label>Оценка</label><div class="wb-stars" style="font-size:26px">★★★★★</div></div>
-      <div class="wb-field"><label>Пол аккаунта</label><select class="wb-input"><option>Любой</option><option>Женский</option><option>Мужской</option></select></div>
+      <div class="wb-field"><label>Пол аккаунта</label>${this._dd('cm-gender', ['Любой', 'Женский', 'Мужской'], 'Любой', 'full')}</div>
       <div style="display:flex;gap:10px"><div class="wb-field" style="flex:1"><label>Дата</label><input class="wb-input" type="date"></div><div class="wb-field" style="flex:1"><label>Время</label><input class="wb-input" type="time"></div></div>
       <div class="wb-field"><label>Плюсы</label><input class="wb-input"></div>
       <div class="wb-field"><label>Минусы</label><input class="wb-input"></div>
@@ -405,9 +450,14 @@ var WB = {
   _prodChips(products, showN) {
     if (!products || !products.length) return '';
     const first = products.slice(0, showN), more = products.length - first.length;
-    let h = first.map(p => `<span class="wb-prod"><span class="wb-prod-ph">фо</span><span class="wb-mono">${p.article}</span></span>`).join(' ');
-    if (more > 0) h += ` <span class="wb-prod-more" title="${products.slice(showN).map(p => p.article + ' · ' + p.keyword).join('\n')}">+${more}</span>`;
-    return h;
+    let h = first.map(p => `<span class="wb-prod"><span class="wb-prod-ph">фо</span><span class="wb-mono">${p.article}</span></span>`).join('');
+    if (more > 0) h += `<span class="wb-prod-more" onclick="WB._prodMore()">+${more}</span>`;
+    return `<div class="wb-prod-list">${h}</div>`;
+  },
+  _prodMore() {
+    const s = this._srv(); if (!s) return;
+    this.openModal(`<div class="wb-modal-h"><h3>Товары аккаунта</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
+      ${s.products.map((p, i) => `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;${i < s.products.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}"><div class="wb-prod-ph" style="width:40px;height:40px"></div><div><div class="wb-mono" style="font-weight:700;color:var(--text)">${p.article}</div><div style="color:var(--text-dim);font-size:12px">${this._esc(p.keyword)}</div></div></div>`).join('')}`, 380);
   },
   _emptyState(title, sub, action) {
     return `<div class="wb-empty"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><div class="wb-empty-title">${title}</div><div>${sub}</div>${action ? '<div style="margin-top:6px">' + action + '</div>' : ''}</div>`;

@@ -6,6 +6,7 @@
 .wb-wrap{
   --wb:#cb11ab;
   --green:#16a34a; --blue:#2563eb; --pink:#db2777; --yellow:#c98a04;
+  position:relative;
   display:flex; width:100%; height:100vh; height:100dvh; overflow:hidden;
   background:var(--bg); color:var(--text);
   font-family:'Inter',sans-serif; font-size:13px;
@@ -114,7 +115,22 @@
 /* product chips */
 .wb-prod{display:inline-flex;align-items:center;gap:7px;padding:4px 10px 4px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:12px;font-weight:600}
 .wb-prod .wb-prod-ph{width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,var(--surface2),var(--border));flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text-dim);font-weight:700}
-.wb-prod-more{display:inline-flex;align-items:center;height:36px;padding:0 11px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:12px;font-weight:700;color:var(--text-dim);cursor:default}
+.wb-prod-more{display:inline-flex;align-items:center;height:36px;padding:0 11px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:12px;font-weight:700;color:var(--text-dim);cursor:pointer;transition:all .12s}
+.wb-prod-more:hover{border-color:var(--accent);color:var(--accent)}
+.wb-prod-list{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+
+/* кастомный дропдаун (вместо угловатого нативного select) */
+.wb-dd{position:relative;display:inline-block}
+.wb-dd-btn{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:border-color .12s}
+.wb-dd-btn:hover{border-color:var(--accent)}
+.wb-dd.open .wb-dd-btn{border-color:var(--accent)}
+.wb-dd-btn svg{opacity:.5;transition:transform .18s;flex-shrink:0}
+.wb-dd.open .wb-dd-btn svg{transform:rotate(180deg)}
+.wb-dd-list{position:absolute;top:calc(100% + 5px);left:0;right:0;min-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 36px rgba(0,0,0,.22);padding:5px;z-index:120;display:none;max-height:240px;overflow-y:auto}
+.wb-dd.open .wb-dd-list{display:block}
+.wb-dd-opt{padding:9px 11px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+.wb-dd-opt:hover{background:var(--surface2)}
+.wb-dd-opt.sel{background:var(--accent-glow);color:var(--accent)}
 .wb-prod-ph{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--surface2),var(--border));flex-shrink:0}
 
 /* HUD — все капсулы одной высоты */
@@ -156,20 +172,22 @@ body.theme-light .wb-subtab:not(.active):hover{color:var(--text)}
 
 /* purchase card */
 .wb-buy{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:0;overflow:hidden}
-.wb-buy-main{display:flex;align-items:center;gap:14px;padding:14px 16px;min-width:820px}
+.wb-buy-main{display:flex;align-items:center;gap:14px;padding:14px 16px;min-width:720px}
 .wb-buy-sub{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--border);background:var(--surface2)}
 .wb-buy-sub .wb-cap-lbl{color:var(--text)}
 
 /* day strip */
 .wb-daystrip{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:2px;scrollbar-width:none;flex:1}
 .wb-daystrip::-webkit-scrollbar{display:none}
-.wb-day{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 15px;border-radius:11px;border:1px solid var(--border);background:var(--surface);cursor:pointer;min-width:52px;transition:all .12s}
+.wb-day{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;height:48px;padding:0 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;min-width:58px;transition:background .22s cubic-bezier(.4,0,.2,1),border-color .22s,box-shadow .22s,transform .14s}
 .wb-day:hover{border-color:var(--accent)}
+.wb-day:active{transform:scale(.93)}
 .wb-day.past{opacity:.45}
-.wb-day.active{background:var(--accent);border-color:var(--accent)}
-.wb-day-dow{font-size:10px;color:var(--text-dim);text-transform:uppercase;font-weight:600}
-.wb-day-num{font-size:17px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text)}
-.wb-day.active .wb-day-dow,.wb-day.active .wb-day-num{color:#000}
+.wb-day.active{background:var(--accent);border-color:var(--accent);box-shadow:0 3px 12px var(--accent-glow)}
+.wb-day-dow{font-size:14px;font-weight:800;text-transform:uppercase;color:var(--text);line-height:1.15}
+.wb-day-num{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text-dim);line-height:1.1}
+.wb-day.active .wb-day-dow{color:#000}
+.wb-day.active .wb-day-num{color:rgba(0,0,0,.6)}
 .wb-month-sep{display:flex;align-items:center;padding:0 4px;color:var(--text-dim);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;writing-mode:horizontal-tb;border-left:1px solid var(--border);align-self:stretch}
 
 /* calendar popover */
