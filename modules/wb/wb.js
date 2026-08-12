@@ -326,22 +326,53 @@ var WB = {
       </div>
       <div class="wb-sec-h" style="margin-top:2px"><h3>Сегодня</h3><span style="color:var(--text-dim);font-size:12px;font-weight:600">4 выкупа в работе</span></div>
       ${cards}`;
+    requestAnimationFrame(() => this._wireStrip());
   },
 
   _dayStrip() {
     let prevMonth = null, html = '';
+    const today = new Date('2026-08-11T00:00:00');
     this._buyDates.forEach(ds => {
-      const d = new Date(ds + 'T00:00:00');
-      const m = d.getMonth();
-      if (prevMonth === null || m !== prevMonth) html += `<div class="wb-month-sep">${this._MONTHS[m]}</div>`;
+      const d = new Date(ds + 'T00:00:00'), m = d.getMonth();
+      if (prevMonth === null || m !== prevMonth) html += `<div class="wb-sep-slot"><div class="wb-month-sep">${this._MONTHS[m]}</div></div>`;
       prevMonth = m;
-      const today = new Date('2026-08-11T00:00:00');
       const past = d < today;
-      html += `<div class="wb-day ${past ? 'past' : ''} ${ds === this._activeDay ? 'active' : ''}" onclick="WB._pickDay('${ds}')"><span class="wb-day-dow">${this._DOW[d.getDay()]}</span><span class="wb-day-num">${String(d.getDate()).padStart(2, '0')}</span></div>`;
+      html += `<div class="wb-day-slot"><div class="wb-day ${past ? 'past' : ''} ${ds === this._activeDay ? 'active' : ''}" onclick="WB._pickDay('${ds}')"><span class="wb-day-dow">${this._DOW[d.getDay()]}</span><span class="wb-day-num">${String(d.getDate()).padStart(2, '0')}</span></div></div>`;
     });
-    return `<div class="wb-daystrip">${html}</div>`;
+    return `<div class="wb-daystrip" id="wbDayStrip">${html}</div>`;
   },
   _pickDay(ds) { this._activeDay = ds; const d = new Date(ds + 'T00:00:00'); this._calY = d.getFullYear(); this._calM = d.getMonth(); this._calOpen = false; this._renderActive(); },
+
+  // прокрутка ленты дат (колесо/драг) + плавное уменьшение крайних плиток
+  _wireStrip() {
+    const strip = document.getElementById('wbDayStrip'); if (!strip) return;
+    strip.addEventListener('scroll', () => this._stripScale(strip), { passive: true });
+    strip.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { strip.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    let down = false, sx = 0, sl = 0, moved = false;
+    strip.addEventListener('pointerdown', (e) => { down = true; moved = false; sx = e.clientX; sl = strip.scrollLeft; });
+    strip.addEventListener('pointermove', (e) => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 4) moved = true; strip.scrollLeft = sl - dx; });
+    const up = () => { down = false; };
+    strip.addEventListener('pointerup', up); strip.addEventListener('pointerleave', up);
+    strip.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+    requestAnimationFrame(() => {
+      const act = strip.querySelector('.wb-day.active');
+      if (act) { const slot = act.parentElement; strip.scrollLeft = slot.offsetLeft - strip.clientWidth / 2 + slot.offsetWidth / 2; }
+      this._stripScale(strip);
+    });
+  },
+  _stripScale(strip) {
+    const r = strip.getBoundingClientRect(), zone = 140, w = r.width;
+    strip.querySelectorAll('.wb-day-slot, .wb-sep-slot').forEach(slot => {
+      const sr = slot.getBoundingClientRect(), center = sr.left + sr.width / 2 - r.left;
+      let t = 1;
+      if (center < zone) t = center / zone;
+      else if (center > w - zone) t = (w - center) / zone;
+      t = Math.max(0, Math.min(1, t));
+      const isSep = slot.classList.contains('wb-sep-slot');
+      slot.style.opacity = t.toFixed(3);
+      slot.style.transform = isSep ? '' : `scale(${(0.25 + 0.75 * t).toFixed(3)})`;
+    });
+  },
 
   // календарь
   _toggleCal() { this._calOpen = !this._calOpen; const p = document.getElementById('wbCalPop'); if (p) { p.classList.toggle('open', this._calOpen); p.innerHTML = this._calHtml(); } },

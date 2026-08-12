@@ -178,18 +178,22 @@ body.theme-light .wb-subtab:not(.active):hover{color:var(--text)}
 .wb-buy-sub .wb-cap-lbl{color:var(--text)}
 
 /* day strip */
-.wb-daystrip{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:2px;scrollbar-width:none;flex:1}
+.wb-daystrip{display:flex;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;padding:7px 4px;scrollbar-width:none;flex:1;cursor:grab;user-select:none}
+.wb-daystrip:active{cursor:grabbing}
 .wb-daystrip::-webkit-scrollbar{display:none}
 .wb-day{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:56px;height:56px;padding:0;border-radius:14px;border:1px solid var(--border);background:linear-gradient(180deg,var(--surface),var(--surface2));cursor:pointer;transition:box-shadow .2s,background .22s;transform-origin:center bottom;will-change:transform}
-.wb-day:hover{animation:wb-day-sway 1.5s ease-in-out infinite}
+.wb-day:hover{animation:wb-day-sway 1s ease-in-out infinite}
 .wb-day.past{opacity:.5}
 .wb-day.active{background:linear-gradient(180deg,var(--accent),var(--accent-dark));border-color:var(--accent);box-shadow:0 4px 14px var(--accent-glow),0 1px 3px rgba(0,0,0,.15)}
 .wb-day-dow{font-size:15px;font-weight:800;text-transform:uppercase;color:var(--text);line-height:1.1}
 .wb-day-num{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text-dim);line-height:1.1}
 .wb-day.active .wb-day-dow{color:#fff}
 .wb-day.active .wb-day-num{color:rgba(255,255,255,.75)}
-/* лёгкое колыхание от основания — как трава на ветру / колокольчик */
-@keyframes wb-day-sway{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-1.6deg)}55%{transform:rotate(1.2deg)}80%{transform:rotate(-0.5deg)}}
+/* колыхание от основания — как трава на ветру / колокольчик */
+@keyframes wb-day-sway{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-3.2deg)}55%{transform:rotate(2.4deg)}80%{transform:rotate(-1deg)}}
+/* слот плитки — на нём масштаб/прозрачность при уходе за край ленты */
+.wb-day-slot{flex-shrink:0;display:flex;align-items:center;justify-content:center;transform-origin:center;will-change:transform,opacity}
+.wb-sep-slot{flex-shrink:0;display:flex;align-items:center;will-change:opacity}
 .wb-month-sep{display:flex;align-items:center;padding:0 4px;color:var(--text-dim);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;writing-mode:horizontal-tb;border-left:1px solid var(--border);align-self:stretch}
 
 /* calendar popover */
