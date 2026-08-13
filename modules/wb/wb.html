@@ -22,24 +22,27 @@
 
   <!-- ═══ MAIN ═══ -->
   <div class="wb-main">
-    <div class="wb-head" id="wbHead">
-      <button class="wb-ico-btn" onclick="WB.toggleSide()" title="Серверы">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-      </button>
-      <span class="wb-head-name" id="wbHeadName">Сервер не выбран</span>
-      <span class="wb-head-status" id="wbHeadStatus"></span>
-      <span class="wb-head-count" id="wbHeadCount"></span>
+    <div class="wb-head">
+      <div class="wb-head-card">
+        <div class="wb-hd-left">
+          <button class="wb-hd-srv" onclick="WB.toggleSide()" title="Серверы">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </button>
+          <span class="wb-hd-dot" id="wbHeadDot"></span>
+          <span class="wb-hd-name" id="wbHeadName">Сервер не выбран</span>
+        </div>
+        <div class="wb-hd-seg" id="wbTabs" role="tablist">
+          <button class="wb-hd-tab active" data-tab="accounts"  onclick="WB.switchTab('accounts')" role="tab">Аккаунты</button>
+          <button class="wb-hd-tab" data-tab="reg"       onclick="WB.switchTab('reg')" role="tab">Регистратор</button>
+          <button class="wb-hd-tab" data-tab="warmup"    onclick="WB.switchTab('warmup')" role="tab">Прогрев</button>
+          <button class="wb-hd-tab" data-tab="purchases" onclick="WB.switchTab('purchases')" role="tab">Покупки</button>
+          <button class="wb-hd-tab" data-tab="pickup"    onclick="WB.switchTab('pickup')" role="tab">Получение</button>
+          <button class="wb-hd-tab" data-tab="reviews"   onclick="WB.switchTab('reviews')" role="tab">Отзывы</button>
+          <button class="wb-hd-tab" data-tab="stats"     onclick="WB.switchTab('stats')" role="tab">Статистика</button>
+        </div>
+        <div class="wb-hd-count" id="wbHeadCount"></div>
+      </div>
     </div>
-
-    <nav class="wb-tabs" id="wbTabs">
-      <button class="wb-tab active" data-tab="accounts"  onclick="WB.switchTab('accounts')">Аккаунты</button>
-      <button class="wb-tab" data-tab="reg"       onclick="WB.switchTab('reg')">Регистратор</button>
-      <button class="wb-tab" data-tab="warmup"    onclick="WB.switchTab('warmup')">Прогрев</button>
-      <button class="wb-tab" data-tab="purchases" onclick="WB.switchTab('purchases')">Покупки</button>
-      <button class="wb-tab" data-tab="pickup"    onclick="WB.switchTab('pickup')">Получение</button>
-      <button class="wb-tab" data-tab="reviews"   onclick="WB.switchTab('reviews')">Отзывы</button>
-      <button class="wb-tab" data-tab="stats"     onclick="WB.switchTab('stats')">Статистика</button>
-    </nav>
 
     <div class="wb-ws" id="wbWorkspace">
       <div class="wb-pane active" id="wbPane-accounts"></div>

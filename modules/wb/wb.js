@@ -164,16 +164,18 @@ var WB = {
 
   _renderHeader() {
     const s = this._srv();
-    const name = document.getElementById('wbHeadName'), st = document.getElementById('wbHeadStatus'), cnt = document.getElementById('wbHeadCount');
-    if (!s) { name.textContent = 'Сервер не выбран'; st.innerHTML = ''; cnt.innerHTML = ''; return; }
+    const dot = document.getElementById('wbHeadDot'), name = document.getElementById('wbHeadName'), cnt = document.getElementById('wbHeadCount');
+    if (!s) { name.textContent = 'Сервер не выбран'; if (dot) dot.className = 'wb-hd-dot'; if (cnt) cnt.innerHTML = ''; return; }
     name.textContent = s.name;
-    st.innerHTML = `<span class="wb-srv-dot ${s.status}"></span>${s.status === 'online' ? 'Online' : 'Offline'}`;
-    cnt.innerHTML = `<b>${s.accounts.length}</b> аккаунтов`;
+    if (dot) dot.className = 'wb-hd-dot ' + (s.status === 'online' ? 'online' : 'offline');
+    const n = s.accounts.length;
+    if (cnt) cnt.innerHTML = `<b>${n}</b> ${this._plural(n, 'аккаунт', 'аккаунта', 'аккаунтов')}`;
   },
+  _plural(n, one, few, many) { const a = n % 10, b = n % 100; if (a === 1 && b !== 11) return one; if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return few; return many; },
 
   switchTab(tab) {
     this._tab = tab; this._calOpen = false;
-    document.querySelectorAll('#wbTabs .wb-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('#wbTabs .wb-hd-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
     document.querySelectorAll('#wbWorkspace .wb-pane').forEach(p => p.classList.toggle('active', p.id === 'wbPane-' + tab));
     this._renderActive(); if (navigator.vibrate) navigator.vibrate(6);
   },
@@ -293,9 +295,10 @@ var WB = {
   },
 
   // ═══ 5.4 ПОКУПКИ — новый OrderRow ═══
-  _BANKS: ['Выбрать банк', 'Сбербанк', 'Т-Банк', 'Альфа-Банк', 'ВТБ'],
+  _BANKS: ['Выбрать банк', 'Т-Банк', 'Альфа-Банк', 'Райффайзен', 'OZON', 'Яндекс Пей', 'ПСБ'],
   _ordState: {},
   _ordTimers: {},
+  _buyFilter: { scheduled: true, in_progress: true, paid: true, error: true },
 
   _buyRows(s) {
     const p = s.products, mk = (n) => p.concat(p).slice(0, n).map((x, i) => ({ id: 'i' + i, art: x.article, kw: x.keyword }));
@@ -303,13 +306,13 @@ var WB = {
     return [
       { id: 'o1', name: 'Анна Петрова', phone: '+7 921 400-11-84', gender: 'f', items: mk(5), address: addr, status: { kind: 'in_progress', step: 5, total: 7, label: 'Ожидаю подтверждения оплаты', timer: '02:41' } },
       { id: 'o2', name: 'Максим Орлов', phone: '+7 921 400-11-85', gender: 'm', items: mk(4), address: { short: 'Санкт-Петербург, Невский пр., 28', full: 'г. Санкт-Петербург, Невский проспект, д. 28, лит. А, кв. 112, ПВЗ Wildberries' }, status: { kind: 'error', step: 3, total: 7, message: 'Не удалось добавить товар в корзину', code: 'ERR_ADD_ITEM_500' } },
-      { id: 'o3', name: 'Елена Кузнецова', phone: '+7 921 400-11-86', gender: 'f', items: mk(2), address: addr, status: { kind: 'paid', paidAt: '12 мая, 14:22', bank: 'Сбербанк' } },
+      { id: 'o3', name: 'Елена Кузнецова', phone: '+7 921 400-11-86', gender: 'f', items: mk(2), address: addr, status: { kind: 'paid', paidAt: '12 мая, 14:22', bank: 'OZON' } },
       { id: 'o4', name: 'Даниил Козлов', phone: '+7 921 400-11-87', gender: 'm', items: mk(3), address: addr, status: { kind: 'scheduled', date: '14.05.2026', time: '09:00' } },
       { id: 'o5', name: 'Ольга Морозова', phone: '+7 921 400-11-88', gender: 'f', items: mk(1), address: addr, status: { kind: 'in_progress', step: 2, total: 7, label: 'Смотрю товары', timer: '30:30' } },
     ];
   },
   _buyCardsHtml(s) {
-    const rows = this._buyRows(s);
+    const rows = this._buyRows(s).filter(r => this._buyFilter[r.status.kind] !== false);
     this._ordRows = rows;
     rows.forEach(r => { if (!this._ordState[r.id]) this._ordState[r.id] = { bank: 'Выбрать банк', skus: r.items.map(i => i.art), keywords: r.items.map(i => i.kw) }; });
     const head = `<div class="wb-ord-grid wb-ord-head"><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span><span>Действие</span></div>`;
@@ -317,10 +320,22 @@ var WB = {
   },
   _renderBuyCards() { const s = this._srv(), el = document.getElementById('wbBuyCards'); if (s && el) el.innerHTML = this._buyCardsHtml(s); },
   _buyStats(rows) {
-    const c = { total: rows.length, sched: 0, work: 0, done: 0, err: 0 };
-    rows.forEach(r => { const k = r.status.kind; if (k === 'scheduled') c.sched++; else if (k === 'in_progress') c.work++; else if (k === 'paid') c.done++; else if (k === 'error') c.err++; });
-    return `<div class="wb-ord-stats"><span>Всего<b>${c.total}</b></span><span>Запланировано<b>${c.sched}</b></span><span>В работе<b>${c.work}</b></span><span>Выполнено<b>${c.done}</b></span><span class="err">Ошибка<b>${c.err}</b></span></div>`;
+    const c = { total: rows.length, scheduled: 0, in_progress: 0, paid: 0, error: 0 };
+    rows.forEach(r => { c[r.status.kind] = (c[r.status.kind] || 0) + 1; });
+    const pill = (key, label, color, count, toggle) => {
+      const off = toggle && this._buyFilter[key] === false;
+      return `<button class="wb-stat-pill ${toggle ? '' : 'static'} ${off ? 'off' : ''}" ${toggle ? `onclick="WB._buyToggle('${key}')"` : ''}><span class="wb-stat-dot" style="background:${color}"></span>${label}<span class="wb-stat-cnt">${count}</span></button>`;
+    };
+    return `<div class="wb-ord-stats">
+      ${pill('total', 'Всего', '#8e8e93', c.total, false)}
+      ${pill('scheduled', 'Запланировано', '#2f5cf5', c.scheduled, true)}
+      ${pill('in_progress', 'В работе', '#f5a623', c.in_progress, true)}
+      ${pill('paid', 'Выполнено', '#30b46c', c.paid, true)}
+      ${pill('error', 'Ошибка', '#d70015', c.error, true)}
+    </div>`;
   },
+  _renderBuyStats() { const s = this._srv(), el = document.getElementById('wbBuyStats'); if (s && el) el.innerHTML = this._buyStats(this._buyRows(s)); },
+  _buyToggle(key) { this._buyFilter[key] = this._buyFilter[key] === false ? true : false; this._renderBuyStats(); this._renderBuyCards(); if (navigator.vibrate) navigator.vibrate(8); },
 
   _ordSeg(total, step, isErr) {
     let h = '';
@@ -477,7 +492,7 @@ var WB = {
         <button class="btn btn-secondary" onclick="WB._massBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Массовый залив</button>
         <button class="btn btn-primary" onclick="WB._singleBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Одиночный выкуп</button>
       </div>
-      ${this._buyStats(this._buyRows(s))}
+      <div id="wbBuyStats">${this._buyStats(this._buyRows(s))}</div>
       <div id="wbBuyCards">${this._buyCardsHtml(s)}</div>`;
     requestAnimationFrame(() => this._wireStrip());
   },
