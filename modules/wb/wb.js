@@ -81,23 +81,26 @@ var WB = {
     const NM = ['Максим Орлов','Игнат Волков','Никита Соколов','Евгений Попов','Даниил Козлов','Артём Новиков'];
     const CITIES = ['Москва','Санкт-Петербург','Казань','Екатеринбург','Новосибирск'];
     const ST = ['активен','активен','активен','новый','не прошел','ожидает в пвз','получен'];
+    const products = [
+      { id: 'p1', article: '833758227', keyword: 'вода парфюм', available: 12 },
+      { id: 'p2', article: '996209813', keyword: 'духи с табаком', available: 7 },
+      { id: 'p3', article: '451599302', keyword: 'часы кварцевые', available: 3 },
+      { id: 'p4', article: '344985239', keyword: 'часы электронные', available: 21 },
+      { id: 'p5', article: '500120276', keyword: 'пароочиститель', available: 9 },
+      { id: 'p6', article: '108481477', keyword: 'гейнер масса', available: 15 },
+      { id: 'p7', article: '123967154', keyword: 'робот пылесос', available: 5 },
+    ];
     const accts = [];
     for (let i = 0; i < 14; i++) {
-      const f = i % 2 === 0;
+      const f = i % 2 === 0, pr = products[i % products.length];
       accts.push({
         id: 'a' + i, name: f ? NF[i % NF.length] : NM[i % NM.length], gender: f ? 'f' : 'm',
         phone: '+7 921 400-11-' + String(80 + i).padStart(2, '0'),
         lastLogin: ['сейчас','2ч','вчера','5ч','3д'][i % 5], status: ST[i % ST.length],
-        article: '' + (187264500 + i * 2), keyword: ['платье летнее','сарафан','джинсы','кроссовки','футболка'][i % 5],
+        article: pr.article, keyword: pr.keyword,
         pvz: 'ул. Ленина, ' + (5 + i) + ', ПВЗ Wildberries', city: CITIES[i % CITIES.length]
       });
     }
-    const products = [
-      { id: 'p1', article: '187264500', keyword: 'платье летнее', available: 12 },
-      { id: 'p2', article: '187264502', keyword: 'сарафан', available: 7 },
-      { id: 'p3', article: '187264504', keyword: 'джинсы', available: 3 },
-      { id: 'p4', article: '187264506', keyword: 'кроссовки', available: 21 },
-    ];
     return { id: '__test__', name: 'Server-RU-01', status: 'online', test: true, accounts: accts, products: products };
   },
 
@@ -345,9 +348,9 @@ var WB = {
   _ordItems(r) {
     const n = r.items.length, show = Math.min(3, n), more = n - show;
     let ph = '';
-    for (let i = 0; i < show; i++) ph += `<div class="wb-ord-photo"></div>`;
+    for (let i = 0; i < show; i++) ph += this._photoLink(r.items[i].art, 'tm', 'wb-ord-photo');
     ph += more > 0 ? `<div class="wb-ord-more">+${more}</div>` : `<button class="wb-ord-dots" aria-label="Товары аккаунта">···</button>`;
-    const list = r.items.map(it => `<div class="wb-ord-pop-row"><div class="wb-ord-pop-ph"></div><div><div class="wb-ord-pop-art wb-ord-mono">${it.art}</div><div class="wb-ord-pop-kw">${this._esc(it.kw)}</div></div></div>`).join('');
+    const list = r.items.map(it => `<div class="wb-ord-pop-row">${this._photoLink(it.art, 'tm', 'wb-ord-pop-ph')}<div><div class="wb-ord-pop-art wb-ord-mono">${it.art}</div><div class="wb-ord-pop-kw">${this._esc(it.kw)}</div></div></div>`).join('');
     return `<div class="wb-ord-items" onclick="WB._ordPop('${r.id}','items',event)">${ph}
       <div class="wb-ord-pop wb-ord-pop-items" id="pop-items-${r.id}"><div class="wb-ord-pop-title">Товары аккаунта</div>${list}</div></div>`;
   },
@@ -603,15 +606,15 @@ var WB = {
     const sub = this._revSub; let body = '';
     if (sub === 'products') {
       if (this._revView === 'grid') {
-        body = `<div class="wb-rev-grid">${s.products.concat(s.products).map((p, i) => `<div class="wb-rev-card" onclick="WB._composer()"><div class="wb-rev-top"><div class="wb-rev-art">${p.article}</div><div class="wb-rev-kw">${this._esc(p.keyword)}</div></div><div class="wb-rev-bot"><div class="wb-rev-avail">Доступно: ${p.available}</div><div class="wb-rev-meta">план ${2 + i} · архив ${5 + i}</div></div></div>`).join('')}</div>`;
+        body = `<div class="wb-rev-grid">${s.products.concat(s.products).map((p, i) => `<div class="wb-rev-card" onclick="WB._composer()"><img class="wb-rev-img" src="${this._wbUrls(p.article, 'c516x688').image}" loading="lazy" onerror="this.remove()" alt=""><div class="wb-rev-top"><div class="wb-rev-art">${p.article}</div><div class="wb-rev-kw">${this._esc(p.keyword)}</div></div><div class="wb-rev-bot"><div class="wb-rev-avail">Доступно: ${p.available}</div><div class="wb-rev-meta">план ${2 + i} · архив ${5 + i}</div></div></div>`).join('')}</div>`;
       } else {
-        body = `<div class="wb-card flush"><div class="wb-table-wrap">${s.products.map(p => `<div class="wb-row" style="min-width:500px"><div class="wb-prod-ph" style="width:36px;height:36px"></div><div class="wb-cell" style="width:140px"><div class="wb-mono" style="font-weight:700;color:var(--text)">${p.article}</div><div style="color:var(--text-dim);font-size:12px">${this._esc(p.keyword)}</div></div><span class="wb-spacer"></span><span class="wb-badge green">Доступно: ${p.available}</span><button class="btn btn-secondary sm" onclick="WB._composer()">Отзыв</button></div>`).join('')}</div></div>`;
+        body = `<div class="wb-card flush"><div class="wb-table-wrap">${s.products.map(p => `<div class="wb-row" style="min-width:500px">${this._photoLink(p.article, 'tm', 'wb-prod-ph')}<div class="wb-cell" style="width:140px"><div class="wb-mono" style="font-weight:700;color:var(--text)">${p.article}</div><div style="color:var(--text-dim);font-size:12px">${this._esc(p.keyword)}</div></div><span class="wb-spacer"></span><span class="wb-badge green">Доступно: ${p.available}</span><button class="btn btn-secondary sm" onclick="WB._composer()">Отзыв</button></div>`).join('')}</div></div>`;
       }
     } else {
       const isPlan = sub === 'plan', list = s.accounts.slice(0, 6);
       body = `<div class="wb-card flush"><div class="wb-table-wrap">
         <div class="wb-thead" style="min-width:850px"><span style="width:30px"></span><span style="width:170px">Аккаунт</span><span style="width:50px">Фото</span><span style="width:150px">Товар</span><span style="width:90px">Оценка</span><span style="width:110px">${isPlan ? 'План' : 'Дата'}</span><span class="wb-spacer"></span><span></span></div>
-        ${list.map((a, i) => `<div class="wb-row" style="min-width:850px">${this._ava(a.gender)}<div class="wb-cell" style="width:170px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div><div class="wb-cell wb-prod-ph" style="width:34px;height:34px"></div><div class="wb-cell wb-mono" style="width:150px;font-size:12px;color:var(--text)">${s.products[i % s.products.length].article}</div><div class="wb-cell wb-stars" style="width:90px">${'★'.repeat(4 + (i % 2))}${'☆'.repeat(1 - (i % 2))}</div><div class="wb-cell wb-mono" style="width:110px;font-size:12px;color:var(--text-dim)">0${(i % 5) + 1}.09 1${i}:00</div><span class="wb-spacer"></span>${isPlan ? '<button class="btn btn-danger sm" onclick="WB._toast()">Отменить</button>' : this._badge(i % 2 ? 'опубликован' : 'написан')}</div>`).join('')}
+        ${list.map((a, i) => `<div class="wb-row" style="min-width:850px">${this._ava(a.gender)}<div class="wb-cell" style="width:170px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div><div class="wb-cell">${this._photoLink(s.products[i % s.products.length].article, 'tm', 'wb-prod-ph')}</div><div class="wb-cell wb-mono" style="width:150px;font-size:12px;color:var(--text)">${s.products[i % s.products.length].article}</div><div class="wb-cell wb-stars" style="width:90px">${'★'.repeat(4 + (i % 2))}${'☆'.repeat(1 - (i % 2))}</div><div class="wb-cell wb-mono" style="width:110px;font-size:12px;color:var(--text-dim)">0${(i % 5) + 1}.09 1${i}:00</div><span class="wb-spacer"></span>${isPlan ? '<button class="btn btn-danger sm" onclick="WB._toast()">Отменить</button>' : this._badge(i % 2 ? 'опубликован' : 'написан')}</div>`).join('')}
       </div></div>`;
     }
     pane.innerHTML = `<div class="wb-toolbar">
@@ -698,17 +701,28 @@ var WB = {
     };
     return `<span class="wb-badge ${map[status] || 'gray'}">${this._esc(status)}</span>`;
   },
+  // ссылки WB из артикула (без запросов) — товар в селлере + фото нужного размера
+  _wbUrls(article, size) {
+    const n = parseInt(article, 10) || 0;
+    const vol = Math.floor(n / 100000), part = Math.floor(n / 1000);
+    return { product: `https://www.wildberries.ru/catalog/${n}/detail.aspx`, image: `https://sam-basket-cdn-01.geobasket.ru/vol${vol}/part${part}/${n}/images/${size || 'big'}/1.webp` };
+  },
+  // кликабельное фото товара → переход на товар; при ошибке фото остаётся пустышкой
+  _photoLink(article, size, cls) {
+    const u = this._wbUrls(article, size);
+    return `<a class="${cls} wb-photo" href="${u.product}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="${u.image}" loading="lazy" onerror="this.remove()" alt=""></a>`;
+  },
   _prodChips(products, showN) {
     if (!products || !products.length) return '';
     const first = products.slice(0, showN), more = products.length - first.length;
-    let h = first.map(p => `<span class="wb-prod"><span class="wb-prod-ph">фо</span><span class="wb-mono">${p.article}</span></span>`).join('');
+    let h = first.map(p => `<span class="wb-prod">${this._photoLink(p.article, 'tm', 'wb-prod-ph')}<span class="wb-mono">${p.article}</span></span>`).join('');
     if (more > 0) h += `<span class="wb-prod-more" onclick="WB._prodMore()">+${more}</span>`;
     return `<div class="wb-prod-list">${h}</div>`;
   },
   _prodMore() {
     const s = this._srv(); if (!s) return;
     this.openModal(`<div class="wb-modal-h"><h3>Товары аккаунта</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
-      ${s.products.map((p, i) => `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;${i < s.products.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}"><div class="wb-prod-ph" style="width:40px;height:40px"></div><div><div class="wb-mono" style="font-weight:700;color:var(--text)">${p.article}</div><div style="color:var(--text-dim);font-size:12px">${this._esc(p.keyword)}</div></div></div>`).join('')}`, 380);
+      ${s.products.map((p, i) => `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;${i < s.products.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}">${this._photoLink(p.article, 'tm', 'wb-prod-ph')}<div><div class="wb-mono" style="font-weight:700;color:var(--text)">${p.article}</div><div style="color:var(--text-dim);font-size:12px">${this._esc(p.keyword)}</div></div></div>`).join('')}`, 380);
   },
   _emptyState(title, sub, action) {
     return `<div class="wb-empty"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><div class="wb-empty-title">${title}</div><div>${sub}</div>${action ? '<div style="margin-top:6px">' + action + '</div>' : ''}</div>`;
