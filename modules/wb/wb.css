@@ -309,6 +309,42 @@ body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacit
 /* лёгкая подсветка строк ошибки/выполнено */
 .wb-ord-row.k-error{background-image:linear-gradient(180deg,rgba(215,0,21,.065),rgba(215,0,21,.015))}
 .wb-ord-row.k-paid{background-image:linear-gradient(180deg,rgba(48,180,108,.075),rgba(48,180,108,.02))}
+
+/* ═══ ОБЩИЕ АТОМЫ (эталон из Покупок, переиспользуются во вкладках) ═══ */
+/* токены + шрифт для любого «системного» контейнера вкладки */
+.wb-wu{--o-text:#1d1d1f;--o-sec:#6e6e73;--o-ter:#86868b;--o-dim:#a1a1a6;--o-ok:#30b46c;--o-okt:#0f9d58;--o-err:#d70015;--o-accent:#2f5cf5;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;color:var(--o-text);letter-spacing:-.01em}
+
+/* статус прогрева/выполнения (иконка + цветной текст) — общий компонент */
+.wb-exec{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:400;white-space:nowrap}
+.wb-exec svg{flex-shrink:0}
+.wb-exec.done{color:#3d9c73}      .wb-exec.done svg{stroke:#4fae83}
+.wb-exec.running{color:#5f7fb5}   .wb-exec.running svg{stroke:#7d9dcf}
+.wb-exec.pending{color:#8a8a92}   .wb-exec.pending svg{stroke:#b4b4bb}
+.wb-exec.error{color:#c9584f;font-weight:500} .wb-exec.error svg{stroke:#dd8880}
+
+/* ═══ ПРОГРЕВ (вариант 5b) ═══ */
+.wb-wu{display:flex;flex-direction:column;gap:14px;min-width:840px}
+.wb-wu-card{background:#fff;border-radius:20px;box-shadow:0 0 0 .5px rgba(0,0,0,.06),0 8px 30px -14px rgba(0,0,0,.22);overflow:hidden}
+.wb-wu-grid{display:grid;grid-template-columns:3px 18px 64px 300px 1fr 180px 150px;gap:18px;align-items:center;padding:11px 22px 11px 0;border-bottom:.5px solid rgba(0,0,0,.05)}
+.wb-wu-head{padding-top:13px;padding-bottom:13px}
+.wb-wu-head>span{font-size:11px;font-weight:590;letter-spacing:.09em;text-transform:uppercase;color:#a1a1a6}
+.wb-wu-row{transition:background .12s}
+.wb-wu-row:last-child{border-bottom:none}
+.wb-wu-row.sel{background:rgba(98,133,221,.055)}
+.wb-wu-notch{width:3px;height:34px;border-radius:0 3px 3px 0}
+.wb-wu-chk{width:18px;height:18px;border-radius:6px;background:linear-gradient(180deg,#fff,#f5f6f9);border:1px solid rgba(20,22,30,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.9);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.wb-wu-chk.on{background:linear-gradient(180deg,#8aa6ea,#6285dd);border-color:transparent}
+.wb-wu-chk.on::after{content:'';width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg);margin-top:-2px}
+.wb-wu-time{font-family:ui-monospace,'SF Mono',monospace;font-size:13.5px;letter-spacing:-.02em;color:#35353b}
+.wb-wu-stage{font-size:13.5px;color:#76767d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-wu-bulk{height:36px;padding:0 16px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(180deg,#fff,#f2f3f7);border:.5px solid rgba(20,22,30,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 1px rgba(20,22,30,.05),0 4px 10px -3px rgba(20,22,30,.18);color:#35353b;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;justify-self:end}
+.wb-wu-bulk svg{stroke:#5c5c64}
+.wb-wu-bulk:not(:disabled):active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 1px rgba(20,22,30,.05),0 2px 5px -2px rgba(20,22,30,.18)}
+.wb-wu-bulk:disabled{background:#f4f5f8;box-shadow:none;color:#b0b0b8;cursor:not-allowed;border-color:rgba(20,22,30,.1)}
+.wb-wu-bulk:disabled svg{stroke:#c2c2c8}
+.wb-wu-danger{height:36px;padding:0 18px;border-radius:12px;border:none;cursor:pointer;font-size:13.5px;font-weight:500;background:linear-gradient(180deg,#fdf1ef,#f7e2df);color:#c9584f}
+.wb-wu-danger:hover{filter:brightness(.98)}
 .wb-ord-grid{display:grid;grid-template-columns:230px 128px 200px minmax(190px,1fr) auto;gap:22px;align-items:center}
 .wb-ord-head{padding:0 16px 0 18px}
 .wb-ord-head span{font-size:10px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--o-dim)}

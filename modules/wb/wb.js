@@ -25,7 +25,7 @@ var WB = {
         if (!(t.closest && t.closest('.wb-cal-anchor')) && this._calOpen) { this._calOpen = false; const p = document.getElementById('wbCalPop'); if (p) p.classList.remove('open'); }
         if (!(t.closest && t.closest('.wb-ord-items, .wb-ord-addr, .wb-ord-pill'))) this._ordCloseOverlays();
       });
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { this._ordCloseOverlays(); this._ddCloseAll(); } });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { this._ordCloseOverlays(); this._ddCloseAll(); this.closeModal(); } });
       // скролл — закрыть открытые дропдауны (список позиционируется fixed)
       document.addEventListener('scroll', () => this._ddCloseAll(), true);
       window.addEventListener('resize', () => this._ddCloseAll());
@@ -275,26 +275,58 @@ var WB = {
   },
 
   // ═══ 5.3 ПРОГРЕВ ═══
+  _wuBuild(s) {
+    const stages = ['Доставка', 'Прогретый', 'Ожидает на ПВЗ', 'Новый', 'Проверка'];
+    const execs = ['done', 'running', 'pending', 'error', 'running', 'pending', 'done', 'running'];
+    const times = ['09:15', '10:40', null, '13:05', '14:30', '16:10', '18:00', null];
+    return s.accounts.slice(0, 8).map((a, i) => ({ accountId: a.id, name: a.name, phone: a.phone, gender: a.gender, scheduledAt: times[i], stage: stages[i % stages.length], exec: execs[i % execs.length] }));
+  },
+  _wuVisible(s) {
+    const rows = this._wuBuild(s).filter(r => !this._wuRemoved[r.accountId]);
+    rows.sort((a, b) => { if (!a.scheduledAt && !b.scheduledAt) return 0; if (!a.scheduledAt) return 1; if (!b.scheduledAt) return -1; return a.scheduledAt.localeCompare(b.scheduledAt); });
+    return rows;
+  },
   _renderWarmup(pane, s) {
-    const accSt = ['Прогретый', 'Доставка', 'Ожидает на ПВЗ', 'Проверка', 'Прошел', 'Новый'];
-    const execSt = ['Выполнен', 'В работе', 'Ожидает', 'Ошибка'];
-    const times = ['14:30', '09:15', '—', '16:40', '11:00', '13:20', '18:05', '10:10'];
-    const rows = s.accounts.slice(0, 8).map((a, i) => `
-      <div class="wb-row" style="min-width:860px">
-        ${this._ava(a.gender)}
-        <div class="wb-cell" style="width:200px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div>
-        <div class="wb-cell wb-mono" style="width:80px;color:var(--text)">${times[i]}</div>
-        <div class="wb-cell" style="width:170px">${this._badge(accSt[i % accSt.length])}</div>
-        <div class="wb-cell" style="width:150px">${this._badge(execSt[i % execSt.length])}</div>
-        <span class="wb-spacer"></span>
-        <button class="btn btn-secondary sm" onclick="WB._toast()">Снять на сегодня</button>
-      </div>`).join('');
-    pane.innerHTML = `
-      <div class="wb-card" style="display:flex;align-items:center;gap:10px;color:var(--text-dim);font-size:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Прогрев планируется вне интерфейса и выполняется автоматически в течение дня. Здесь — только просмотр.</div>
-      <div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:860px"><span style="width:30px"></span><span style="width:200px">Аккаунт</span><span style="width:80px">Время</span><span style="width:170px">Статус</span><span style="width:150px">Статус выполнения</span><span class="wb-spacer"></span><span></span></div>
-        ${rows}
-      </div></div>`;
+    const rows = this._wuVisible(s);
+    const notch = { done: '#4fae83', running: '#7d9dcf', pending: '#b4b4bb', error: '#dd8880' };
+    const selCount = rows.filter(r => this._wuSel[r.accountId]).length;
+    const allSel = rows.length > 0 && rows.every(r => this._wuSel[r.accountId]);
+    const trash = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+    const head = `<div class="wb-wu-grid wb-wu-head">
+      <span></span>
+      <button class="wb-wu-chk ${allSel ? 'on' : ''}" onclick="WB._wuAll()" aria-label="Выбрать все"></button>
+      <span>Время</span><span>Аккаунт</span><span>Стадия</span><span>Прогрев</span>
+      <button class="wb-wu-bulk" ${selCount ? '' : 'disabled'} onclick="WB._wuBulk()">${trash}${selCount ? 'Выбрано: ' + selCount : 'Снять на сегодня'}</button>
+    </div>`;
+    const body = rows.map(r => `<div class="wb-wu-grid wb-wu-row ${this._wuSel[r.accountId] ? 'sel' : ''}">
+      <span class="wb-wu-notch" style="background:${notch[r.exec]}"></span>
+      <button class="wb-wu-chk ${this._wuSel[r.accountId] ? 'on' : ''}" onclick="WB._wuToggle('${r.accountId}')" aria-label="${this._esc(r.name)}"></button>
+      <span class="wb-wu-time">${r.scheduledAt || '<span style="color:#b4b4bb">—</span>'}</span>
+      ${this._client(r.name, r.phone, r.gender)}
+      <span class="wb-wu-stage">${this._esc(r.stage)}</span>
+      ${this._execStatus(r.exec)}
+      <span></span>
+    </div>`).join('');
+    pane.innerHTML = `<div class="wb-wu"><div class="wb-wu-card">${head}${body || '<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">На сегодня прогрев снят со всех</div></div>'}</div></div>`;
+  },
+  _wuToggle(id) { this._wuSel[id] = !this._wuSel[id]; this._renderActive(); },
+  _wuAll() {
+    const s = this._srv(); if (!s) return;
+    const rows = this._wuVisible(s), all = rows.length > 0 && rows.every(r => this._wuSel[r.accountId]);
+    rows.forEach(r => this._wuSel[r.accountId] = !all);
+    this._renderActive();
+  },
+  _wuBulk() {
+    const s = this._srv(); if (!s) return;
+    const n = this._wuVisible(s).filter(r => this._wuSel[r.accountId]).length;
+    if (!n) return;
+    this.openModal(`<div class="wb-modal-h"><h3>Снять прогрев на сегодня?</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
+      <p style="color:#54545c;font-size:14px;line-height:1.5;margin-bottom:18px">Вы точно хотите снять прогрев на сегодня для <b>${n}</b> ${this._plural(n, 'аккаунта', 'аккаунтов', 'аккаунтов')}? Расписание вернётся завтра автоматически.</p>
+      <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-secondary" onclick="WB.closeModal()">Отмена</button><button class="wb-wu-danger" onclick="WB._wuRemove()">Снять</button></div>`, 420);
+  },
+  _wuRemove() {
+    const s = this._srv(); if (s) this._wuVisible(s).forEach(r => { if (this._wuSel[r.accountId]) this._wuRemoved[r.accountId] = true; });
+    this._wuSel = {}; this.closeModal(); this._renderActive();
   },
 
   // ═══ 5.4 ПОКУПКИ — новый OrderRow ═══
@@ -303,6 +335,7 @@ var WB = {
   _ordTimers: {},
   _buyFilter: { scheduled: true, in_progress: true, paid: true, error: true },
   _buySearch: '',
+  _wuSel: {}, _wuRemoved: {},
 
   _buyRows(s) {
     const p = s.products, mk = (n) => p.concat(p).slice(0, n).map((x, i) => ({ id: 'i' + i, art: x.article, kw: x.keyword }));
@@ -413,7 +446,7 @@ var WB = {
     return `<div class="wb-ord-act"><button class="wb-ord-sbtn edit" onclick="WB._ordEdit('${r.id}',true)">Изменить</button><button class="wb-ord-sbtn del" onclick="WB._toast()">Удалить</button></div>`;
   },
   _ordCells(r) {
-    return `<div class="wb-ord-cell wb-ord-client"><div class="wb-ord-ava ${r.gender}">${r.gender === 'f' ? 'Ж' : 'М'}</div><div style="min-width:0"><div class="wb-ord-name">${this._esc(r.name)}</div><div class="wb-ord-phone wb-ord-mono">${this._esc(r.phone)}</div></div></div>
+    return `${this._client(r.name, r.phone, r.gender)}
       <div class="wb-ord-cell">${this._ordItems(r)}</div>
       <div class="wb-ord-cell">${this._ordAddr(r)}</div>
       <div class="wb-ord-cell">${this._ordStatus(r)}</div>
@@ -733,6 +766,21 @@ var WB = {
   _photoLink(article, size, cls) {
     const u = this._wbUrls(article, size);
     return `<a class="${cls} wb-photo" href="${u.product}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="${u.image}" loading="lazy" onerror="this.remove()" alt=""></a>`;
+  },
+  // ─── ОБЩИЕ АТОМЫ (эталон из Покупок) ───
+  _gAva(g) { return `<div class="wb-ord-ava ${g}">${g === 'f' ? 'Ж' : 'М'}</div>`; },
+  _client(name, phone, gender) {
+    return `<div class="wb-ord-client">${this._gAva(gender)}<div style="min-width:0"><div class="wb-ord-name">${this._esc(name)}</div><div class="wb-ord-phone wb-ord-mono">${this._esc(phone)}</div></div></div>`;
+  },
+  _execStatus(exec) {
+    const map = {
+      done: ['Выполнен', '<circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/>'],
+      running: ['В работе', '<circle cx="12" cy="12" r="9"/><polyline points="12 8 12 12 14.5 13.5"/>'],
+      pending: ['Ожидает', '<circle cx="12" cy="12" r="9" stroke-dasharray="2.6 2.6"/>'],
+      error: ['Ошибка', '<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/>'],
+    };
+    const v = map[exec] || map.pending;
+    return `<div class="wb-exec ${exec}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${v[1]}</svg><span>${v[0]}</span></div>`;
   },
   _prodChips(products, showN) {
     if (!products || !products.length) return '';
