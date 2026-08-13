@@ -194,39 +194,39 @@ var WB = {
 
   // ═══ 5.1 АККАУНТЫ ═══
   _renderAccounts(pane, s) {
+    const cols = '18px 230px 66px 150px 160px 1fr 96px';
+    const gstyle = `display:grid;grid-template-columns:${cols};gap:20px;align-items:center`;
     const selCount = Object.values(this._sel).filter(Boolean).length;
     const rows = s.accounts.map(a => `
-      <div class="wb-row" style="min-width:960px">
-        <span class="wb-chk ${this._sel[a.id] ? 'on' : ''}" onclick="WB._toggleSel('${a.id}')"></span>
-        ${this._ava(a.gender)}
-        <div class="wb-cell" style="width:180px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div>
-        <div class="wb-cell wb-mono" style="width:60px;color:var(--text-dim);font-size:12px">${a.lastLogin}</div>
-        <div class="wb-cell" style="width:120px">${this._badge(a.status)}</div>
-        <div class="wb-cell wb-mono" style="width:150px;font-size:12px"><div style="color:var(--text)">${a.article}</div><div style="color:var(--text-dim)">${this._esc(a.keyword)}</div></div>
-        <div class="wb-cell" style="width:210px;color:var(--text-dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${this._esc(a.pvz || '')}">${a.pvz ? this._esc(a.pvz) : '—'}</div>
-        <span class="wb-spacer"></span>
-        <button class="btn btn-secondary sm" onclick="WB._toast()">Архив</button>
+      <div class="wb-lrow ${this._sel[a.id] ? 'sel' : ''}" style="${gstyle}">
+        <button class="wb-check ${this._sel[a.id] ? 'on' : ''}" onclick="WB._toggleSel('${a.id}')" aria-label="${this._esc(a.name)}"></button>
+        ${this._client(a.name, a.phone, a.gender)}
+        <span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#8a8a92">${a.lastLogin}</span>
+        <span>${this._lstatus(a.status)}</span>
+        <span class="wb-lcell wb-ord-mono" style="font-size:12px"><span style="color:#44454e">${a.article}</span> · <span style="color:#8a8a92">${this._esc(a.keyword)}</span></span>
+        <span class="wb-lcell" style="font-size:12.5px;color:#76767d" title="${this._esc(a.pvz || '')}">${a.pvz ? this._esc(a.pvz) : '—'}</span>
+        <span style="justify-self:end"><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архив</button></span>
       </div>`).join('');
-    pane.innerHTML = `
-      <div class="wb-toolbar">
-        <div class="wb-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск по имени, телефону, артикулу…"></div>
-        <span class="wb-chip">Статус ${this._chev()}</span>
-        <span class="wb-chip">Пол ${this._chev()}</span>
+    pane.innerHTML = `<div class="wb-lwrap wb-sys" style="min-width:980px">
+      <div class="wb-lbar">
+        <div class="wb-ord-search" style="flex:1 1 300px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск по имени, телефону, артикулу…"></div>
+        <button class="wb-b wb-b-neutral" onclick="WB._toast()">Статус ▾</button>
+        <button class="wb-b wb-b-neutral" onclick="WB._toast()">Пол ▾</button>
       </div>
-      ${selCount ? `<div class="wb-bulk">Выбрано: <b>${selCount}</b><span class="wb-spacer"></span><button class="btn btn-secondary sm" onclick="WB._toast()">Архивировать</button><button class="btn btn-secondary sm" onclick="WB._clearSel()">Снять выделение</button></div>` : ''}
-      <div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:960px"><span style="width:17px"></span><span style="width:30px"></span><span style="width:180px">Аккаунт</span><span style="width:60px">Вход</span><span style="width:120px">Статус</span><span style="width:150px">Артикул / ключ</span><span style="width:210px">Последний ПВЗ</span><span class="wb-spacer"></span><span></span></div>
-        ${rows}
-      </div></div>`;
+      ${selCount ? `<div class="wb-lbulk">Выбрано: <b>${selCount}</b><span style="flex:1"></span><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архивировать</button><button class="wb-b wb-b-neutral sm" onclick="WB._clearSel()">Снять выделение</button></div>` : ''}
+      <div class="wb-lhead" style="${gstyle}"><span></span><span>Клиент</span><span>Вход</span><span>Статус</span><span>Артикул / ключ</span><span>Последний ПВЗ</span><span></span></div>
+      ${rows}
+    </div>`;
   },
   _toggleSel(id) { this._sel[id] = !this._sel[id]; this._renderActive(); },
   _clearSel() { this._sel = {}; this._renderActive(); },
 
-  // ═══ 5.2 РЕГИСТРАТОР ═══
+  // ═══ 5.2 РЕГИСТРАТОР (light) ═══
   _renderReg(pane, s) {
     const sub = this._regSub; let body = '';
+    const ph = (a) => `<span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${this._esc(a.phone)}</span>`;
     if (sub === 'pool') {
-      const pool = s.accounts.slice(0, 6);
+      const pool = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:18px 32px 1fr 200px;gap:16px;align-items:center';
       body = `
         <div class="wb-hud">
           <div class="wb-cap"><span class="wb-cap-lbl">Автопланирование</span></div>
@@ -234,30 +234,30 @@ var WB = {
           <div class="wb-cap"><span class="wb-cap-lbl">Кол-во</span><div class="wb-step"><button onclick="WB._toast()">−</button><span class="v wb-mono">10</span><button onclick="WB._toast()">+</button></div></div>
           <div class="wb-cap"><span class="wb-cap-lbl">В пуле</span><b class="wb-mono">${pool.length}</b></div>
           <span class="wb-spacer"></span>
-          <button class="btn btn-primary" onclick="WB._toast()">Запланировать</button>
+          <button class="wb-b wb-b-primary" onclick="WB._toast()">Запланировать</button>
         </div>
-        <div class="wb-card flush"><div class="wb-table-wrap">
-          <div class="wb-thead" style="min-width:380px"><span style="width:17px"></span><span style="width:30px"></span><span style="width:150px">Телефон</span><span class="wb-spacer"></span><span>Статус</span></div>
-          ${pool.map(a => `<div class="wb-row" style="min-width:380px"><span class="wb-chk"></span>${this._ava(a.gender)}<div class="wb-cell wb-mono" style="width:150px">${this._esc(a.phone)}</div><span class="wb-spacer"></span>${this._badge('готов к регистрации')}</div>`).join('')}
-        </div></div>
-        <div><button class="btn btn-secondary" onclick="WB._toast()">Запланировать выбранные</button></div>`;
+        <div class="wb-lwrap wb-sys" style="min-width:520px">
+          <div class="wb-lhead" style="${g}"><span></span><span></span><span>Телефон</span><span style="text-align:right">Статус</span></div>
+          ${pool.map(a => `<div class="wb-lrow" style="${g}"><button class="wb-check" onclick="WB._toast()"></button>${this._gAva(a.gender)}${ph(a)}<span style="justify-self:end">${this._lstatus('готов к регистрации')}</span></div>`).join('')}
+        </div>
+        <div><button class="wb-b wb-b-neutral" onclick="WB._toast()">Запланировать выбранные</button></div>`;
     } else if (sub === 'active') {
-      const act = s.accounts.slice(0, 5);
+      const act = s.accounts.slice(0, 5), g = 'display:grid;grid-template-columns:32px 1fr 160px 80px auto;gap:16px;align-items:center';
       body = `
-        <div class="wb-toolbar"><span class="wb-subtabs"><button class="wb-subtab active">Сегодня</button><button class="wb-subtab">Завтра</button></span></div>
-        <div class="wb-card flush"><div class="wb-table-wrap">
-          <div class="wb-thead" style="min-width:690px"><span style="width:30px"></span><span style="width:160px">Телефон</span><span style="width:120px">Статус</span><span style="width:70px">Время</span><span class="wb-spacer"></span><span></span></div>
+        <div style="margin-bottom:2px"><span class="wb-subtabs"><button class="wb-subtab active">Сегодня</button><button class="wb-subtab">Завтра</button></span></div>
+        <div class="wb-lwrap wb-sys" style="min-width:720px">
+          <div class="wb-lhead" style="${g}"><span></span><span>Телефон</span><span>Статус</span><span>Время</span><span></span></div>
           ${act.map((a, i) => { const err = i === 1;
-            return `<div class="wb-row" style="min-width:690px">${this._ava(a.gender)}<div class="wb-cell wb-mono" style="width:160px">${this._esc(a.phone)}</div><div class="wb-cell" style="width:120px">${this._badge(err ? 'ошибка' : 'запланирован')}</div><div class="wb-cell wb-mono" style="width:70px;color:var(--text)">${['09:20','11:40','13:05','15:30','18:10'][i]}</div><span class="wb-spacer"></span>${err ? '<button class="btn btn-danger sm" onclick="WB._toast()">Повторить</button>' : ''}<button class="btn btn-secondary sm" onclick="WB._toast()">Время</button></div>`; }).join('')}
-        </div></div>`;
+            return `<div class="wb-lrow" style="${g}">${this._gAva(a.gender)}${ph(a)}<span>${this._lstatus(err ? 'ошибка' : 'запланирован')}</span><span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${['09:20','11:40','13:05','15:30','18:10'][i]}</span><span class="wb-pk-act">${err ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Повторить</button>' : ''}<button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Время</button></span></div>`; }).join('')}
+        </div>`;
     } else {
-      const arc = s.accounts.slice(0, 6);
-      body = `<div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:600px"><span style="width:30px"></span><span style="width:160px">Телефон</span><span style="width:140px">Результат</span><span class="wb-spacer"></span><span>Дата</span></div>
-        ${arc.map((a, i) => `<div class="wb-row" style="min-width:600px">${this._ava(a.gender)}<div class="wb-cell wb-mono" style="width:160px">${this._esc(a.phone)}</div><div class="wb-cell" style="width:140px">${this._badge(i % 3 === 2 ? 'не прошел' : 'прошел')}</div><span class="wb-spacer"></span><span class="wb-mono" style="color:var(--text-dim)">0${(i % 3) + 1}.09</span></div>`).join('')}
-      </div></div>`;
+      const arc = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:32px 1fr 160px 90px;gap:16px;align-items:center';
+      body = `<div class="wb-lwrap wb-sys" style="min-width:560px">
+        <div class="wb-lhead" style="${g}"><span></span><span>Телефон</span><span>Результат</span><span style="text-align:right">Дата</span></div>
+        ${arc.map((a, i) => `<div class="wb-lrow" style="${g}">${this._gAva(a.gender)}${ph(a)}<span>${this._lstatus(i % 3 === 2 ? 'не прошел' : 'прошел')}</span><span class="wb-lcell wb-ord-mono" style="justify-self:end;color:#8a8a92">0${(i % 3) + 1}.09</span></div>`).join('')}
+      </div>`;
     }
-    pane.innerHTML = `<div class="wb-toolbar"><span class="wb-subtabs">
+    pane.innerHTML = `<div style="margin-bottom:2px"><span class="wb-subtabs">
         <button class="wb-subtab ${sub === 'pool' ? 'active' : ''}" onclick="WB._regTab('pool')">Доступны</button>
         <button class="wb-subtab ${sub === 'active' ? 'active' : ''}" onclick="WB._regTab('active')">Активные</button>
         <button class="wb-subtab ${sub === 'archive' ? 'active' : ''}" onclick="WB._regTab('archive')">Архив</button>
@@ -293,13 +293,13 @@ var WB = {
     const allSel = rows.length > 0 && rows.every(r => this._wuSel[r.accountId]);
     const head = `<div class="wb-wu-grid wb-wu-head">
       <span></span>
-      <button class="wb-wu-chk ${allSel ? 'on' : ''}" id="wuchkall" onclick="WB._wuAll()" aria-label="Выбрать все"></button>
+      <button class="wb-check ${allSel ? 'on' : ''}" id="wuchkall" onclick="WB._wuAll()" aria-label="Выбрать все"></button>
       <span>Время</span><span>Аккаунт</span><span>Стадия</span><span>Прогрев</span>
       <button class="wb-wu-bulk" id="wubulk" ${selCount ? '' : 'disabled'} onclick="WB._wuBulk()">${this._wuTrash()}${selCount ? 'Выбрано: ' + selCount : 'Снять на сегодня'}</button>
     </div>`;
     const body = rows.map(r => `<div class="wb-wu-grid wb-wu-row ${this._wuSel[r.accountId] ? 'sel' : ''}" id="wurow-${r.accountId}">
       <span class="wb-wu-notch" style="background:${notch[r.exec]}"></span>
-      <button class="wb-wu-chk ${this._wuSel[r.accountId] ? 'on' : ''}" id="wuchk-${r.accountId}" onclick="WB._wuToggle('${r.accountId}')" aria-label="${this._esc(r.name)}"></button>
+      <button class="wb-check ${this._wuSel[r.accountId] ? 'on' : ''}" id="wuchk-${r.accountId}" onclick="WB._wuToggle('${r.accountId}')" aria-label="${this._esc(r.name)}"></button>
       <span class="wb-wu-time">${r.scheduledAt || '<span style="color:#b4b4bb">—</span>'}</span>
       ${this._client(r.name, r.phone, r.gender)}
       <span class="wb-wu-stage">${this._esc(r.stage)}</span>
@@ -560,8 +560,8 @@ var WB = {
           <button class="wb-ico-btn" onclick="WB._toggleCal()" title="Календарь"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
           <div class="wb-cal-pop ${this._calOpen ? 'open' : ''}" id="wbCalPop">${this._calHtml()}</div>
         </div>
-        <button class="btn btn-secondary" onclick="WB._massBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Массовый залив</button>
-        <button class="btn btn-primary" onclick="WB._singleBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Одиночный выкуп</button>
+        <button class="wb-b wb-b-neutral" onclick="WB._massBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Массовый залив</button>
+        <button class="wb-b wb-b-primary" onclick="WB._singleBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Одиночный выкуп</button>
       </div>
       <div class="wb-buy-bar">
         <div id="wbBuyStats">${this._buyStats(this._buyRows(s))}</div>
@@ -666,9 +666,9 @@ var WB = {
       <div>${this._ordItems(r)}</div>
       ${this._ordAddr(r)}
       <div class="wb-pk-badge ${r.st.cls}">${r.st.t}</div>
-      <div class="wb-pk-act"><button class="wb-pk-btn primary" onclick="WB._pickupCode()">Получить</button><button class="wb-pk-btn neutral" onclick="WB._toast()">Найти ПВЗ</button></div>
+      <div class="wb-pk-act"><button class="wb-b wb-b-primary sm" onclick="WB._pickupCode()">Получить</button><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Найти ПВЗ</button></div>
     </div>`).join('');
-    pane.innerHTML = `<div class="wb-pk-bar"><button class="wb-pk-btn neutral" onclick="WB._toast()">Выгрузить получение</button></div>
+    pane.innerHTML = `<div class="wb-pk-bar wb-sys"><button class="wb-b wb-b-neutral" onclick="WB._toast()">Выгрузить получение</button></div>
       <div class="wb-pk wb-sys">${head}${body}</div>`;
   },
 
@@ -679,14 +679,17 @@ var WB = {
       if (this._revView === 'grid') {
         body = `<div class="wb-rev-grid">${s.products.map((p, i) => `<div class="wb-rev-card" onclick="WB._composer()"><img class="wb-rev-img" src="${this._wbUrls(p.article, 'c516x688').image}" loading="lazy" onerror="this.remove()" alt=""><div class="wb-rev-top"><div class="wb-rev-art">${p.article}</div><div class="wb-rev-kw">${this._esc(p.keyword)}</div></div><div class="wb-rev-bot"><div class="wb-rev-avail">Доступно: ${p.available}</div><div class="wb-rev-meta">план ${2 + i} · архив ${5 + i}</div></div></div>`).join('')}</div>`;
       } else {
-        body = `<div class="wb-card flush"><div class="wb-table-wrap">${s.products.map(p => `<div class="wb-row" style="min-width:500px">${this._photoLink(p.article, 'tm', 'wb-prod-ph')}<div class="wb-cell" style="width:140px"><div class="wb-mono" style="font-weight:700;color:var(--text)">${p.article}</div><div style="color:var(--text-dim);font-size:12px">${this._esc(p.keyword)}</div></div><span class="wb-spacer"></span><span class="wb-badge green">Доступно: ${p.available}</span><button class="btn btn-secondary sm" onclick="WB._composer()">Отзыв</button></div>`).join('')}</div></div>`;
+        const g = 'display:grid;grid-template-columns:40px 1fr 140px auto;gap:16px;align-items:center';
+        body = `<div class="wb-lwrap wb-sys" style="min-width:520px"><div class="wb-lhead" style="${g}"><span></span><span>Товар</span><span></span><span></span></div>${s.products.map(p => `<div class="wb-lrow" style="${g}">${this._photoLink(p.article, 'tm', 'wb-prod-ph')}<div class="wb-lcell"><div class="wb-ord-mono" style="font-weight:500;color:#44454e;font-size:13px">${p.article}</div><div style="color:#8a8a92;font-size:12px">${this._esc(p.keyword)}</div></div><span class="wb-lstatus green">Доступно: ${p.available}</span><span style="justify-self:end"><button class="wb-b wb-b-neutral sm" onclick="WB._composer()">Отзыв</button></span></div>`).join('')}</div>`;
       }
     } else {
       const isPlan = sub === 'plan', list = s.accounts.slice(0, 6);
-      body = `<div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:850px"><span style="width:30px"></span><span style="width:170px">Аккаунт</span><span style="width:50px">Фото</span><span style="width:150px">Товар</span><span style="width:90px">Оценка</span><span style="width:110px">${isPlan ? 'План' : 'Дата'}</span><span class="wb-spacer"></span><span></span></div>
-        ${list.map((a, i) => `<div class="wb-row" style="min-width:850px">${this._ava(a.gender)}<div class="wb-cell" style="width:170px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div><div class="wb-cell">${this._photoLink(s.products[i % s.products.length].article, 'tm', 'wb-prod-ph')}</div><div class="wb-cell wb-mono" style="width:150px;font-size:12px;color:var(--text)">${s.products[i % s.products.length].article}</div><div class="wb-cell wb-stars" style="width:90px">${'★'.repeat(4 + (i % 2))}${'☆'.repeat(1 - (i % 2))}</div><div class="wb-cell wb-mono" style="width:110px;font-size:12px;color:var(--text-dim)">0${(i % 5) + 1}.09 1${i}:00</div><span class="wb-spacer"></span>${isPlan ? '<button class="btn btn-danger sm" onclick="WB._toast()">Отменить</button>' : this._badge(i % 2 ? 'опубликован' : 'написан')}</div>`).join('')}
-      </div></div>`;
+      const g = 'display:grid;grid-template-columns:230px 40px 150px 96px 130px auto;gap:16px;align-items:center';
+      body = `<div class="wb-lwrap wb-sys" style="min-width:840px">
+        <div class="wb-lhead" style="${g}"><span>Клиент</span><span>Фото</span><span>Товар</span><span>Оценка</span><span>${isPlan ? 'План' : 'Дата'}</span><span></span></div>
+        ${list.map((a, i) => { const art = s.products[i % s.products.length].article;
+          return `<div class="wb-lrow" style="${g}">${this._client(a.name, a.phone, a.gender)}${this._photoLink(art, 'tm', 'wb-prod-ph')}<span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#44454e">${art}</span><span style="color:#e6a817;letter-spacing:1px">${'★'.repeat(4 + (i % 2))}${'☆'.repeat(1 - (i % 2))}</span><span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#8a8a92">0${(i % 5) + 1}.09 · 1${i}:00</span><span style="justify-self:end">${isPlan ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Отменить</button>' : this._lstatus(i % 2 ? 'опубликован' : 'написан')}</span></div>`; }).join('')}
+      </div>`;
     }
     pane.innerHTML = `<div class="wb-toolbar">
         <span class="wb-subtabs">
@@ -797,6 +800,10 @@ var WB = {
     };
     const v = map[exec] || map.pending;
     return `<div class="wb-exec ${exec}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${v[1]}</svg><span>${v[0]}</span></div>`;
+  },
+  _lstatus(status) {
+    const m = { 'активен': 'green', 'прошел': 'green', 'получен': 'blue', 'опубликован': 'green', 'ожидает в пвз': 'amber', 'новый': 'grey', 'написан': 'grey', 'не прошел': 'red', 'ошибка': 'red', 'готов к регистрации': 'grey', 'запланирован': 'blue' };
+    return `<span class="wb-lstatus ${m[status] || 'grey'}">${this._esc(status)}</span>`;
   },
   _prodChips(products, showN) {
     if (!products || !products.length) return '';
