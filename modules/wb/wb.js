@@ -291,16 +291,15 @@ var WB = {
     const notch = { done: '#4fae83', running: '#7d9dcf', pending: '#b4b4bb', error: '#dd8880' };
     const selCount = rows.filter(r => this._wuSel[r.accountId]).length;
     const allSel = rows.length > 0 && rows.every(r => this._wuSel[r.accountId]);
-    const trash = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
     const head = `<div class="wb-wu-grid wb-wu-head">
       <span></span>
-      <button class="wb-wu-chk ${allSel ? 'on' : ''}" onclick="WB._wuAll()" aria-label="Выбрать все"></button>
+      <button class="wb-wu-chk ${allSel ? 'on' : ''}" id="wuchkall" onclick="WB._wuAll()" aria-label="Выбрать все"></button>
       <span>Время</span><span>Аккаунт</span><span>Стадия</span><span>Прогрев</span>
-      <button class="wb-wu-bulk" ${selCount ? '' : 'disabled'} onclick="WB._wuBulk()">${trash}${selCount ? 'Выбрано: ' + selCount : 'Снять на сегодня'}</button>
+      <button class="wb-wu-bulk" id="wubulk" ${selCount ? '' : 'disabled'} onclick="WB._wuBulk()">${this._wuTrash()}${selCount ? 'Выбрано: ' + selCount : 'Снять на сегодня'}</button>
     </div>`;
-    const body = rows.map(r => `<div class="wb-wu-grid wb-wu-row ${this._wuSel[r.accountId] ? 'sel' : ''}">
+    const body = rows.map(r => `<div class="wb-wu-grid wb-wu-row ${this._wuSel[r.accountId] ? 'sel' : ''}" id="wurow-${r.accountId}">
       <span class="wb-wu-notch" style="background:${notch[r.exec]}"></span>
-      <button class="wb-wu-chk ${this._wuSel[r.accountId] ? 'on' : ''}" onclick="WB._wuToggle('${r.accountId}')" aria-label="${this._esc(r.name)}"></button>
+      <button class="wb-wu-chk ${this._wuSel[r.accountId] ? 'on' : ''}" id="wuchk-${r.accountId}" onclick="WB._wuToggle('${r.accountId}')" aria-label="${this._esc(r.name)}"></button>
       <span class="wb-wu-time">${r.scheduledAt || '<span style="color:#b4b4bb">—</span>'}</span>
       ${this._client(r.name, r.phone, r.gender)}
       <span class="wb-wu-stage">${this._esc(r.stage)}</span>
@@ -309,7 +308,24 @@ var WB = {
     </div>`).join('');
     pane.innerHTML = `<div class="wb-wu"><div class="wb-wu-card">${head}${body || '<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">На сегодня прогрев снят со всех</div></div>'}</div></div>`;
   },
-  _wuToggle(id) { this._wuSel[id] = !this._wuSel[id]; this._renderActive(); },
+  _wuTrash() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'; },
+  _wuToggle(id) {
+    const on = this._wuSel[id] = !this._wuSel[id];
+    const chk = document.getElementById('wuchk-' + id);
+    if (chk) { chk.classList.toggle('on', on); if (on) { chk.classList.remove('pop'); void chk.offsetWidth; chk.classList.add('pop'); } }
+    const row = document.getElementById('wurow-' + id); if (row) row.classList.toggle('sel', on);
+    this._wuRefreshBulk();
+    if (navigator.vibrate) navigator.vibrate(6);
+  },
+  _wuRefreshBulk() {
+    const s = this._srv(); if (!s) return;
+    const rows = this._wuVisible(s);
+    const selCount = rows.filter(r => this._wuSel[r.accountId]).length;
+    const allSel = rows.length > 0 && rows.every(r => this._wuSel[r.accountId]);
+    const bulk = document.getElementById('wubulk');
+    if (bulk) { bulk.disabled = !selCount; bulk.innerHTML = this._wuTrash() + (selCount ? 'Выбрано: ' + selCount : 'Снять на сегодня'); }
+    const all = document.getElementById('wuchkall'); if (all) all.classList.toggle('on', allSel);
+  },
   _wuAll() {
     const s = this._srv(); if (!s) return;
     const rows = this._wuVisible(s), all = rows.length > 0 && rows.every(r => this._wuSel[r.accountId]);
@@ -322,7 +338,7 @@ var WB = {
     if (!n) return;
     this.openModal(`<div class="wb-modal-h"><h3>Снять прогрев на сегодня?</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
       <p style="color:#54545c;font-size:14px;line-height:1.5;margin-bottom:18px">Вы точно хотите снять прогрев на сегодня для <b>${n}</b> ${this._plural(n, 'аккаунта', 'аккаунтов', 'аккаунтов')}? Расписание вернётся завтра автоматически.</p>
-      <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-secondary" onclick="WB.closeModal()">Отмена</button><button class="wb-wu-danger" onclick="WB._wuRemove()">Снять</button></div>`, 420);
+      <div style="display:flex;justify-content:flex-end;gap:10px"><button class="wb-wu-neutral" onclick="WB.closeModal()">Отмена</button><button class="wb-wu-danger" onclick="WB._wuRemove()">Снять</button></div>`, 420);
   },
   _wuRemove() {
     const s = this._srv(); if (s) this._wuVisible(s).forEach(r => { if (this._wuSel[r.accountId]) this._wuRemoved[r.accountId] = true; });
@@ -636,24 +652,24 @@ var WB = {
       <div class="wb-cal-legend"><span><i style="background:var(--accent)"></i>есть выкуп</span><span><i style="background:var(--surface2)"></i>нет данных</span></div>`;
   },
 
-  // ═══ 5.5 ПОЛУЧЕНИЕ ═══
+  // ═══ 5.5 ПОЛУЧЕНИЕ (light, общие атомы) ═══
   _renderPickup(pane, s) {
-    const rows = s.accounts.slice(0, 7).map((a, i) => `
-      <div class="wb-row" style="min-width:1050px">${this._ava(a.gender)}
-        <div class="wb-cell" style="width:170px"><div class="wb-acc-name">${this._esc(a.name)}</div><div class="wb-acc-phone wb-mono">${this._esc(a.phone)}</div></div>
-        <div class="wb-cell" style="width:220px">${this._prodChips(s.products, 1)}</div>
-        <div class="wb-cell" style="width:230px;color:var(--text-dim);font-size:12px" title="${this._esc(a.pvz)}">${this._esc(a.pvz)}</div>
-        <div class="wb-cell" style="width:180px">${i % 2 ? '<span class="wb-badge blue">будет в ПВЗ 26 авг</span>' : '<span class="wb-badge yellow">ожидает до 30 авг</span>'}</div>
-        <span class="wb-spacer"></span>
-        <button class="btn btn-primary sm" onclick="WB._pickupCode()">Получить</button>
-        <button class="btn btn-secondary sm" onclick="WB._toast()">Найти ПВЗ</button>
-      </div>`).join('');
-    pane.innerHTML = `
-      <div class="wb-toolbar"><span class="wb-chip">Город ${this._chev()}</span><span class="wb-spacer"></span><button class="btn btn-secondary" onclick="WB._toast()">Выгрузить получение</button></div>
-      <div class="wb-card flush"><div class="wb-table-wrap">
-        <div class="wb-thead" style="min-width:1050px"><span style="width:30px"></span><span style="width:170px">Аккаунт</span><span style="width:220px">Товары</span><span style="width:230px">Адрес ПВЗ</span><span style="width:180px">Статус</span><span class="wb-spacer"></span><span></span></div>
-        ${rows}
-      </div></div>`;
+    const rows = s.accounts.slice(0, 7).map((a, i) => ({
+      id: 'pk' + i, name: a.name, phone: a.phone, gender: a.gender,
+      items: s.products.slice(0, (i % 3) + 1).map((p, j) => ({ id: 'x' + j, art: p.article, kw: p.keyword })),
+      address: { short: a.city + ', ' + a.pvz.split(',').slice(0, 2).join(',') , full: a.pvz + ', ' + a.city },
+      st: i % 2 ? { cls: 'blue', t: 'будет в ПВЗ 26 авг' } : { cls: 'amber', t: 'ожидает до 30 авг' }
+    }));
+    const head = `<div class="wb-pk-head"><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span><span>Действие</span></div>`;
+    const body = rows.map(r => `<div class="wb-pk-row">
+      ${this._client(r.name, r.phone, r.gender)}
+      <div>${this._ordItems(r)}</div>
+      ${this._ordAddr(r)}
+      <div class="wb-pk-badge ${r.st.cls}">${r.st.t}</div>
+      <div class="wb-pk-act"><button class="wb-pk-btn primary" onclick="WB._pickupCode()">Получить</button><button class="wb-pk-btn neutral" onclick="WB._toast()">Найти ПВЗ</button></div>
+    </div>`).join('');
+    pane.innerHTML = `<div class="wb-pk-bar"><button class="wb-pk-btn neutral" onclick="WB._toast()">Выгрузить получение</button></div>
+      <div class="wb-pk wb-sys">${head}${body}</div>`;
   },
 
   // ═══ 5.6 ОТЗЫВЫ ═══
