@@ -101,8 +101,9 @@ var WB = {
         pvz: 'ул. Ленина, ' + (5 + i) + ', ПВЗ Wildberries', city: CITIES[i % CITIES.length]
       });
     }
-    return { id: '__test__', name: 'Server-RU-01', status: 'online', test: true, accounts: accts, products: products };
+    return { id: '__test__', name: 'Server-RU-01', platform: 'Wildberries', status: 'online', test: true, accounts: accts, products: products };
   },
+  _PLATFORMS: ['Wildberries'],
 
   toggleTestServer() {
     this._testOn = !this._testOn;
@@ -122,8 +123,9 @@ var WB = {
 
   addServer() {
     this.openModal(`<div class="wb-modal-h"><h3>Новый сервер</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
+      <div class="wb-field"><label>Платформа</label>${this._dd('newSrvPlatform', this._PLATFORMS, this._PLATFORMS[0], 'full')}</div>
       <div class="wb-field"><label>Название сервера</label><input class="wb-input" id="wbNewSrvName" placeholder="Server-RU-02" autofocus></div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:14px">Пока сервер создаётся локально (без бэкенда) — для дебага интерфейса. Реальная привязка появится позже.</p>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:14px">Пока сервер создаётся локально (без бэкенда) — для дебага интерфейса. Сервер попадёт в группу выбранной платформы.</p>
       <button class="btn btn-primary wide" onclick="WB._createServer()">Создать сервер</button>`, 460);
     setTimeout(() => { const el = document.getElementById('wbNewSrvName'); if (el) el.focus(); }, 50);
   },
@@ -131,8 +133,9 @@ var WB = {
     const el = document.getElementById('wbNewSrvName');
     const name = el ? el.value.trim() : '';
     if (!name) { if (window.Shell && Shell.toast) Shell.toast('Введите название сервера'); return; }
+    const platform = this._ddVal['newSrvPlatform'] || this._PLATFORMS[0];
     const base = this._buildTest();
-    const srv = { id: 's' + Date.now(), name: name, status: 'online', accounts: base.accounts.slice(0, 8), products: base.products };
+    const srv = { id: 's' + Date.now(), name: name, platform: platform, status: 'online', accounts: base.accounts.slice(0, 8), products: base.products };
     this._servers.push(srv);
     this.closeModal();
     this._renderServers();
@@ -146,11 +149,15 @@ var WB = {
     if (!this._servers.length) {
       el.innerHTML = '<div style="padding:24px 14px;text-align:center;color:var(--text-dim);font-size:12px;line-height:1.6">Нет серверов.<br>Нажми «Тестовый сервер» для дебага интерфейса.</div>';
     } else {
-      el.innerHTML = this._servers.map(s => `
+      // группировка по платформе (группа = платформа)
+      const groups = {};
+      this._servers.forEach(s => { const p = s.platform || 'Без платформы'; (groups[p] = groups[p] || []).push(s); });
+      const srvHtml = s => `
         <div class="wb-srv ${s.id === this._active ? 'active' : ''} ${s.test ? 'test' : ''}" onclick="WB.selectServer('${s.id}')">
           <span class="wb-srv-dot ${s.status}"></span>
           <div class="wb-srv-body"><div class="wb-srv-name">${this._esc(s.name)}</div><div class="wb-srv-sub">${s.accounts.length} аккаунтов</div></div>
-        </div>`).join('');
+        </div>`;
+      el.innerHTML = Object.keys(groups).map(p => `<div class="wb-srv-group">${this._esc(p)}<span>${groups[p].length}</span></div>${groups[p].map(srvHtml).join('')}`).join('');
     }
     const online = this._servers.filter(s => s.status === 'online').length;
     const foot = document.getElementById('wbSideFoot');
@@ -684,11 +691,12 @@ var WB = {
       }
     } else {
       const isPlan = sub === 'plan', list = s.accounts.slice(0, 6);
-      const g = 'display:grid;grid-template-columns:230px 40px 150px 96px 130px auto;gap:16px;align-items:center';
-      body = `<div class="wb-lwrap wb-sys" style="min-width:840px">
-        <div class="wb-lhead" style="${g}"><span>Клиент</span><span>Фото</span><span>Товар</span><span>Оценка</span><span>${isPlan ? 'План' : 'Дата'}</span><span></span></div>
+      const REV = ['Товар супер, пришло быстро, качество на высоте, рекомендую', 'Всё понравилось, размер подошёл идеально, цвет как на фото', 'Хорошая вещь за свои деньги, упаковка целая, доставили вовремя', 'Отличный продавец, отвечает быстро, буду заказывать ещё', 'Ожидал большего по описанию, но в целом норм за эту цену', 'Пришло раньше срока, всё аккуратно упаковано, спасибо'];
+      const g = 'display:grid;grid-template-columns:200px 34px 108px 82px 1fr 118px auto;gap:16px;align-items:center';
+      body = `<div class="wb-lwrap wb-sys" style="min-width:920px">
+        <div class="wb-lhead" style="${g}"><span>Клиент</span><span>Фото</span><span>Товар</span><span>Оценка</span><span>Отзыв</span><span>${isPlan ? 'План' : 'Дата'}</span><span></span></div>
         ${list.map((a, i) => { const art = s.products[i % s.products.length].article;
-          return `<div class="wb-lrow" style="${g}">${this._client(a.name, a.phone, a.gender)}${this._photoLink(art, 'tm', 'wb-prod-ph')}<span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#44454e">${art}</span><span style="color:#e6a817;letter-spacing:1px">${'★'.repeat(4 + (i % 2))}${'☆'.repeat(1 - (i % 2))}</span><span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#8a8a92">0${(i % 5) + 1}.09 · 1${i}:00</span><span style="justify-self:end">${isPlan ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Отменить</button>' : this._lstatus(i % 2 ? 'опубликован' : 'написан')}</span></div>`; }).join('')}
+          return `<div class="wb-lrow" style="${g}">${this._client(a.name, a.phone, a.gender)}${this._photoLink(art, 'tm', 'wb-prod-ph')}<span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#44454e">${art}</span><span style="color:#e6a817;letter-spacing:1px">${'★'.repeat(4 + (i % 2))}${'☆'.repeat(1 - (i % 2))}</span><span class="wb-lcell" style="font-size:12.5px;color:#76767d" title="${this._esc(REV[i % REV.length])}">${this._esc(REV[i % REV.length])}</span><span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#8a8a92">0${(i % 5) + 1}.09 · 1${i}:00</span><span style="justify-self:end">${isPlan ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Отменить</button>' : this._lstatus(i % 2 ? 'опубликован' : 'написан')}</span></div>`; }).join('')}
       </div>`;
     }
     pane.innerHTML = `<div class="wb-toolbar">

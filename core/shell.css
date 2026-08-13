@@ -90,8 +90,12 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .sidebar-module{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:#3a3a50;cursor:pointer;transition:all 0.2s;background:transparent;border:none}
 .sidebar-module:hover{color:var(--accent);box-shadow:0 0 12px rgba(0,212,170,0.15)}
 .sidebar-module.active{color:var(--accent);background:rgba(0,212,170,0.1)}
-/* WB-модуль — буквы WB фирменного цвета Wildberries, крупнее */
-.sidebar-module[data-id="wb"] .ico-wb{background-color:#cb11ab;width:24px;height:24px}
+/* MP-модуль — иконка маркетплейса, приятный синий + своя синяя подсветка */
+.sidebar-module[data-id="wb"] .ico-wb{background-color:#3b7bf0;width:23px;height:23px}
+.sidebar-module[data-id="wb"]:hover{color:#3b7bf0;box-shadow:0 0 12px rgba(59,123,240,0.22)}
+.sidebar-module[data-id="wb"]:hover .ico-wb{background-color:#5a92f5}
+.sidebar-module[data-id="wb"].active{color:#3b7bf0;background:rgba(59,123,240,0.12)}
+.sidebar-module[data-id="wb"].active .ico-wb{background-color:#3b7bf0}
 .sidebar-module svg{width:18px;height:18px}
 .sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto}
 .sidebar-btn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;background:none;border:none}
