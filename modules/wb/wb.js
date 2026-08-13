@@ -302,6 +302,7 @@ var WB = {
   _ordState: {},
   _ordTimers: {},
   _buyFilter: { scheduled: true, in_progress: true, paid: true, error: true },
+  _buySearch: '',
 
   _buyRows(s) {
     const p = s.products, mk = (n) => p.concat(p).slice(0, n).map((x, i) => ({ id: 'i' + i, art: x.article, kw: x.keyword }));
@@ -315,12 +316,30 @@ var WB = {
     ];
   },
   _buyCardsHtml(s) {
-    const rows = this._buyRows(s).filter(r => this._buyFilter[r.status.kind] !== false);
+    const q = (this._buySearch || '').trim().toLowerCase();
+    let rows = this._buyRows(s).filter(r => this._buyFilter[r.status.kind] !== false);
+    if (q) rows = rows.filter(r => [r.name, r.phone, r.address.short, r.address.full].concat(r.items.map(i => i.art + ' ' + i.kw)).join(' ').toLowerCase().indexOf(q) >= 0);
     this._ordRows = rows;
     rows.forEach(r => { if (!this._ordState[r.id]) this._ordState[r.id] = { bank: 'Выбрать банк', skus: r.items.map(i => i.art), keywords: r.items.map(i => i.kw) }; });
     const head = `<div class="wb-ord-grid wb-ord-head"><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span><span>Действие</span></div>`;
-    return `<div class="wb-ord-wrap">${head}${rows.map(r => this._ordRowHtml(r)).join('')}</div>`;
+    // группы по порядку: В работе → Запланировано → Ошибка → Выполнено
+    const groups = [
+      { kind: 'in_progress', label: 'В работе', color: '#f5a623', sort: (a, b) => (b.status.step / b.status.total) - (a.status.step / a.status.total) },
+      { kind: 'scheduled', label: 'Запланировано', color: '#2f5cf5', sort: (a, b) => (a.status.time || '').localeCompare(b.status.time || '') },
+      { kind: 'error', label: 'Ошибка', color: '#d70015', sort: null },
+      { kind: 'paid', label: 'Выполнено', color: '#30b46c', sort: null },
+    ];
+    let body = '';
+    groups.forEach(g => {
+      let gr = rows.filter(r => r.status.kind === g.kind);
+      if (!gr.length) return;
+      if (g.sort) gr = gr.slice().sort(g.sort);
+      body += `<div class="wb-ord-gblock"><div class="wb-ord-group"><span class="gdot" style="background:${g.color}"></span>${g.label}<span class="gcount">${gr.length}</span></div>${gr.map(r => this._ordRowHtml(r)).join('')}</div>`;
+    });
+    if (!body) body = `<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">Ничего не найдено</div></div>`;
+    return `<div class="wb-ord-wrap">${head}${body}</div>`;
   },
+  _buySearchInput(v) { this._buySearch = v; this._renderBuyCards(); },
   _renderBuyCards() { const s = this._srv(), el = document.getElementById('wbBuyCards'); if (s && el) el.innerHTML = this._buyCardsHtml(s); },
   _buyStats(rows) {
     const c = { total: rows.length, scheduled: 0, in_progress: 0, paid: 0, error: 0 };
@@ -401,7 +420,7 @@ var WB = {
       <div class="wb-ord-cell">${this._ordAction(r)}</div>`;
   },
   _ordRowHtml(r) {
-    return `<div class="wb-ord-row" id="ord-${r.id}"><div class="wb-ord-grid wb-ord-main">${this._ordCells(r)}</div>${r.status.kind === 'scheduled' ? this._ordEditForm(r) : ''}</div>`;
+    return `<div class="wb-ord-row k-${r.status.kind}" id="ord-${r.id}"><div class="wb-ord-grid wb-ord-main">${this._ordCells(r)}</div>${r.status.kind === 'scheduled' ? this._ordEditForm(r) : ''}</div>`;
   },
   _ordUpdateRow(id) {
     const row = document.getElementById('ord-' + id), r = (this._ordRows || []).find(x => x.id === id);
@@ -495,7 +514,10 @@ var WB = {
         <button class="btn btn-secondary" onclick="WB._massBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Массовый залив</button>
         <button class="btn btn-primary" onclick="WB._singleBuyout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Одиночный выкуп</button>
       </div>
-      <div id="wbBuyStats">${this._buyStats(this._buyRows(s))}</div>
+      <div class="wb-buy-bar">
+        <div id="wbBuyStats">${this._buyStats(this._buyRows(s))}</div>
+        <div class="wb-ord-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск: имя, номер, артикул, адрес" value="${this._esc(this._buySearch)}" oninput="WB._buySearchInput(this.value)"></div>
+      </div>
       <div id="wbBuyCards">${this._buyCardsHtml(s)}</div>`;
     requestAnimationFrame(() => this._wireStrip());
   },

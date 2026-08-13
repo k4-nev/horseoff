@@ -294,12 +294,27 @@ body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacit
 .wb-stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .wb-stat-cnt{font-variant-numeric:tabular-nums;color:#76767d;font-weight:700}
 .wb-stat-pill.off .wb-stat-cnt{color:#a1a1a6}
+/* верхняя панель: слева лоток-статистика, справа поиск */
+.wb-buy-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:8px 2px 12px}
+.wb-buy-bar .wb-ord-stats{margin:0}
+.wb-ord-search{display:flex;align-items:center;gap:9px;height:40px;padding:0 15px;min-width:260px;max-width:360px;flex:0 1 320px;border-radius:999px;background:linear-gradient(180deg,#fff,#f5f7fb);border:1px solid #e3e8ef;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(23,33,54,.07),0 3px 7px rgba(23,33,54,.06)}
+.wb-ord-search svg{color:#a1a1a6;flex-shrink:0}
+.wb-ord-search input{border:none;outline:none;background:none;font:inherit;font-size:13px;color:#35353b;flex:1;min-width:0}
+.wb-ord-search input::placeholder{color:#a1a1a6}
+/* группы */
+.wb-ord-gblock{display:flex;flex-direction:column;gap:12px}
+.wb-ord-group{display:flex;align-items:center;gap:8px;padding:2px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a1a1a6}
+.wb-ord-group .gdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.wb-ord-group .gcount{color:#c2c2c8;font-weight:600}
+/* лёгкая подсветка строк ошибки/выполнено */
+.wb-ord-row.k-error{background-image:linear-gradient(180deg,rgba(215,0,21,.065),rgba(215,0,21,.015))}
+.wb-ord-row.k-paid{background-image:linear-gradient(180deg,rgba(48,180,108,.075),rgba(48,180,108,.02))}
 .wb-ord-grid{display:grid;grid-template-columns:230px 128px 200px minmax(190px,1fr) auto;gap:22px;align-items:center}
 .wb-ord-head{padding:0 16px 0 18px}
 .wb-ord-head span{font-size:10px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--o-dim)}
 .wb-ord-head span:last-child{text-align:right}
 .wb-ord-row{background:#fff;border-radius:18px;box-shadow:0 6px 20px -8px rgba(0,0,0,.14),0 2px 6px -2px rgba(0,0,0,.06);position:relative}
-.wb-ord-main{padding:9px 16px 9px 18px}
+.wb-ord-main{padding:14px 16px}
 .wb-ord-cell{min-width:0}
 
 /* client */
@@ -307,7 +322,7 @@ body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacit
 .wb-ord-ava{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12.5px;font-weight:700}
 .wb-ord-ava.m{background:linear-gradient(180deg,#4a7bff,#2f5cf5)}
 .wb-ord-ava.f{background:linear-gradient(180deg,#ff7aa8,#f0518a)}
-.wb-ord-name{font-size:13.5px;font-weight:600;letter-spacing:-.015em;color:var(--o-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-ord-name{font-size:13.5px;font-weight:590;letter-spacing:-.01em;color:#44454e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wb-ord-phone{font-size:11.5px;color:var(--o-ter)}
 
 /* items */
@@ -325,7 +340,7 @@ body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacit
 .wb-ord-pop-row{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px}
 .wb-ord-pop-row:hover{background:rgba(0,0,0,.04)}
 .wb-ord-pop-ph{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#e7e9ee,#d6dae2);flex-shrink:0}
-.wb-ord-pop-art{font-size:13px;font-weight:600;color:var(--o-text)}
+.wb-ord-pop-art{font-size:13px;font-weight:500;color:#54545c}
 .wb-ord-pop-kw{font-size:12px;color:var(--o-ter)}
 .wb-ord-pop-addr{top:30px;left:-12px;width:300px;padding:14px 16px}
 .wb-ord-pop-addr .lbl{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--o-dim);margin-bottom:6px}
