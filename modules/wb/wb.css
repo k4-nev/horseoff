@@ -396,6 +396,11 @@ body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacit
 .wb-lbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .wb-lbulk{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:14px;background:linear-gradient(180deg,rgba(98,133,221,.1),rgba(98,133,221,.05));border:.5px solid rgba(98,133,221,.3);font-size:13px;font-weight:500;color:#4a4a52}
 .wb-lbulk b{color:#5f7fb5}
+.wb-ac-selbar{display:flex;align-items:center;gap:10px;font-size:13px;color:#4a4a52;white-space:nowrap}
+.wb-ac-selbar b{color:#5f7fb5;font-weight:700;margin:0 3px 0 4px}
+.wb-ac-cnt{display:inline-flex;align-items:center;gap:5px;font-family:ui-monospace,'SF Mono',monospace;font-size:13px;color:#44454e;font-variant-numeric:tabular-nums}
+.wb-ac-cnt svg{color:#b4b4bb;flex-shrink:0}
+.wb-ac-dash{color:#c2c2c8}
 
 /* ═══ ПОЛУЧЕНИЕ (light, общие атомы) ═══ */
 .wb-pk{display:flex;flex-direction:column;gap:16px;min-width:900px}

@@ -4,7 +4,7 @@
    ═══════════════════════════════════════════════════════════ */
 var WB = {
   _servers: [], _active: null, _tab: 'accounts', _testOn: false,
-  _sel: {}, _regSub: 'pool', _revSub: 'products', _revView: 'grid', _genderVal: 50,
+  _sel: {}, _accSearch: '', _regSub: 'pool', _revSub: 'products', _revView: 'grid', _genderVal: 50,
   _regSel: {}, _regCount: 10, _regDay: 'today', _regActSel: {}, _regActRemoved: {},
   // покупки
   _buyDates: ['2026-08-01','2026-08-03','2026-08-05','2026-08-08','2026-08-10','2026-08-11','2026-08-12','2026-08-14','2026-08-16','2026-08-19','2026-08-23','2026-08-26','2026-08-29','2026-09-02','2026-09-05','2026-09-07','2026-09-11','2026-09-15','2026-09-19','2026-09-23','2026-09-28','2026-10-02','2026-10-06','2026-10-11'],
@@ -201,33 +201,72 @@ var WB = {
   },
 
   // ═══ 5.1 АККАУНТЫ ═══
-  _renderAccounts(pane, s) {
-    const cols = '18px 230px 66px 150px 160px 1fr 96px';
-    const gstyle = `display:grid;grid-template-columns:${cols};gap:20px;align-items:center`;
+  _accRows(s) {
+    const ST = ['Прогретый', 'Проверка', 'Получен', 'Доставка', 'Ожидает на ПВЗ', 'Новый', 'Прошел', 'Не прошел'];
+    const logins = [{ d: 0, t: '14:55' }, { d: 0, t: '09:12' }, { d: 1 }, { d: 2 }, { d: 3 }, { d: 7 }, { d: 14 }, { d: 0, t: '18:40' }];
+    return s.accounts.map((a, i) => {
+      const hasItems = i % 4 !== 3, hasAddr = i % 5 !== 4;
+      return {
+        id: a.id, name: a.name, phone: a.phone, gender: a.gender,
+        login: logins[i % logins.length], status: ST[i % ST.length],
+        items: hasItems ? s.products.slice(0, (i % 3) + 1).map((p, j) => ({ id: 'ai' + j, art: p.article, kw: p.keyword })) : [],
+        address: hasAddr ? { short: a.city + ', ' + a.pvz.split(',').slice(0, 2).join(','), full: a.pvz + ', ' + a.city } : null,
+        buys: (i * 3 + 2) % 17, reviews: (i * 2 + 1) % 9
+      };
+    });
+  },
+  _accBar(s) {
     const selCount = Object.values(this._sel).filter(Boolean).length;
-    const rows = s.accounts.map(a => `
-      <div class="wb-lrow ${this._sel[a.id] ? 'sel' : ''}" style="${gstyle}">
-        <button class="wb-check ${this._sel[a.id] ? 'on' : ''}" onclick="WB._toggleSel('${a.id}')" aria-label="${this._esc(a.name)}"></button>
-        ${this._client(a.name, a.phone, a.gender)}
-        <span class="wb-lcell wb-ord-mono" style="font-size:12.5px;color:#8a8a92">${a.lastLogin}</span>
-        <span>${this._lstatus(a.status)}</span>
-        <span class="wb-lcell wb-ord-mono" style="font-size:12px"><span style="color:#44454e">${a.article}</span> · <span style="color:#8a8a92">${this._esc(a.keyword)}</span></span>
-        <span class="wb-lcell" style="font-size:12.5px;color:#76767d" title="${this._esc(a.pvz || '')}">${a.pvz ? this._esc(a.pvz) : '—'}</span>
-        <span style="justify-self:end"><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архив</button></span>
-      </div>`).join('');
-    pane.innerHTML = `<div class="wb-lwrap wb-sys" style="min-width:980px">
-      <div class="wb-lbar">
-        <div class="wb-ord-search" style="flex:1 1 300px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск по имени, телефону, артикулу…"></div>
-        <button class="wb-b wb-b-neutral" onclick="WB._toast()">Статус ▾</button>
-        <button class="wb-b wb-b-neutral" onclick="WB._toast()">Пол ▾</button>
-      </div>
-      ${selCount ? `<div class="wb-lbulk">Выбрано: <b>${selCount}</b><span style="flex:1"></span><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архивировать</button><button class="wb-b wb-b-neutral sm" onclick="WB._clearSel()">Снять выделение</button></div>` : ''}
-      <div class="wb-lhead" style="${gstyle}"><span></span><span>Клиент</span><span>Вход</span><span>Статус</span><span>Артикул / ключ</span><span>Последний ПВЗ</span><span></span></div>
-      ${rows}
+    const right = selCount
+      ? `<div class="wb-ac-selbar">Выбрано: <b>${selCount}</b><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архивировать</button><button class="wb-b wb-b-neutral sm" onclick="WB._clearSel()">Снять выделение</button></div>`
+      : `<button class="wb-b wb-b-neutral" onclick="WB._toast()">Статус ▾</button><button class="wb-b wb-b-neutral" onclick="WB._toast()">Пол ▾</button>`;
+    return `<div class="wb-ord-search" style="flex:1 1 300px;max-width:440px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск: имя, номер, артикул, статус, адрес" value="${this._esc(this._accSearch)}" oninput="WB._accSearchInput(this.value)"></div><span style="flex:1"></span>${right}`;
+  },
+  _accList(s) {
+    const g = 'display:grid;grid-template-columns:3px 18px 220px 155px 150px 128px 1fr 74px 74px 90px;gap:16px;align-items:center;padding:12px 20px 12px 0';
+    const q = (this._accSearch || '').trim().toLowerCase();
+    let rows = this._accRows(s);
+    if (q) rows = rows.filter(r => [r.name, r.phone, r.status, r.address ? r.address.short + ' ' + r.address.full : ''].concat(r.items.map(i => i.art + ' ' + i.kw)).join(' ').toLowerCase().indexOf(q) >= 0);
+    const allSel = rows.length > 0 && rows.every(r => this._sel[r.id]);
+    const cart = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>';
+    const star = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    const dash = '<span class="wb-ac-dash">—</span>';
+    const body = rows.map(r => `<div class="wb-lgrow ${this._sel[r.id] ? 'sel' : ''}" style="${g}">
+      <span class="wb-wu-notch" style="background:${this._lnotch(r.status)}"></span>
+      <button class="wb-check ${this._sel[r.id] ? 'on' : ''}" onclick="WB._toggleSel('${r.id}')" aria-label="${this._esc(r.name)}"></button>
+      ${this._client(r.name, r.phone, r.gender)}
+      <span class="wb-lcell" style="font-size:12.5px;color:#76767d">${this._lastLogin(r.login)}</span>
+      <span>${this._lstatus(r.status)}</span>
+      <span>${r.items.length ? this._ordItems(r) : dash}</span>
+      <span>${r.address ? this._ordAddr(r) : dash}</span>
+      <span class="wb-ac-cnt">${cart}${r.buys}</span>
+      <span class="wb-ac-cnt">${star}${r.reviews}</span>
+      <span style="justify-self:end"><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архив</button></span>
+    </div>`).join('') || `<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">Ничего не найдено</div></div>`;
+    return `<div class="wb-lcard wb-sys" style="min-width:1180px">
+      <div class="wb-lcard-head" style="${g}"><span></span><button class="wb-check ${allSel ? 'on' : ''}" onclick="WB._accAll()" aria-label="Выбрать все"></button><span>Клиент</span><span>Последний вход</span><span>Статус</span><span>Товары</span><span>Адрес</span><span>Покупки</span><span>Отзывы</span><span></span></div>
+      ${body}</div>`;
+  },
+  _renderAccounts(pane, s) {
+    pane.innerHTML = `<div class="wb-sys" style="display:flex;flex-direction:column;gap:14px;min-width:1180px">
+      <div class="wb-lbar" id="wbAccBar">${this._accBar(s)}</div>
+      <div id="wbAccList">${this._accList(s)}</div>
     </div>`;
   },
-  _toggleSel(id) { this._sel[id] = !this._sel[id]; this._renderActive(); },
-  _clearSel() { this._sel = {}; this._renderActive(); },
+  _renderAccBar() { const s = this._srv(), el = document.getElementById('wbAccBar'); if (s && el) el.innerHTML = this._accBar(s); },
+  _renderAccList() { const s = this._srv(), el = document.getElementById('wbAccList'); if (s && el) el.innerHTML = this._accList(s); },
+  _accSearchInput(v) { this._accSearch = v; this._renderAccList(); },
+  _toggleSel(id) { this._sel[id] = !this._sel[id]; this._renderAccList(); this._renderAccBar(); },
+  _accAll() {
+    const s = this._srv(); if (!s) return;
+    const q = (this._accSearch || '').trim().toLowerCase();
+    let rows = this._accRows(s);
+    if (q) rows = rows.filter(r => [r.name, r.phone, r.status, r.address ? r.address.short + ' ' + r.address.full : ''].concat(r.items.map(i => i.art + ' ' + i.kw)).join(' ').toLowerCase().indexOf(q) >= 0);
+    const all = rows.length > 0 && rows.every(r => this._sel[r.id]);
+    rows.forEach(r => this._sel[r.id] = !all);
+    this._renderAccList(); this._renderAccBar();
+  },
+  _clearSel() { this._sel = {}; this._renderAccList(); this._renderAccBar(); },
 
   // ═══ 5.2 РЕГИСТРАТОР (light, стиль Прогрева) ═══
   _renderReg(pane, s) {
@@ -835,9 +874,17 @@ var WB = {
     return `<div class="wb-exec ${exec}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${v[1]}</svg><span>${label || v[0]}</span></div>`;
   },
   _execNotch(exec) { return { done: '#4fae83', running: '#7d9dcf', pending: '#b4b4bb', error: '#dd8880' }[exec] || '#b4b4bb'; },
-  _lstatus(status) {
-    const m = { 'активен': 'green', 'прошел': 'green', 'получен': 'blue', 'опубликован': 'green', 'ожидает в пвз': 'amber', 'новый': 'grey', 'написан': 'grey', 'не прошел': 'red', 'ошибка': 'red', 'готов к регистрации': 'grey', 'запланирован': 'blue' };
-    return `<span class="wb-lstatus ${m[status] || 'grey'}">${this._esc(status)}</span>`;
+  _statusColor(status) {
+    const m = { 'активен': 'green', 'прошел': 'green', 'прогретый': 'green', 'получен': 'blue', 'доставка': 'blue', 'опубликован': 'green', 'ожидает в пвз': 'amber', 'ожидает на пвз': 'amber', 'проверка': 'amber', 'новый': 'grey', 'написан': 'grey', 'не прошел': 'red', 'ошибка': 'red', 'готов к регистрации': 'grey', 'запланирован': 'blue' };
+    return m[String(status).toLowerCase()] || 'grey';
+  },
+  _lstatus(status) { return `<span class="wb-lstatus ${this._statusColor(status)}">${this._esc(status)}</span>`; },
+  _lnotch(status) { return { green: '#4fae83', blue: '#7d9dcf', amber: '#d0a24a', grey: '#b4b4bb', red: '#dd8880' }[this._statusColor(status)]; },
+  _lastLogin(l) {
+    if (!l) return '<span class="wb-ac-dash">—</span>';
+    if (l.d === 0) return 'Сегодня в ' + (l.t || '—');
+    if (l.d === 1) return 'вчера';
+    return l.d + ' ' + this._plural(l.d, 'день', 'дня', 'дней') + ' назад';
   },
   _prodChips(products, showN) {
     if (!products || !products.length) return '';
