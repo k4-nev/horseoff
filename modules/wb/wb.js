@@ -5,7 +5,7 @@
 var WB = {
   _servers: [], _active: null, _tab: 'accounts', _testOn: false,
   _sel: {}, _regSub: 'pool', _revSub: 'products', _revView: 'grid', _genderVal: 50,
-  _regSel: {}, _regCount: 10, _regDay: 'today',
+  _regSel: {}, _regCount: 10, _regDay: 'today', _regActSel: {}, _regActRemoved: {},
   // покупки
   _buyDates: ['2026-08-01','2026-08-03','2026-08-05','2026-08-08','2026-08-10','2026-08-11','2026-08-12','2026-08-14','2026-08-16','2026-08-19','2026-08-23','2026-08-26','2026-08-29','2026-09-02','2026-09-05','2026-09-07','2026-09-11','2026-09-15','2026-09-19','2026-09-23','2026-09-28','2026-10-02','2026-10-06','2026-10-11'],
   _activeDay: '2026-08-11',
@@ -235,11 +235,11 @@ var WB = {
     const sub = this._regSub; let body = '';
     const ph = (a) => `<span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${this._esc(a.phone)}</span>`;
     if (sub === 'pool') {
-      const pool = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:18px 1fr 200px;gap:16px;align-items:center;padding:12px 20px';
-      const gh = g;
+      const pool = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:3px 18px 1fr 230px 120px;gap:16px;align-items:center;padding:12px 20px 12px 0';
       const selCount = pool.filter(a => this._regSel[a.id]).length;
       const allSel = pool.length > 0 && pool.every(a => this._regSel[a.id]);
       const btnLabel = selCount ? 'Запланировать: ' + selCount : 'Запланировать';
+      const pst = (i) => i % 3 === 0 ? { st: this._execStatus('running', 'Запланирован'), n: '#7d9dcf' } : { st: this._execStatus('pending', 'Готов к регистрации'), n: '#b4b4bb' };
       body = `
         <div class="wb-hud">
           <div class="wb-cap"><span class="wb-cap-lbl">Автопланирование</span></div>
@@ -249,26 +249,41 @@ var WB = {
           <span class="wb-spacer"></span>
           <button class="wb-b wb-b-primary" onclick="WB._regSchedule()">${btnLabel}</button>
         </div>
-        <div class="wb-lcard wb-sys" style="min-width:440px">
-          <div class="wb-lcard-head" style="${gh}"><button class="wb-check ${allSel ? 'on' : ''}" onclick="WB._regAllToggle()" aria-label="Выбрать все"></button><span>Телефон</span><span style="text-align:right">Статус</span></div>
-          ${pool.map(a => `<div class="wb-lgrow ${this._regSel[a.id] ? 'sel' : ''}" style="${g}"><button class="wb-check ${this._regSel[a.id] ? 'on' : ''}" onclick="WB._regToggle('${a.id}')" aria-label="${this._esc(a.phone)}"></button>${ph(a)}<span style="justify-self:end">${this._lstatus('готов к регистрации')}</span></div>`).join('')}
+        <div class="wb-lcard wb-sys" style="min-width:560px">
+          <div class="wb-lcard-head" style="${g}"><span></span><button class="wb-check ${allSel ? 'on' : ''}" onclick="WB._regAllToggle()" aria-label="Выбрать все"></button><span>Телефон</span><span>Статус</span><span></span></div>
+          ${pool.map((a, i) => { const p = pst(i);
+            return `<div class="wb-lgrow ${this._regSel[a.id] ? 'sel' : ''}" style="${g}"><span class="wb-wu-notch" style="background:${p.n}"></span><button class="wb-check ${this._regSel[a.id] ? 'on' : ''}" onclick="WB._regToggle('${a.id}')" aria-label="${this._esc(a.phone)}"></button>${ph(a)}${p.st}<span></span></div>`; }).join('')}
         </div>`;
     } else {
-      const act = s.accounts.slice(0, 5), g = 'display:grid;grid-template-columns:1fr 180px 80px auto;gap:16px;align-items:center;padding:12px 20px';
-      const execs = ['pending', 'error', 'running', 'done', 'running'];
-      const times = ['09:20', '11:40', '13:05', '15:30', '18:10'];
+      const act = s.accounts.slice(0, 5).filter(a => !this._regActRemoved[a.id]);
+      const g = 'display:grid;grid-template-columns:3px 18px 64px 1fr 200px 180px;gap:16px;align-items:center;padding:12px 20px 12px 0';
+      const execs = { a0: 'pending', a1: 'error', a2: 'running', a3: 'done', a4: 'running' };
+      const times = { a0: '09:20', a1: '11:40', a2: '13:05', a3: '15:30', a4: '18:10' };
+      const aSel = act.filter(a => this._regActSel[a.id]).length;
+      const allSel = act.length > 0 && act.every(a => this._regActSel[a.id]);
       body = `
-        <div style="margin-bottom:2px"><span class="wb-subtabs"><button class="wb-subtab ${this._regDay === 'today' ? 'active' : ''}" onclick="WB._regDaySet('today')">Сегодня</button><button class="wb-subtab ${this._regDay === 'tomorrow' ? 'active' : ''}" onclick="WB._regDaySet('tomorrow')">Завтра</button></span></div>
-        <div class="wb-lcard wb-sys" style="min-width:640px">
-          <div class="wb-lcard-head" style="${g}"><span>Телефон</span><span>Статус выполнения</span><span>Время</span><span></span></div>
-          ${act.map((a, i) => { const ex = execs[i % execs.length];
-            return `<div class="wb-lgrow" style="${g}">${ph(a)}${this._execStatus(ex)}<span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${times[i]}</span><span class="wb-pk-act">${ex === 'error' ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Повторить</button>' : ''}<button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Время</button></span></div>`; }).join('')}
+        <div class="wb-lbar" style="margin-bottom:2px"><span class="wb-subtabs"><button class="wb-subtab ${this._regDay === 'today' ? 'active' : ''}" onclick="WB._regDaySet('today')">Сегодня</button><button class="wb-subtab ${this._regDay === 'tomorrow' ? 'active' : ''}" onclick="WB._regDaySet('tomorrow')">Завтра</button></span><span style="flex:1"></span><button class="wb-wu-bulk" ${aSel ? '' : 'disabled'} onclick="WB._regActBulk()">${this._wuTrash()}${aSel ? 'Выбрано: ' + aSel : 'Снять на сегодня'}</button></div>
+        <div class="wb-lcard wb-sys" style="min-width:720px">
+          <div class="wb-lcard-head" style="${g}"><span></span><button class="wb-check ${allSel ? 'on' : ''}" onclick="WB._regActAll()" aria-label="Выбрать все"></button><span>Время</span><span>Телефон</span><span>Статус выполнения</span><span></span></div>
+          ${act.map((a) => { const ex = execs[a.id] || 'pending';
+            return `<div class="wb-lgrow ${this._regActSel[a.id] ? 'sel' : ''}" style="${g}"><span class="wb-wu-notch" style="background:${this._execNotch(ex)}"></span><button class="wb-check ${this._regActSel[a.id] ? 'on' : ''}" onclick="WB._regActToggle('${a.id}')" aria-label="${this._esc(a.phone)}"></button><span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${times[a.id] || '—'}</span>${ph(a)}${this._execStatus(ex)}<span class="wb-pk-act">${ex === 'error' ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Повторить</button>' : ''}<button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Время</button></span></div>`; }).join('')}
         </div>`;
     }
     pane.innerHTML = `<div style="margin-bottom:2px"><span class="wb-subtabs">
         <button class="wb-subtab ${sub === 'pool' ? 'active' : ''}" onclick="WB._regTab('pool')">Доступны</button>
         <button class="wb-subtab ${sub === 'active' ? 'active' : ''}" onclick="WB._regTab('active')">Активные</button>
       </span></div>${body}`;
+  },
+  _regActToggle(id) { this._regActSel[id] = !this._regActSel[id]; this._renderActive(); },
+  _regActAll() { const s = this._srv(); if (!s) return; const act = s.accounts.slice(0, 5).filter(a => !this._regActRemoved[a.id]), all = act.every(a => this._regActSel[a.id]); act.forEach(a => this._regActSel[a.id] = !all); this._renderActive(); },
+  _regActBulk() {
+    const s = this._srv(); if (!s) return;
+    const act = s.accounts.slice(0, 5).filter(a => !this._regActRemoved[a.id]), n = act.filter(a => this._regActSel[a.id]).length;
+    if (!n) return;
+    act.forEach(a => { if (this._regActSel[a.id]) this._regActRemoved[a.id] = true; });
+    this._regActSel = {};
+    if (window.Shell && Shell.toast) Shell.toast(`Снято на сегодня: ${n}`);
+    this._renderActive();
   },
   _regToggle(id) { this._regSel[id] = !this._regSel[id]; this._renderActive(); },
   _regAllToggle() { const s = this._srv(); if (!s) return; const pool = s.accounts.slice(0, 6), all = pool.every(a => this._regSel[a.id]); pool.forEach(a => this._regSel[a.id] = !all); this._renderActive(); },
@@ -809,7 +824,7 @@ var WB = {
   _client(name, phone, gender) {
     return `<div class="wb-ord-client">${this._gAva(gender)}<div style="min-width:0"><div class="wb-ord-name">${this._esc(name)}</div><div class="wb-ord-phone wb-ord-mono">${this._esc(phone)}</div></div></div>`;
   },
-  _execStatus(exec) {
+  _execStatus(exec, label) {
     const map = {
       done: ['Выполнен', '<circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/>'],
       running: ['В работе', '<circle cx="12" cy="12" r="9"/><polyline points="12 8 12 12 14.5 13.5"/>'],
@@ -817,8 +832,9 @@ var WB = {
       error: ['Ошибка', '<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/>'],
     };
     const v = map[exec] || map.pending;
-    return `<div class="wb-exec ${exec}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${v[1]}</svg><span>${v[0]}</span></div>`;
+    return `<div class="wb-exec ${exec}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${v[1]}</svg><span>${label || v[0]}</span></div>`;
   },
+  _execNotch(exec) { return { done: '#4fae83', running: '#7d9dcf', pending: '#b4b4bb', error: '#dd8880' }[exec] || '#b4b4bb'; },
   _lstatus(status) {
     const m = { 'активен': 'green', 'прошел': 'green', 'получен': 'blue', 'опубликован': 'green', 'ожидает в пвз': 'amber', 'новый': 'grey', 'написан': 'grey', 'не прошел': 'red', 'ошибка': 'red', 'готов к регистрации': 'grey', 'запланирован': 'blue' };
     return `<span class="wb-lstatus ${m[status] || 'grey'}">${this._esc(status)}</span>`;
