@@ -16,7 +16,7 @@
 .wb-wrap button,.wb-wrap input,.wb-wrap select,.wb-wrap textarea{font-family:inherit}
 .wb-mono{font-variant-numeric:tabular-nums;letter-spacing:-.005em}
 /* общий лоток для кнопок (как wb-ord-stats) + анимация появления */
-.wb-btn-tray{display:inline-flex;align-items:center;gap:6px;padding:5px;border-radius:15px;background:#e9edf3;box-shadow:inset 0 2px 4px rgba(23,33,54,.1),inset 0 -1px 0 rgba(255,255,255,.6)}
+.wb-btn-tray{display:inline-flex;align-items:center;gap:6px;padding:5px;border-radius:15px;background:#dfe3ea;box-shadow:inset 0 2px 5px rgba(23,33,54,.16),inset 0 -1px 0 rgba(255,255,255,.7),0 0 0 .5px rgba(23,33,54,.05)}
 .wb-appear{animation:wb-appear .26s cubic-bezier(.34,1.1,.5,1)}
 @keyframes wb-appear{from{opacity:0;transform:translateX(10px) scale(.94)}to{opacity:1;transform:none}}
 
