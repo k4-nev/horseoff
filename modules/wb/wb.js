@@ -242,7 +242,7 @@ var WB = {
       <span>${r.address ? this._ordAddr(r) : dash}</span>
       <span class="wb-ac-cnt">${cart}${r.buys}</span>
       <span class="wb-ac-cnt">${star}${r.reviews}</span>
-      <span style="justify-self:end"><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архив</button></span>
+      <span class="wb-pk-act"><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архив</button></span>
     </div>`).join('') || `<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">Ничего не найдено</div></div>`;
     return `<div class="wb-lcard wb-sys" style="min-width:1180px">
       <div class="wb-lcard-head" style="${g}"><span></span><button class="wb-check ${allSel ? 'on' : ''}" onclick="WB._accAll()" aria-label="Выбрать все"></button><span>Клиент</span><span>Последний вход</span><span>Статус</span><span>Товары</span><span>Адрес</span><span>Покупки</span><span>Отзывы</span><span></span></div>

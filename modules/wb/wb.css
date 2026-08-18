@@ -421,7 +421,7 @@ body.theme-light .wb-input::-webkit-calendar-picker-indicator{filter:none;opacit
 .wb-pk-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
 .wb-pk-badge.blue{color:#5f7fb5}
 .wb-pk-badge.amber{color:#b08528}
-.wb-pk-act{display:flex;gap:8px;justify-content:flex-end}
+.wb-pk-act{display:inline-flex;align-items:center;gap:6px;padding:5px;border-radius:14px;background:#dfe3ea;box-shadow:inset 0 2px 5px rgba(23,33,54,.16),inset 0 -1px 0 rgba(255,255,255,.7),0 0 0 .5px rgba(23,33,54,.05);justify-self:end}
 .wb-pk-btn{height:32px;padding:0 14px;border-radius:12px;border:none;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit}
 .wb-pk-btn.primary{background:#1d1d1f;color:#fff}
 .wb-pk-btn.primary:hover{background:#000}
