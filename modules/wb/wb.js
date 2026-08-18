@@ -779,7 +779,8 @@ var WB = {
     const html = `<html><head><meta charset="utf-8"></head><body><table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:sans-serif;font-size:13px"><thead><tr style="background:#f0f0f3"><th>Номер</th><th>Имя</th><th>Товары</th><th>Адрес</th><th>Код получения</th><th>QR-Код</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
     const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `poluchenie_${city === 'all' ? 'все_города' : city}.xls`;
+    const d = new Date(), date = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
+    const a = document.createElement('a'); a.href = url; a.download = `получение_${city === 'all' ? 'все_города' : city}_${date}.xls`;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
     if (window.Shell && Shell.toast) Shell.toast(`Выгружено: ${rows.length} ${this._plural(rows.length, 'аккаунт', 'аккаунта', 'аккаунтов')}`);
   },
