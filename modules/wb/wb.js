@@ -5,6 +5,7 @@
 var WB = {
   _servers: [], _active: null, _tab: 'accounts', _testOn: false,
   _sel: {}, _regSub: 'pool', _revSub: 'products', _revView: 'grid', _genderVal: 50,
+  _regSel: {}, _regCount: 10, _regDay: 'today',
   // покупки
   _buyDates: ['2026-08-01','2026-08-03','2026-08-05','2026-08-08','2026-08-10','2026-08-11','2026-08-12','2026-08-14','2026-08-16','2026-08-19','2026-08-23','2026-08-26','2026-08-29','2026-09-02','2026-09-05','2026-09-07','2026-09-11','2026-09-15','2026-09-19','2026-09-23','2026-09-28','2026-10-02','2026-10-06','2026-10-11'],
   _activeDay: '2026-08-11',
@@ -228,47 +229,56 @@ var WB = {
   _toggleSel(id) { this._sel[id] = !this._sel[id]; this._renderActive(); },
   _clearSel() { this._sel = {}; this._renderActive(); },
 
-  // ═══ 5.2 РЕГИСТРАТОР (light) ═══
+  // ═══ 5.2 РЕГИСТРАТОР (light, стиль Прогрева) ═══
   _renderReg(pane, s) {
+    if (this._regSub === 'archive') this._regSub = 'pool';
     const sub = this._regSub; let body = '';
     const ph = (a) => `<span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${this._esc(a.phone)}</span>`;
     if (sub === 'pool') {
-      const pool = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:18px 32px 1fr 200px;gap:16px;align-items:center';
+      const pool = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:18px 1fr 200px;gap:16px;align-items:center;padding:12px 20px';
+      const gh = g;
+      const selCount = pool.filter(a => this._regSel[a.id]).length;
+      const allSel = pool.length > 0 && pool.every(a => this._regSel[a.id]);
+      const btnLabel = selCount ? 'Запланировать: ' + selCount : 'Запланировать';
       body = `
         <div class="wb-hud">
           <div class="wb-cap"><span class="wb-cap-lbl">Автопланирование</span></div>
           <div class="wb-cap" onmouseenter="WB._genderHover(true)" onmouseleave="WB._genderHover(false)"><span class="wb-ava f sm" id="wbGaF">Ж</span><input type="range" class="wb-slider" id="wbGenderSlider" min="0" max="100" value="${this._genderVal}" oninput="WB._genderInput()"><span class="wb-ava m sm" id="wbGaM">М</span></div>
-          <div class="wb-cap"><span class="wb-cap-lbl">Кол-во</span><div class="wb-step"><button onclick="WB._toast()">−</button><span class="v wb-mono">10</span><button onclick="WB._toast()">+</button></div></div>
+          <div class="wb-cap"><span class="wb-cap-lbl">Кол-во</span><div class="wb-step"><button onclick="WB._regCountStep(-1)">−</button><span class="v wb-mono">${this._regCount}</span><button onclick="WB._regCountStep(1)">+</button></div></div>
           <div class="wb-cap"><span class="wb-cap-lbl">В пуле</span><b class="wb-mono">${pool.length}</b></div>
           <span class="wb-spacer"></span>
-          <button class="wb-b wb-b-primary" onclick="WB._toast()">Запланировать</button>
+          <button class="wb-b wb-b-primary" onclick="WB._regSchedule()">${btnLabel}</button>
         </div>
-        <div class="wb-lwrap wb-sys" style="min-width:520px">
-          <div class="wb-lhead" style="${g}"><span></span><span></span><span>Телефон</span><span style="text-align:right">Статус</span></div>
-          ${pool.map(a => `<div class="wb-lrow" style="${g}"><button class="wb-check" onclick="WB._toast()"></button>${this._gAva(a.gender)}${ph(a)}<span style="justify-self:end">${this._lstatus('готов к регистрации')}</span></div>`).join('')}
-        </div>
-        <div><button class="wb-b wb-b-neutral" onclick="WB._toast()">Запланировать выбранные</button></div>`;
-    } else if (sub === 'active') {
-      const act = s.accounts.slice(0, 5), g = 'display:grid;grid-template-columns:32px 1fr 160px 80px auto;gap:16px;align-items:center';
-      body = `
-        <div style="margin-bottom:2px"><span class="wb-subtabs"><button class="wb-subtab active">Сегодня</button><button class="wb-subtab">Завтра</button></span></div>
-        <div class="wb-lwrap wb-sys" style="min-width:720px">
-          <div class="wb-lhead" style="${g}"><span></span><span>Телефон</span><span>Статус</span><span>Время</span><span></span></div>
-          ${act.map((a, i) => { const err = i === 1;
-            return `<div class="wb-lrow" style="${g}">${this._gAva(a.gender)}${ph(a)}<span>${this._lstatus(err ? 'ошибка' : 'запланирован')}</span><span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${['09:20','11:40','13:05','15:30','18:10'][i]}</span><span class="wb-pk-act">${err ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Повторить</button>' : ''}<button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Время</button></span></div>`; }).join('')}
+        <div class="wb-lcard wb-sys" style="min-width:440px">
+          <div class="wb-lcard-head" style="${gh}"><button class="wb-check ${allSel ? 'on' : ''}" onclick="WB._regAllToggle()" aria-label="Выбрать все"></button><span>Телефон</span><span style="text-align:right">Статус</span></div>
+          ${pool.map(a => `<div class="wb-lgrow ${this._regSel[a.id] ? 'sel' : ''}" style="${g}"><button class="wb-check ${this._regSel[a.id] ? 'on' : ''}" onclick="WB._regToggle('${a.id}')" aria-label="${this._esc(a.phone)}"></button>${ph(a)}<span style="justify-self:end">${this._lstatus('готов к регистрации')}</span></div>`).join('')}
         </div>`;
     } else {
-      const arc = s.accounts.slice(0, 6), g = 'display:grid;grid-template-columns:32px 1fr 160px 90px;gap:16px;align-items:center';
-      body = `<div class="wb-lwrap wb-sys" style="min-width:560px">
-        <div class="wb-lhead" style="${g}"><span></span><span>Телефон</span><span>Результат</span><span style="text-align:right">Дата</span></div>
-        ${arc.map((a, i) => `<div class="wb-lrow" style="${g}">${this._gAva(a.gender)}${ph(a)}<span>${this._lstatus(i % 3 === 2 ? 'не прошел' : 'прошел')}</span><span class="wb-lcell wb-ord-mono" style="justify-self:end;color:#8a8a92">0${(i % 3) + 1}.09</span></div>`).join('')}
-      </div>`;
+      const act = s.accounts.slice(0, 5), g = 'display:grid;grid-template-columns:1fr 180px 80px auto;gap:16px;align-items:center;padding:12px 20px';
+      const execs = ['pending', 'error', 'running', 'done', 'running'];
+      const times = ['09:20', '11:40', '13:05', '15:30', '18:10'];
+      body = `
+        <div style="margin-bottom:2px"><span class="wb-subtabs"><button class="wb-subtab ${this._regDay === 'today' ? 'active' : ''}" onclick="WB._regDaySet('today')">Сегодня</button><button class="wb-subtab ${this._regDay === 'tomorrow' ? 'active' : ''}" onclick="WB._regDaySet('tomorrow')">Завтра</button></span></div>
+        <div class="wb-lcard wb-sys" style="min-width:640px">
+          <div class="wb-lcard-head" style="${g}"><span>Телефон</span><span>Статус выполнения</span><span>Время</span><span></span></div>
+          ${act.map((a, i) => { const ex = execs[i % execs.length];
+            return `<div class="wb-lgrow" style="${g}">${ph(a)}${this._execStatus(ex)}<span class="wb-lcell wb-ord-mono" style="font-size:13px;color:#44454e">${times[i]}</span><span class="wb-pk-act">${ex === 'error' ? '<button class="wb-b wb-b-danger sm" onclick="WB._toast()">Повторить</button>' : ''}<button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Время</button></span></div>`; }).join('')}
+        </div>`;
     }
     pane.innerHTML = `<div style="margin-bottom:2px"><span class="wb-subtabs">
         <button class="wb-subtab ${sub === 'pool' ? 'active' : ''}" onclick="WB._regTab('pool')">Доступны</button>
         <button class="wb-subtab ${sub === 'active' ? 'active' : ''}" onclick="WB._regTab('active')">Активные</button>
-        <button class="wb-subtab ${sub === 'archive' ? 'active' : ''}" onclick="WB._regTab('archive')">Архив</button>
       </span></div>${body}`;
+  },
+  _regToggle(id) { this._regSel[id] = !this._regSel[id]; this._renderActive(); },
+  _regAllToggle() { const s = this._srv(); if (!s) return; const pool = s.accounts.slice(0, 6), all = pool.every(a => this._regSel[a.id]); pool.forEach(a => this._regSel[a.id] = !all); this._renderActive(); },
+  _regCountStep(d) { this._regCount = Math.max(1, (this._regCount || 10) + d); this._renderActive(); },
+  _regDaySet(d) { this._regDay = d; this._renderActive(); },
+  _regSchedule() {
+    const s = this._srv(); if (!s) return;
+    const pool = s.accounts.slice(0, 6), sel = pool.filter(a => this._regSel[a.id]).length, n = sel || this._regCount;
+    if (window.Shell && Shell.toast) Shell.toast(`Запланировано ${n} ${this._plural(n, 'аккаунт', 'аккаунта', 'аккаунтов')} на регистрацию`);
+    this._regSel = {}; this._renderActive();
   },
   _regTab(t) { this._regSub = t; this._renderActive(); },
 
