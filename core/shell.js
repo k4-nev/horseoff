@@ -355,13 +355,44 @@ const Shell = {
   },
 
   _showUpdateBanner() {
-    if (document.getElementById('updateBanner')) return;
-    var b = document.createElement('div');
-    b.id = 'updateBanner';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:Inter,sans-serif;box-shadow:0 2px 12px rgba(0,212,170,0.3)';
-    b.innerHTML = '<span>Доступно обновление приложения</span><button onclick="window.location.reload()" style="background:rgba(0,0,0,0.2);border:none;color:#fff;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">Обновить</button>';
-    document.body.appendChild(b);
+    // обновление теперь — облако у аватарки, закрыть нельзя, висит до обновления
+    this.notify({ id: 'app-update', persistent: true, text: 'Доступно обновление приложения', action: { label: 'Обновить', fn: function () { window.location.reload(); } } });
   },
+
+  // ─── Облако-уведомление от аватарки профиля ───
+  notify(opts) {
+    opts = opts || {};
+    this._cloudActions = this._cloudActions || {};
+    this._cloudTimers = this._cloudTimers || {};
+    var id = opts.id || ('n' + (this._cloudSeq = (this._cloudSeq || 0) + 1));
+    var stack = document.getElementById('cloudStack');
+    if (!stack) { stack = document.createElement('div'); stack.id = 'cloudStack'; stack.className = 'cloud-stack'; document.body.appendChild(stack); }
+    var el = document.getElementById('cloud-' + id);
+    if (!el) { el = document.createElement('div'); el.id = 'cloud-' + id; stack.appendChild(el); }
+    el.className = 'cloud';
+    if (opts.action && opts.action.fn) this._cloudActions[id] = opts.action.fn;
+    var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var btn = opts.action ? '<button class="cloud-btn" onclick="Shell._cloudAction(\'' + id + '\')">' + esc(opts.action.label) + '</button>' : '';
+    var close = opts.persistent ? '' : '<button class="cloud-close" onclick="Shell.dismissCloud(\'' + id + '\')" title="Закрыть"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+    el.innerHTML = '<div class="cloud-text">' + esc(opts.text) + '</div>' + btn + close;
+    clearTimeout(this._cloudTimers[id]);
+    var self = this;
+    if (!opts.persistent) {
+      var start = function () { self._cloudTimers[id] = setTimeout(function () { self.dismissCloud(id); }, opts.duration || 5000); };
+      el.onmouseenter = function () { clearTimeout(self._cloudTimers[id]); };
+      el.onmouseleave = start;
+      start();
+    } else { el.onmouseenter = null; el.onmouseleave = null; }
+    return id;
+  },
+  dismissCloud(id) {
+    var el = document.getElementById('cloud-' + id); if (!el) return;
+    if (this._cloudTimers) clearTimeout(this._cloudTimers[id]);
+    el.classList.add('out');
+    var self = this;
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); if (self._cloudActions) delete self._cloudActions[id]; }, 240);
+  },
+  _cloudAction(id) { var fn = this._cloudActions && this._cloudActions[id]; if (fn) fn(); },
 
   lockOrientation() {
     // Only lock on phones (< 768px), not tablets

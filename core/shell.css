@@ -110,6 +110,19 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 
 /* MODALS */
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:center}
+/* ═══ Облако-уведомление (от аватарки профиля) ═══ */
+.cloud-stack{position:fixed;left:60px;bottom:16px;z-index:960;display:flex;flex-direction:column-reverse;gap:14px;align-items:flex-start;max-width:340px;pointer-events:none}
+.cloud{position:relative;pointer-events:auto;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:16px;padding:12px 34px 12px 15px;max-width:320px;box-shadow:0 12px 36px -8px rgba(0,0,0,.36),0 3px 10px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.07);transform-origin:bottom left;animation:cloud-in .34s cubic-bezier(.34,1.28,.5,1);font-family:'Manrope','Inter',sans-serif}
+.cloud.out{animation:cloud-out .24s ease forwards}
+.cloud::before{content:'';position:absolute;left:9px;bottom:-9px;width:11px;height:11px;border-radius:50%;background:var(--surface);border:1px solid var(--border);box-shadow:0 5px 12px -5px rgba(0,0,0,.3)}
+.cloud::after{content:'';position:absolute;left:-1px;bottom:-18px;width:6px;height:6px;border-radius:50%;background:var(--surface);border:1px solid var(--border)}
+.cloud-text{font-size:13px;line-height:1.42;font-weight:500;color:var(--text)}
+.cloud-btn{margin-top:10px;height:32px;padding:0 15px;border-radius:9px;border:none;cursor:pointer;background:var(--accent);color:#04140f;font-family:inherit;font-size:12.5px;font-weight:700;box-shadow:0 2px 8px var(--accent-glow);transition:background .15s}
+.cloud-btn:hover{background:var(--accent-dark)}
+.cloud-close{position:absolute;top:8px;right:8px;width:21px;height:21px;border:none;border-radius:6px;cursor:pointer;background:var(--surface2);color:var(--text-dim);display:flex;align-items:center;justify-content:center;padding:0;transition:all .15s}
+.cloud-close:hover{background:var(--danger-glow);color:var(--danger)}
+@keyframes cloud-in{from{opacity:0;transform:translate(-16px,16px) scale(.55)}to{opacity:1;transform:none}}
+@keyframes cloud-out{to{opacity:0;transform:translate(-12px,10px) scale(.82)}}
 .modal-overlay.active{display:flex}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:modalIn 0.2s ease-out;scrollbar-width:thin;scrollbar-color:var(--scrollbar) transparent}
 .modal::-webkit-scrollbar{width:3px}

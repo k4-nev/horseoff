@@ -339,7 +339,8 @@ var WB = {
   _regSchedule() {
     const s = this._srv(); if (!s) return;
     const pool = s.accounts.slice(0, 6), sel = pool.filter(a => this._regSel[a.id]).length, n = sel || this._regCount;
-    if (window.Shell && Shell.toast) Shell.toast(`Запланировано ${n} ${this._plural(n, 'аккаунт', 'аккаунта', 'аккаунтов')} на регистрацию`);
+    if (window.Shell && Shell.notify) Shell.notify({ text: `Отправлено в регистрацию ${n} ${this._plural(n, 'аккаунт', 'аккаунта', 'аккаунтов')}` });
+    else if (window.Shell && Shell.toast) Shell.toast(`Отправлено в регистрацию ${n}`);
     this._regSel = {}; this._renderActive();
   },
   _regTab(t) { this._regSub = t; this._renderActive(); },
