@@ -964,6 +964,7 @@ document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('cli
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && !document.getElementById('loginScreen').classList.contains('hidden')) Shell.handleAuth(); });
 
+window.Shell = Shell;
 Shell.init();
 
 // Unlock audio on first user interaction (iOS/Safari)
