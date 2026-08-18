@@ -181,7 +181,7 @@ var WB = {
     name.textContent = s.name;
     if (dot) dot.className = 'wb-hd-dot ' + (s.status === 'online' ? 'online' : 'offline');
     const n = s.accounts.length;
-    if (cnt) cnt.innerHTML = `<b>${n}</b> ${this._plural(n, 'аккаунт', 'аккаунта', 'аккаунтов')}`;
+    if (cnt) cnt.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><b>${n}</b> ${this._plural(n, 'аккаунт', 'аккаунта', 'аккаунтов')}`;
   },
   _plural(n, one, few, many) { const a = n % 10, b = n % 100; if (a === 1 && b !== 11) return one; if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return few; return many; },
 
@@ -216,12 +216,12 @@ var WB = {
       };
     });
   },
-  _accBar(s) {
+  _accBar(s, animate) {
     const selCount = Object.values(this._sel).filter(Boolean).length;
-    const right = selCount
-      ? `<div class="wb-ac-selbar">Выбрано: <b>${selCount}</b><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архивировать</button><button class="wb-b wb-b-neutral sm" onclick="WB._clearSel()">Снять выделение</button></div>`
-      : `<button class="wb-b wb-b-neutral" onclick="WB._toast()">Статус ▾</button><button class="wb-b wb-b-neutral" onclick="WB._toast()">Пол ▾</button>`;
-    return `<div class="wb-ord-search" style="flex:1 1 300px;max-width:440px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск: имя, номер, артикул, статус, адрес" value="${this._esc(this._accSearch)}" oninput="WB._accSearchInput(this.value)"></div><span style="flex:1"></span>${right}`;
+    const inner = selCount
+      ? `<div class="wb-ac-selbar">Выбрано: <b>${selCount}</b><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Архивировать</button><button class="wb-b wb-b-neutral sm" onclick="WB._clearSel()">Снять</button></div>`
+      : `<button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Статус ▾</button><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Пол ▾</button>`;
+    return `<div class="wb-ord-search" style="flex:1 1 300px;max-width:440px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Поиск: имя, номер, артикул, статус, адрес" value="${this._esc(this._accSearch)}" oninput="WB._accSearchInput(this.value)"></div><span style="flex:1"></span><div class="wb-btn-tray ${animate ? 'wb-appear' : ''}">${inner}</div>`;
   },
   _accList(s) {
     const g = 'display:grid;grid-template-columns:3px 18px 220px 155px 150px 128px 1fr 74px 74px 90px;gap:16px;align-items:center;padding:12px 20px 12px 0';
@@ -249,12 +249,19 @@ var WB = {
       ${body}</div>`;
   },
   _renderAccounts(pane, s) {
+    this._accBarMode = Object.values(this._sel).filter(Boolean).length ? 'bulk' : 'filters';
     pane.innerHTML = `<div class="wb-sys" style="display:flex;flex-direction:column;gap:14px;min-width:1180px">
-      <div class="wb-lbar" id="wbAccBar">${this._accBar(s)}</div>
+      <div class="wb-lbar" id="wbAccBar">${this._accBar(s, false)}</div>
       <div id="wbAccList">${this._accList(s)}</div>
     </div>`;
   },
-  _renderAccBar() { const s = this._srv(), el = document.getElementById('wbAccBar'); if (s && el) el.innerHTML = this._accBar(s); },
+  _renderAccBar() {
+    const s = this._srv(), el = document.getElementById('wbAccBar'); if (!s || !el) return;
+    const mode = Object.values(this._sel).filter(Boolean).length ? 'bulk' : 'filters';
+    const animate = this._accBarMode !== undefined && this._accBarMode !== mode;
+    this._accBarMode = mode;
+    el.innerHTML = this._accBar(s, animate);
+  },
   _renderAccList() { const s = this._srv(), el = document.getElementById('wbAccList'); if (s && el) el.innerHTML = this._accList(s); },
   _accSearchInput(v) { this._accSearch = v; this._renderAccList(); },
   _toggleSel(id) { this._sel[id] = !this._sel[id]; this._renderAccList(); this._renderAccBar(); },
