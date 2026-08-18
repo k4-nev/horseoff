@@ -5,6 +5,7 @@
 var WB = {
   _servers: [], _active: null, _tab: 'accounts', _testOn: false,
   _sel: {}, _accSearch: '', _regSub: 'pool', _revSub: 'products', _revView: 'grid', _genderVal: 50,
+  _pkSub: 'receive', _pkCity: 'all',
   _regSel: {}, _regCount: 10, _regDay: 'today', _regActSel: {}, _regActRemoved: {},
   // покупки
   _buyDates: ['2026-08-01','2026-08-03','2026-08-05','2026-08-08','2026-08-10','2026-08-11','2026-08-12','2026-08-14','2026-08-16','2026-08-19','2026-08-23','2026-08-26','2026-08-29','2026-09-02','2026-09-05','2026-09-07','2026-09-11','2026-09-15','2026-09-19','2026-09-23','2026-09-28','2026-10-02','2026-10-06','2026-10-11'],
@@ -80,7 +81,7 @@ var WB = {
   _buildTest() {
     const NF = ['Анна Петрова','Елена Кузнецова','Ольга Морозова','Полина Гуля','Катя Смирнова','Вера Ильина','Настя Лебедева'];
     const NM = ['Максим Орлов','Игнат Волков','Никита Соколов','Евгений Попов','Даниил Козлов','Артём Новиков'];
-    const CITIES = ['Москва','Санкт-Петербург','Казань','Екатеринбург','Новосибирск'];
+    const CITIES = ['Москва','Санкт-Петербург','Казань','Екатеринбург','Новосибирск','Нижний Новгород','Краснодар','Самара'];
     const ST = ['активен','активен','активен','новый','не прошел','ожидает в пвз','получен'];
     const products = [
       { id: 'p1', article: '833758227', keyword: 'вода парфюм', available: 12 },
@@ -92,11 +93,11 @@ var WB = {
       { id: 'p7', article: '123967154', keyword: 'робот пылесос', available: 5 },
     ];
     const accts = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 30; i++) {
       const f = i % 2 === 0, pr = products[i % products.length];
       accts.push({
         id: 'a' + i, name: f ? NF[i % NF.length] : NM[i % NM.length], gender: f ? 'f' : 'm',
-        phone: '+7 921 400-11-' + String(80 + i).padStart(2, '0'),
+        phone: '+7 9' + (10 + i % 89) + ' ' + String(100 + i).padStart(3, '0') + '-' + String(11 + i % 88).padStart(2, '0') + '-' + String((i * 7) % 100).padStart(2, '0'),
         lastLogin: ['сейчас','2ч','вчера','5ч','3д'][i % 5], status: ST[i % ST.length],
         article: pr.article, keyword: pr.keyword,
         pvz: 'ул. Ленина, ' + (5 + i) + ', ПВЗ Wildberries', city: CITIES[i % CITIES.length]
@@ -723,24 +724,64 @@ var WB = {
       <div class="wb-cal-legend"><span><i style="background:var(--accent)"></i>есть выкуп</span><span><i style="background:var(--surface2)"></i>нет данных</span></div>`;
   },
 
-  // ═══ 5.5 ПОЛУЧЕНИЕ (light, общие атомы) ═══
-  _renderPickup(pane, s) {
-    const rows = s.accounts.slice(0, 7).map((a, i) => ({
-      id: 'pk' + i, name: a.name, phone: a.phone, gender: a.gender,
-      items: s.products.slice(0, (i % 3) + 1).map((p, j) => ({ id: 'x' + j, art: p.article, kw: p.keyword })),
-      address: { short: a.city + ', ' + a.pvz.split(',').slice(0, 2).join(',') , full: a.pvz + ', ' + a.city },
-      st: i % 2 ? { cls: 'blue', t: 'будет в ПВЗ 26 авг' } : { cls: 'amber', t: 'ожидает до 30 авг' }
+  // ═══ 5.5 ПОЛУЧЕНИЕ / ДОСТАВКА (light, табличный) ═══
+  _pkRows(s) {
+    const dmap = [{ t: 'Будет в ПВЗ 26 авг', c: 'blue' }, { t: 'Задерживается', c: 'amber' }, { t: 'Отменён', c: 'red' }];
+    return s.accounts.map((a, i) => ({
+      id: a.id, name: a.name, phone: a.phone, gender: a.gender, city: a.city,
+      items: s.products.slice(0, (i % 3) + 1).map((p, j) => ({ id: 'pi' + j, art: p.article, kw: p.keyword })),
+      address: { short: a.city + ', ' + a.pvz.split(',').slice(0, 2).join(','), full: a.pvz + ', ' + a.city },
+      code: String(100000 + ((i * 73137 + 40193) % 900000)),
+      tab: i % 3 === 2 ? 'delivery' : 'receive',
+      dstatus: dmap[i % dmap.length]
     }));
-    const head = `<div class="wb-pk-head"><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span><span>Действие</span></div>`;
-    const body = rows.map(r => `<div class="wb-pk-row">
-      ${this._client(r.name, r.phone, r.gender)}
-      <div>${this._ordItems(r)}</div>
-      ${this._ordAddr(r)}
-      <div class="wb-pk-badge ${r.st.cls}">${r.st.t}</div>
-      <div class="wb-pk-act"><button class="wb-b wb-b-primary sm" onclick="WB._pickupCode()">Получить</button><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Найти ПВЗ</button></div>
-    </div>`).join('');
-    pane.innerHTML = `<div class="wb-pk-bar wb-sys"><button class="wb-b wb-b-neutral" onclick="WB._toast()">Выгрузить получение</button></div>
-      <div class="wb-pk wb-sys">${head}${body}</div>`;
+  },
+  _cityDd(cities) {
+    const cur = this._pkCity || 'all', label = cur === 'all' ? 'Все города' : cur;
+    const chev = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const opts = [{ v: 'all', t: 'Все города' }].concat(cities.map(c => ({ v: c, t: c })));
+    return `<div class="wb-dd" id="dd-pkcity" style="min-width:180px"><button class="wb-dd-btn" onclick="WB._ddToggle('pkcity',event)"><span>${this._esc(label)}</span>${chev}</button><div class="wb-dd-list">${opts.map(o => `<div class="wb-dd-opt ${o.v === cur ? 'sel' : ''}" onclick="WB._pkCitySet('${this._esc(o.v).replace(/'/g, '')}',event)">${this._esc(o.t)}</div>`).join('')}</div></div>`;
+  },
+  _pkCitySet(v, e) { if (e) e.stopPropagation(); this._pkCity = v; this._ddCloseAll(); this._renderActive(); },
+  _pkSubSet(t) { this._pkSub = t; this._renderActive(); },
+  _renderPickup(pane, s) {
+    const cities = [...new Set(s.accounts.map(a => a.city))];
+    const sub = this._pkSub, city = this._pkCity;
+    let rows = this._pkRows(s).filter(r => r.tab === sub && (city === 'all' || r.city === city));
+    let body;
+    if (sub === 'receive') {
+      const g = 'display:grid;grid-template-columns:3px 220px 130px 1fr 180px 100px 180px;gap:16px;align-items:center;padding:12px 20px 12px 0';
+      body = `<div class="wb-lcard wb-sys" style="min-width:1120px">
+        <div class="wb-lcard-head" style="${g}"><span></span><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span><span>Код</span><span></span></div>
+        ${rows.map(r => `<div class="wb-lgrow" style="${g}"><span class="wb-wu-notch" style="background:${this._lnotchC('amber')}"></span>${this._client(r.name, r.phone, r.gender)}<div>${this._ordItems(r)}</div>${this._ordAddr(r)}${this._lstatusC('Ожидает получения', 'amber')}<span class="wb-ord-mono" style="font-size:14px;font-weight:600;color:#35353b">${this._fmtCode(r.code)}</span><span class="wb-pk-act"><button class="wb-b wb-b-primary sm" onclick="WB._pickupCode('${r.code}')">Получить</button><button class="wb-b wb-b-neutral sm" onclick="WB._toast()">Найти ПВЗ</button></span></div>`).join('') || `<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">Нет аккаунтов для получения</div></div>`}
+      </div>`;
+    } else {
+      const g = 'display:grid;grid-template-columns:3px 220px 130px 1fr 230px;gap:16px;align-items:center;padding:12px 20px 12px 0';
+      body = `<div class="wb-lcard wb-sys" style="min-width:840px">
+        <div class="wb-lcard-head" style="${g}"><span></span><span>Клиент</span><span>Товары</span><span>Адрес</span><span>Статус</span></div>
+        ${rows.map(r => `<div class="wb-lgrow" style="${g}"><span class="wb-wu-notch" style="background:${this._lnotchC(r.dstatus.c)}"></span>${this._client(r.name, r.phone, r.gender)}<div>${this._ordItems(r)}</div>${this._ordAddr(r)}${this._lstatusC(r.dstatus.t, r.dstatus.c)}</div>`).join('') || `<div class="wb-empty"><div class="wb-empty-title" style="color:#54545c">Нет отправлений</div></div>`}
+      </div>`;
+    }
+    pane.innerHTML = `<div class="wb-lbar wb-sys">
+        <span class="wb-subtabs"><button class="wb-subtab ${sub === 'receive' ? 'active' : ''}" onclick="WB._pkSubSet('receive')">Получение</button><button class="wb-subtab ${sub === 'delivery' ? 'active' : ''}" onclick="WB._pkSubSet('delivery')">Доставка</button></span>
+        <span style="flex:1"></span>
+        ${this._cityDd(cities)}
+        ${sub === 'receive' ? '<button class="wb-b wb-b-neutral" onclick="WB._pickupExport()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Выгрузить получение</button>' : ''}
+      </div>
+      <div class="wb-sys" style="margin-top:14px">${body}</div>`;
+  },
+  _pickupExport() {
+    const s = this._srv(); if (!s) return;
+    const city = this._pkCity || 'all';
+    const rows = this._pkRows(s).filter(r => r.tab === 'receive' && (city === 'all' || r.city === city));
+    if (!rows.length) { if (window.Shell && Shell.toast) Shell.toast('Нет аккаунтов для выгрузки'); return; }
+    const trs = rows.map(r => `<tr><td>${this._esc(r.phone)}</td><td>${this._esc(r.name)}</td><td>${r.items.map(i => i.art).join(', ')}</td><td>${this._esc(r.address.full)}</td><td>${this._fmtCode(r.code)}</td><td><img src="${this._qrDataUri(r.code)}" width="84" height="84"/></td></tr>`).join('');
+    const html = `<html><head><meta charset="utf-8"></head><body><table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:sans-serif;font-size:13px"><thead><tr style="background:#f0f0f3"><th>Номер</th><th>Имя</th><th>Товары</th><th>Адрес</th><th>Код получения</th><th>QR-Код</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `poluchenie_${city === 'all' ? 'все_города' : city}.xls`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+    if (window.Shell && Shell.toast) Shell.toast(`Выгружено: ${rows.length} ${this._plural(rows.length, 'аккаунт', 'аккаунта', 'аккаунтов')}`);
   },
 
   // ═══ 5.6 ОТЗЫВЫ ═══
@@ -815,9 +856,10 @@ var WB = {
       <div style="display:flex;gap:10px"><div class="wb-field" style="flex:1"><label>Дата</label><input class="wb-input" type="date"></div><div class="wb-field" style="flex:1"><label>С</label><input class="wb-input" type="time"></div><div class="wb-field" style="flex:1"><label>До</label><input class="wb-input" type="time"></div></div>
       <p style="color:var(--text-dim);font-size:12px">После загрузки здесь появится таблица разобранных строк с полами, адресами и товарами.</p>`, 1080);
   },
-  _pickupCode() {
+  _pickupCode(code) {
+    code = code || '340193';
     this.openModal(`<div class="wb-modal-h"><h3>Код получения</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
-      <div style="text-align:center;padding:10px"><div style="width:180px;height:180px;margin:0 auto 14px;background:repeating-linear-gradient(45deg,var(--text),var(--text) 6px,var(--surface) 6px,var(--surface) 12px);border-radius:12px"></div><div class="wb-mono" style="font-size:30px;font-weight:800;letter-spacing:5px;color:var(--text)">4821</div><div style="color:var(--text-dim);font-size:12px;margin-top:6px">Назовите код на ПВЗ</div></div>`);
+      <div style="text-align:center;padding:6px"><img src="${this._qrDataUri(code)}" style="width:180px;height:180px;margin:0 auto 14px;border-radius:12px;border:1px solid var(--border)"><div class="wb-mono" style="font-size:30px;font-weight:800;letter-spacing:5px;color:var(--text)">${this._fmtCode(code)}</div><div style="color:var(--text-dim);font-size:12px;margin-top:6px">Назовите код или покажите QR на ПВЗ</div></div>`);
   },
   _composer() {
     this.openModal(`<div class="wb-modal-h"><h3>Новый отзыв</h3><button class="wb-modal-close" onclick="WB.closeModal()">×</button></div>
@@ -880,6 +922,20 @@ var WB = {
   },
   _lstatus(status) { return `<span class="wb-lstatus ${this._statusColor(status)}">${this._esc(status)}</span>`; },
   _lnotch(status) { return { green: '#4fae83', blue: '#7d9dcf', amber: '#d0a24a', grey: '#b4b4bb', red: '#dd8880' }[this._statusColor(status)]; },
+  _lstatusC(text, c) { return `<span class="wb-lstatus ${c}">${this._esc(text)}</span>`; },
+  _lnotchC(c) { return { green: '#4fae83', blue: '#7d9dcf', amber: '#d0a24a', grey: '#b4b4bb', red: '#dd8880' }[c] || '#b4b4bb'; },
+  _fmtCode(c) { c = String(c); return c.slice(0, 3) + ' ' + c.slice(3); },
+  // QR-плейсхолдер: детерминированный узор из кода (реальный QR — с бэкендом)
+  _qrDataUri(code) {
+    const n = 21, cell = 4, sz = n * cell;
+    let seed = 5381; for (const ch of String(code)) seed = ((seed * 33) ^ ch.charCodeAt(0)) >>> 0;
+    const bit = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed >>> 17) & 1; };
+    let r = '';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const corner = (x < 8 && y < 8) || (x > n - 9 && y < 8) || (x < 8 && y > n - 9); if (!corner && bit()) r += `<rect x="${x * cell}" y="${y * cell}" width="${cell}" height="${cell}"/>`; }
+    const f = (ox, oy) => `<rect x="${ox}" y="${oy}" width="${7 * cell}" height="${7 * cell}" fill="none" stroke="#000" stroke-width="${cell}"/><rect x="${ox + 2 * cell}" y="${oy + 2 * cell}" width="${3 * cell}" height="${3 * cell}"/>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><rect width="${sz}" height="${sz}" fill="#fff"/><g fill="#000">${r}</g>${f(0, 0)}${f((n - 7) * cell, 0)}${f(0, (n - 7) * cell)}</svg>`;
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  },
   _lastLogin(l) {
     if (!l) return '<span class="wb-ac-dash">—</span>';
     if (l.d === 0) return 'Сегодня в ' + (l.t || '—');
