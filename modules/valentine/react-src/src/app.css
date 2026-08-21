@@ -45,8 +45,8 @@
   --vl-e:cubic-bezier(.4,.12,.2,1);
   --vl-e-io:cubic-bezier(.55,.03,.22,1);
 
-  --vl-t-xs:210ms; --vl-t-s:335ms; --vl-t-m:495ms;
-  --vl-t-back:575ms; --vl-t-l:625ms; --vl-t-xl:735ms;
+  --vl-t-xs:190ms; --vl-t-s:300ms; --vl-t-m:445ms;
+  --vl-t-back:520ms; --vl-t-l:560ms; --vl-t-xl:660ms;
 
   --vl-ui:'Manrope',system-ui,-apple-system,sans-serif;
   --vl-hand:'Caveat','Segoe Script',cursive;
@@ -59,7 +59,13 @@
     var(--vl-paper);
 }
 #vl-root *{box-sizing:border-box}
-#vl-root button{font-family:inherit;color:inherit}
+/* Без color:inherit — селектор с id перебивал бы по специфичности любой
+   класс кнопки, и белый текст на рубиновой кнопке становился тёмным. */
+#vl-root button{font-family:inherit}
+
+/* Фоновые сердца — под содержимым, кликам не мешают */
+.vl-hearts{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+#vl-root > .vl-layer{z-index:1}
 #vl-root :focus-visible{outline:2.5px solid var(--vl-rose);outline-offset:3px;border-radius:8px}
 
 /* Мягкая деградация движения. Классом, а не media-query: на системах с
@@ -67,10 +73,13 @@
    и глухое обнуление превратило бы весь модуль в набор скачков. */
 #vl-root.vl-reduce *{animation-duration:1ms !important;transition-duration:140ms !important}
 
+/* Смена экрана идёт по очереди: старый слой сначала полностью уходит и
+   только потом появляется новый — иначе два экрана видны одновременно и
+   накладываются друг на друга. */
 .vl-layer{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
-.vl-layer.vl-out{opacity:0;transform:translateY(10px) scale(.994);pointer-events:none;
+.vl-layer.vl-out{opacity:0;transform:translateY(8px) scale(.995);pointer-events:none;
   transition:opacity var(--vl-t-s) var(--vl-e),transform var(--vl-t-s) var(--vl-e)}
-.vl-layer.vl-in{opacity:0;transform:translateY(14px) scale(.99)}
+.vl-layer.vl-in{opacity:0;transform:translateY(12px) scale(.992)}
 .vl-layer.vl-settle{opacity:1;transform:none;
   transition:opacity var(--vl-t-l) var(--vl-e),transform var(--vl-t-l) var(--vl-e)}
 
@@ -89,9 +98,15 @@
 /* ── Вкладки: индикатор перетекает ── */
 .vl-tabs{margin:0 30px 20px;position:relative;display:inline-flex;align-self:flex-start;padding:4px;
   background:var(--vl-paper-deep);border-radius:999px;flex:none}
+/* left:0 + translateX(offsetLeft): offsetLeft уже отсчитывается от .vl-tabs
+   (у неё position:relative), поэтому padding вычитать НЕ нужно — иначе
+   капсула уезжает на 4px влево и текст перестаёт стоять по центру. */
 .vl-tabpill{position:absolute;top:4px;left:0;height:calc(100% - 8px);border-radius:999px;background:var(--vl-card);
   box-shadow:var(--vl-rest);z-index:0;
   transition:transform var(--vl-t-l) var(--vl-e),width var(--vl-t-l) var(--vl-e)}
+/* Первичная установка капсулы — без анимации, иначе при возврате с другого
+   экрана она едет с левого края, хотя вкладку никто не переключал. */
+.vl-tabpill.vl-instant{transition:none}
 .vl-tab{position:relative;z-index:1;border:0;background:none;font-size:14px;font-weight:600;color:var(--vl-ink-soft);
   padding:9px 18px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;
   transition:color var(--vl-t-m) var(--vl-e)}
@@ -110,7 +125,7 @@
 .vl-pane::-webkit-scrollbar-thumb{background:var(--vl-blush);border-radius:9px}
 
 /* ══ Получатели: карточки на ПК, строки на телефоне ══ */
-.vl-people{padding:0 30px 30px;display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+.vl-people{padding:14px 30px 34px;display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
 .vl-person{position:relative;border:0;background:none;padding:0;cursor:pointer}
 .vl-person::before,.vl-person::after{content:'';position:absolute;inset:0;background:var(--vl-card);border-radius:22px;
   box-shadow:var(--vl-flat);opacity:0;transform:rotate(0) scale(.94);
@@ -145,12 +160,15 @@
 
 /* ══ Конструктор ══ */
 .vl-compose{flex:1;min-height:0;display:grid;grid-template-columns:1fr 372px;gap:26px;padding:0 30px 28px}
-.vl-pickwrap{background:var(--vl-card);border-radius:26px;box-shadow:var(--vl-rest);padding:22px 8px 22px 22px;
+.vl-pickwrap{background:var(--vl-card);border-radius:26px;box-shadow:var(--vl-rest);padding:22px 8px 6px 22px;
   display:flex;flex-direction:column;min-height:0}
 .vl-pickwrap .vl-ttl{font-size:15.5px;font-weight:700}
-.vl-pickwrap .vl-hint{font-size:13px;color:var(--vl-ink-faint);margin-top:2px;margin-bottom:14px}
-.vl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:18px;
-  overflow-y:auto;overflow-x:hidden;padding:12px 16px 16px 6px;min-height:0}
+.vl-pickwrap .vl-hint{font-size:13px;color:var(--vl-ink-faint);margin-top:2px;margin-bottom:4px}
+/* Скролл-контейнер обрезает всё, что вылезает за его границы, а overflow-x
+   нельзя оставить visible при overflow-y:auto. Поэтому запас под тень
+   приподнятой плитки закладывается padding-ом самой сетки. */
+.vl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:20px;
+  overflow-y:auto;overflow-x:hidden;padding:16px 22px 30px 10px;min-height:0}
 .vl-grid::-webkit-scrollbar{width:8px}
 .vl-grid::-webkit-scrollbar-thumb{background:var(--vl-blush);border-radius:9px}
 
@@ -162,7 +180,15 @@
 .vl-tile .vl-face{position:relative;z-index:1;height:100%;display:grid;place-items:center;padding:11px;
   background:var(--vl-card);border-radius:18px;box-shadow:var(--vl-rest);overflow:hidden;
   transition:transform var(--vl-t-back) var(--vl-e),box-shadow var(--vl-t-back) var(--vl-e)}
-.vl-tile img{width:100%;height:100%;object-fit:contain;min-height:0;pointer-events:none}
+.vl-tile img{width:100%;height:100%;object-fit:contain;min-height:0;pointer-events:none;
+  opacity:0;transition:opacity var(--vl-t-m) var(--vl-e)}
+.vl-tile img.vl-ready{opacity:1}
+/* Мерцание показываем ТОЛЬКО пока картинка грузится. Если она уже в кэше,
+   скелетон не появляется вовсе — иначе каждое открытие конструктора
+   моргало бы лишним кадром. */
+.vl-tile .vl-face.vl-loading{background:linear-gradient(90deg,
+  rgba(221,131,149,.09) 25%,rgba(221,131,149,.19) 37%,rgba(221,131,149,.09) 63%);
+  background-size:400% 100%;animation:vl-shimmer 1.5s ease infinite}
 .vl-tile:hover::before,.vl-tile:focus-visible::before{opacity:1;transform:rotate(-7.5deg) translate(-3px,4px) scale(.97);transition-duration:var(--vl-t-m)}
 .vl-tile:hover::after,.vl-tile:focus-visible::after{opacity:1;transform:rotate(5.5deg) translate(3px,3px) scale(.975);transition-duration:var(--vl-t-m)}
 .vl-tile:hover .vl-face,.vl-tile:focus-visible .vl-face{transform:rotate(-2deg) translateY(-7px);box-shadow:var(--vl-lift);transition-duration:var(--vl-t-m)}
@@ -185,18 +211,30 @@
   display:grid;place-items:center}
 .vl-await .vl-ic svg{width:22px;height:22px}
 @keyframes vl-breathe{0%,100%{opacity:.72}50%{opacity:1}}
-.vl-write{width:100%;border:0;border-bottom:2px dashed var(--vl-blush);background:none;text-align:center;
+/* Строка подписи. Без рамок и без смены цвета границы на фокусе: состояние
+   показывает не обводка, а подсказка «Пиши» под строкой. Пунктир на 10%
+   короче с каждой стороны — не упирается в края карточки. */
+.vl-writewrap{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;flex:none}
+.vl-write{width:80%;border:0;border-bottom:2px dashed var(--vl-blush);background:none;text-align:center;
   font-family:var(--vl-hand);font-size:clamp(24px,2.4vw,31px);font-weight:600;color:var(--vl-ink);padding:4px 0 7px;
-  outline:none;transition:border-color var(--vl-t-m) var(--vl-e)}
-.vl-write:focus{border-bottom-color:var(--vl-rose)}
+  outline:none;caret-color:transparent}
 .vl-write::placeholder{color:#DCC7CC}
+/* Системную каретку убираем — вместо мигающей палки своя подсказка */
+.vl-write:focus-visible{outline:none}
+.vl-nudge{font-family:var(--vl-hand);font-size:19px;color:var(--vl-rose);height:20px;line-height:1;
+  opacity:0;transform:translateY(-3px);
+  transition:opacity var(--vl-t-m) var(--vl-e),transform var(--vl-t-m) var(--vl-e)}
+.vl-nudge.vl-on{opacity:1;transform:none;animation:vl-nudge 1.5s ease-in-out infinite}
+@keyframes vl-nudge{0%,100%{opacity:.45;transform:scale(.97)}50%{opacity:1;transform:scale(1.04)}}
 .vl-nav{display:flex;gap:10px;flex:none}
 .vl-btn{border:0;font-size:15px;font-weight:700;padding:14px 24px;border-radius:16px;cursor:pointer;
   transition:transform var(--vl-t-m) var(--vl-e),box-shadow var(--vl-t-m) var(--vl-e),
     background var(--vl-t-xs) var(--vl-e),color var(--vl-t-xs) var(--vl-e)}
 .vl-btn.vl-ghost{background:var(--vl-paper-deep);color:var(--vl-ink-soft)}
 .vl-btn.vl-ghost:hover{background:var(--vl-blush-soft)}
-.vl-btn.vl-main{flex:1;background:var(--vl-ruby);color:#fff;box-shadow:0 14px 30px -16px rgba(196,72,95,.95)}
+.vl-btn.vl-main{flex:1;background:var(--vl-ruby);color:#fff;display:inline-flex;align-items:center;
+  justify-content:center;gap:9px;box-shadow:0 14px 30px -16px rgba(196,72,95,.95)}
+.vl-btn.vl-main svg{width:18px;height:18px;flex:none}
 .vl-btn.vl-main:hover:not(:disabled){transform:translateY(-3px);box-shadow:0 22px 38px -16px rgba(196,72,95,.95)}
 .vl-btn.vl-main:disabled{background:var(--vl-blush);color:#fff;box-shadow:none;cursor:not-allowed}
 .vl-btn.vl-trash{display:inline-flex;align-items:center;gap:9px;padding:11px 20px;font-size:14px;background:none;
@@ -205,7 +243,9 @@
 .vl-btn.vl-trash:hover{background:rgba(196,72,95,.09);color:var(--vl-ruby)}
 
 /* ══ Архив: вертикальные карточки 10:16 ══ */
-.vl-album{padding:6px 30px 30px;display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:24px}
+/* Верхний отступ — запас под тень приподнятой карточки: .vl-pane скроллится
+   и обрезал бы её у самого края. */
+.vl-album{padding:18px 30px 34px;display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:26px}
 .vl-mini{position:relative;aspect-ratio:10/16;border:0;background:none;padding:0;cursor:pointer;
   transition:opacity var(--vl-t-m) var(--vl-e),transform var(--vl-t-m) var(--vl-e)}
 .vl-mini::before,.vl-mini::after{content:'';position:absolute;inset:0;background:var(--vl-card);border-radius:22px;
@@ -245,13 +285,18 @@
   gap:18px;padding:8px 30px 26px}
 .vl-deck{position:relative;width:min(330px,72vw);height:min(430px,58vh);flex:none}
 .vl-slide{position:absolute;inset:0;cursor:pointer;
-  transition:transform var(--vl-t-l) var(--vl-e),opacity var(--vl-t-l) var(--vl-e)}
+  transition:transform var(--vl-t-l) var(--vl-e),opacity var(--vl-t-l) var(--vl-e),
+             filter var(--vl-t-l) var(--vl-e)}
 .vl-slide .vl-card{height:100%}
-.vl-slide[data-off="0"]{transform:none;opacity:1;z-index:5;cursor:default}
-.vl-slide[data-off="-1"]{transform:translateX(-62%) scale(.8) rotate(-5deg);opacity:.42;z-index:3}
-.vl-slide[data-off="1"]{transform:translateX(62%) scale(.8) rotate(5deg);opacity:.42;z-index:3}
-.vl-slide[data-off="-2"]{transform:translateX(-82%) scale(.68) rotate(-8deg);opacity:0;z-index:1;pointer-events:none}
-.vl-slide[data-off="2"]{transform:translateX(82%) scale(.68) rotate(8deg);opacity:0;z-index:1;pointer-events:none}
+/* Соседи НЕПРОЗРАЧНЫЕ и приглушены яркостью, а не opacity: полупрозрачная
+   карточка просвечивала центральную во время движения, и это читалось как
+   наложение двух картинок. Непрозрачные листы, уходящие за центральный,
+   читаются как настоящая колода. */
+.vl-slide[data-off="0"]{transform:none;opacity:1;filter:none;z-index:5;cursor:default}
+.vl-slide[data-off="-1"]{transform:translateX(-70%) scale(.78) rotate(-5deg);opacity:1;filter:brightness(.93) saturate(.9);z-index:3}
+.vl-slide[data-off="1"]{transform:translateX(70%) scale(.78) rotate(5deg);opacity:1;filter:brightness(.93) saturate(.9);z-index:3}
+.vl-slide[data-off="-2"]{transform:translateX(-88%) scale(.66) rotate(-8deg);opacity:0;filter:brightness(.9);z-index:1;pointer-events:none}
+.vl-slide[data-off="2"]{transform:translateX(88%) scale(.66) rotate(8deg);opacity:0;filter:brightness(.9);z-index:1;pointer-events:none}
 .vl-slide[data-off="far"]{opacity:0;transform:scale(.6);pointer-events:none;z-index:0}
 /* Старт раскрытия: соседи спрятаны ПОД основной карточкой */
 .vl-deck.vl-folded .vl-slide:not([data-off="0"]){transform:none !important;opacity:0 !important}

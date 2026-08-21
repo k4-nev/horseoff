@@ -1,6 +1,6 @@
 /* Токены времени продублированы из app.css: если задержки хореографии
    разъедутся с CSS, слои начнут исчезать раньше, чем закончится анимация. */
-export const T = { xs: 210, s: 335, m: 495, back: 575, l: 625, xl: 735 };
+export const T = { xs: 190, s: 300, m: 445, back: 520, l: 560, xl: 660 };
 
 export const HEART = (
   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -12,6 +12,15 @@ export const TRASH = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <polyline points="3 6 5 6 21 6" />
     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
+/* Бумажный самолётик со следом — «отправить письмо» без эмодзи */
+export const SEND = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21.2 3.1 2.9 10.4c-.6.2-.6 1 0 1.2l6.4 2.2 2.2 6.4c.2.6 1 .6 1.2 0L21.2 3.1z" />
+    <path d="M21.2 3.1 9.3 13.8" />
   </svg>
 );
 

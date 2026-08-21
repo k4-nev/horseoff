@@ -1,13 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
-import { forWhom, HEART } from './icons.jsx';
+import { forWhom, HEART, SEND } from './icons.jsx';
 import { sendValentine } from './api.js';
 
 const EMPTY = () => Array.from({ length: 5 }, () => ({ sticker: null, text: '' }));
+
+/* Плитка с картинкой. Мерцание показываем только пока идёт загрузка, и
+   проверяем img.complete в ref-колбэке: если картинка уже в кэше, браузер
+   не выстрелит onLoad, и скелетон завис бы навсегда; а показывать его на
+   кадр для уже готовой картинки — лишний скачок в интерфейсе. */
+function Tile({ src, selected, onPick }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <button
+      className={'vl-tile' + (selected ? ' vl-sel' : '')}
+      aria-label="Выбрать картинку"
+      aria-pressed={selected}
+      onClick={onPick}
+    >
+      <span className={'vl-face' + (ready ? '' : ' vl-loading')}>
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          className={ready ? 'vl-ready' : ''}
+          ref={(el) => { if (el && el.complete) setReady(true); }}
+          onLoad={() => setReady(true)}
+          onError={() => setReady(true)}
+        />
+      </span>
+    </button>
+  );
+}
 
 export default function Compose({ contact, stickers, onDone, onCancel, toast }) {
   const [pages, setPages] = useState(EMPTY);
   const [page, setPage] = useState(0);
   const [sending, setSending] = useState(false);
+  const [writing, setWriting] = useState(false); // строка подписи в фокусе
   const inputRef = useRef(null);
 
   useEffect(() => { setPages(EMPTY()); setPage(0); }, [contact]);
@@ -49,18 +78,15 @@ export default function Compose({ contact, stickers, onDone, onCancel, toast }) 
           <div className="vl-hint">Страница {page + 1} из 5</div>
           <div className="vl-grid">
             {stickers.map((src) => (
-              <button
+              <Tile
                 key={src}
-                className={'vl-tile' + (cur.sticker === src ? ' vl-sel' : '')}
-                aria-label="Выбрать картинку"
-                aria-pressed={cur.sticker === src}
-                onClick={() => {
+                src={src}
+                selected={cur.sticker === src}
+                onPick={() => {
                   patch({ sticker: src });
                   if (!cur.text && inputRef.current) inputRef.current.focus();
                 }}
-              >
-                <span className="vl-face"><img src={src} loading="lazy" alt="" /></span>
-              </button>
+              />
             ))}
           </div>
         </div>
@@ -87,22 +113,32 @@ export default function Compose({ contact, stickers, onDone, onCancel, toast }) 
                   </span>
                 )}
             </span>
-            {/* Подпись пишется прямо на карточке, а не в форме под ней */}
-            <input
-              ref={inputRef}
-              className="vl-write"
-              value={cur.text}
-              maxLength={60}
-              placeholder="напиши продолжение…"
-              onChange={(e) => patch({ text: e.target.value })}
-              onKeyDown={(e) => { if (e.key === 'Enter' && ready && !sending) advance(); }}
-            />
+            {/* Подпись пишется прямо на карточке. Каретка скрыта: вместо
+                мигающей палки под строкой пульсирует «Пиши», и подсказка
+                гаснет, как только появился текст. */}
+            <div className="vl-writewrap">
+              <input
+                ref={inputRef}
+                className="vl-write"
+                value={cur.text}
+                maxLength={60}
+                placeholder="напиши продолжение…"
+                onFocus={() => setWriting(true)}
+                onBlur={() => setWriting(false)}
+                onChange={(e) => patch({ text: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter' && ready && !sending) advance(); }}
+              />
+              <span className={'vl-nudge' + (writing && !cur.text ? ' vl-on' : '')} aria-hidden="true">
+                Пиши
+              </span>
+            </div>
           </div>
 
           <div className="vl-nav">
             {page > 0 && <button className="vl-btn vl-ghost" onClick={() => setPage(page - 1)}>Назад</button>}
             <button className="vl-btn vl-main" disabled={!ready || sending} onClick={advance}>
-              {sending ? 'Отправляю…' : page === 4 ? 'Отправить 💌' : 'Далее'}
+              {page === 4 && !sending && SEND}
+              {sending ? 'Отправляю…' : page === 4 ? 'Отправить' : 'Далее'}
             </button>
           </div>
         </div>

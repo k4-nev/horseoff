@@ -38,13 +38,28 @@ check('модуль светлый, а не тёмный от оболочки',
 const pb = await p.locator('.vl-person').first().boundingBox();
 const pb2 = await p.locator('.vl-person').nth(1).boundingBox();
 check('контакты карточками в ряд', pb.y === pb2.y && pb.width < 640, Math.round(pb.width) + 'x' + Math.round(pb.height));
+check('фоновые сердца рисуются', await p.locator('canvas.vl-hearts').count() === 1);
 await p.screenshot({ path: 'mod-1-people.png' });
+
+// Капсула вкладок: её левый край должен совпасть с левым краем активной кнопки
+const pill = await p.locator('.vl-tabpill').boundingBox();
+const tabA = await p.locator('.vl-tab').first().boundingBox();
+check('капсула выровнена по вкладке', Math.abs(pill.x - tabA.x) < 1.5 && Math.abs(pill.width - tabA.width) < 1.5,
+  'капсула x=' + pill.x.toFixed(1) + ' w=' + pill.width.toFixed(1) + ', вкладка x=' + tabA.x.toFixed(1) + ' w=' + tabA.width.toFixed(1));
 
 // Архив
 await p.click('.vl-tab:has-text("Признания")');
 await p.waitForTimeout(800);
 const mb = await p.locator('.vl-mini').first().boundingBox();
 check('карточки архива 10:16', Math.abs(mb.width / mb.height - 0.625) < 0.01, (mb.width / mb.height).toFixed(3));
+
+/* Тень приподнятой карточки не должна упираться в край скролл-контейнера:
+   проверяем, что сверху есть запас, иначе её обрежет. */
+const albumPadTop = await p.evaluate(() => {
+  const a = document.querySelector('.vl-album');
+  return parseFloat(getComputedStyle(a).paddingTop);
+});
+check('есть запас под тень в архиве', albumPadTop >= 14, albumPadTop + 'px');
 check('непрочитанные помечены', await p.locator('.vl-ribbon').count() === 2);
 await p.screenshot({ path: 'mod-2-album.png' });
 
@@ -97,6 +112,26 @@ check('имя склонилось', (await p.locator('.vl-head h1').innerText()
   await p.locator('.vl-head h1').innerText());
 await p.screenshot({ path: 'mod-4-compose.png' });
 
+// Текст на рубиновой кнопке должен быть белым (ловушка специфичности с id)
+await p.locator('.vl-tile').first().click();
+await p.fill('.vl-write', 'проверка');
+await p.waitForTimeout(250);
+const btnColor = await p.evaluate(() => getComputedStyle(document.querySelector('.vl-btn.vl-main')).color);
+check('текст на кнопке белый', btnColor === 'rgb(255, 255, 255)', btnColor);
+check('в кнопке нет эмодзи', !(await p.locator('.vl-btn.vl-main').innerText()).match(/[\u{1F300}-\u{1FAFF}]/u));
+
+// Подсказка «Пиши» пульсирует только при фокусе и пустом поле
+await p.fill('.vl-write', '');
+await p.locator('.vl-write').focus();
+await p.waitForTimeout(300);
+check('подсказка «Пиши» появилась', await p.locator('.vl-nudge.vl-on').count() === 1);
+await p.fill('.vl-write', 'текст');
+await p.waitForTimeout(300);
+check('подсказка исчезла, когда есть текст', await p.locator('.vl-nudge.vl-on').count() === 0);
+const caret = await p.evaluate(() => getComputedStyle(document.querySelector('.vl-write')).caretColor);
+check('системная каретка скрыта', caret === 'rgba(0, 0, 0, 0)' || caret === 'transparent', caret);
+await p.fill('.vl-write', '');
+
 for (let i = 0; i < 5; i++) {
   await p.locator('.vl-tile').nth(i).click();
   await p.fill('.vl-write', 'страница номер ' + (i + 1));
@@ -111,6 +146,54 @@ check('у всех страниц есть картинка и текст',
   sent && sent.pages.every((x) => x.sticker && x.text.trim()));
 check('вернулись в список после отправки', await p.locator('.vl-people').count() === 1);
 await p.screenshot({ path: 'mod-5-sent.png' });
+
+/* Переход между экранами должен идти по очереди: в любой момент времени
+   на экране виден ровно один слой, а не два наложенных. */
+await p.click('.vl-tab:has-text("Создать")');
+await p.waitForTimeout(700);
+const overlap = await p.evaluate(async () => {
+  let maxLayers = 0;
+  const t0 = performance.now();
+  document.querySelector('.vl-person').click();
+  await new Promise((res) => {
+    const tick = () => {
+      const visible = [...document.querySelectorAll('.vl-layer')]
+        .filter((el) => parseFloat(getComputedStyle(el).opacity) > 0.06).length;
+      maxLayers = Math.max(maxLayers, visible);
+      if (performance.now() - t0 < 900) requestAnimationFrame(tick); else res();
+    };
+    requestAnimationFrame(tick);
+  });
+  return maxLayers;
+});
+check('экраны не накладываются при переходе', overlap <= 1, 'одновременно видимых слоёв: ' + overlap);
+
+// Возврат из просмотра не должен анимировать капсулу вкладок
+await p.click('.vl-back');
+await p.waitForTimeout(800);
+await p.click('.vl-tab:has-text("Признания")');
+await p.waitForTimeout(800);
+await p.locator('.vl-mini .vl-face').first().click();
+await p.waitForTimeout(1200);
+const pillTravel = await p.evaluate(async () => {
+  document.querySelector('.vl-back').click();
+  const seen = new Set();
+  const t0 = performance.now();
+  await new Promise((res) => {
+    const tick = () => {
+      // Именно inline-трансформ капсулы: экранные координаты сдвигает
+      // ещё и анимация всего слоя, и она бы дала ложное срабатывание
+      const el = document.querySelector('.vl-tabpill');
+      if (el) seen.add(el.style.transform);
+      if (performance.now() - t0 < 900) requestAnimationFrame(tick); else res();
+    };
+    requestAnimationFrame(tick);
+  });
+  return seen.size;
+});
+check('капсула не едет при возврате из просмотра', pillTravel <= 2,
+  'различных позиций капсулы: ' + pillTravel);
+await p.waitForTimeout(400);
 
 console.log('\n── Телефон ──');
 const m = await open(400, 850);
@@ -151,7 +234,7 @@ const afterDur = await r.evaluate(() => getComputedStyle(document.querySelector(
 const stillReduced = await r.evaluate(() => document.querySelector('#vl-root').classList.contains('vl-reduce'));
 // transition-duration возвращает по значению на каждое анимируемое свойство
 check('после включения движение полноценное',
-  afterDur.split(',').every((d) => d.trim() === '0.575s') && !stillReduced,
+  afterDur.split(',').every((d) => d.trim() === '0.52s') && !stillReduced,
   'длительность ' + afterDur + ', класс vl-reduce остался: ' + stillReduced);
 await r.screenshot({ path: 'mod-7-reduced.png' });
 

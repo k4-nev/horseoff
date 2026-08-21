@@ -6,6 +6,7 @@ import People from './People.jsx';
 import Album from './Album.jsx';
 import Compose from './Compose.jsx';
 import Reveal from './Reveal.jsx';
+import Hearts from './Hearts.jsx';
 import './app.css';
 
 export default function App({ registerWSHandler }) {
@@ -23,6 +24,30 @@ export default function App({ registerWSHandler }) {
   const tabsRef = useRef(null);
   const pillRef = useRef(null);
   const toastTimer = useRef(null);
+  const pillPlaced = useRef(false);   // капсула ещё ни разу не позиционировалась
+  const goTimer = useRef(null);
+
+  /* Фаза перехода между экранами: 'out' — старый уходит, 'in' — новый
+     появляется. Экраны не накладываются: новый монтируется только после
+     того, как старый полностью ушёл. Исключение — просмотр признания:
+     там карточка летит из своего места в списке, поэтому слои живут
+     одновременно, а альбом гасится отдельно (класс vl-dim). */
+  const [phase, setPhase] = useState('idle');
+
+  function go(next, opts = {}) {
+    if (opts.instant) { setView(next); setPhase('idle'); return; }
+    clearTimeout(goTimer.current);
+    setPhase('out');
+    goTimer.current = setTimeout(() => {
+      setView(next);
+      setPhase('in');
+      requestAnimationFrame(() => requestAnimationFrame(() => setPhase('idle')));
+    }, T.s);
+  }
+
+  const layerCls = 'vl-layer ' + (phase === 'out' ? 'vl-out' : phase === 'in' ? 'vl-in' : 'vl-settle');
+
+  useEffect(() => () => { clearTimeout(goTimer.current); clearTimeout(toastTimer.current); }, []);
 
   const toast = useCallback((msg, action) => {
     setToastMsg({ msg, action });
@@ -45,7 +70,9 @@ export default function App({ registerWSHandler }) {
     registerWSHandler((data) => { if (data.type === 'valentine') reloadReceived(); });
   }, [registerWSHandler, reloadReceived]);
 
-  // Индикатор вкладок перетекает между кнопками
+  /* Индикатор вкладок перетекает между кнопками. Первую установку делаем
+     без анимации: при возврате с другого экрана вкладку никто не переключал,
+     и капсула не должна приезжать с левого края. */
   useLayoutEffect(() => {
     if (view !== 'list') return;
     const wrap = tabsRef.current;
@@ -53,9 +80,25 @@ export default function App({ registerWSHandler }) {
     if (!wrap || !pill) return;
     const active = wrap.querySelector('.vl-tab.vl-on');
     if (!active) return;
-    pill.style.width = active.offsetWidth + 'px';
-    pill.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+
+    const place = () => {
+      pill.style.width = active.offsetWidth + 'px';
+      pill.style.transform = `translateX(${active.offsetLeft}px)`;
+    };
+
+    if (!pillPlaced.current) {
+      pill.classList.add('vl-instant');
+      place();
+      // Снимаем блокировку через кадр, иначе следующее переключение тоже не анимируется
+      requestAnimationFrame(() => requestAnimationFrame(() => pill.classList.remove('vl-instant')));
+      pillPlaced.current = true;
+    } else {
+      place();
+    }
   }, [tab, view, received]);
+
+  // Уходя со списка, забываем позицию — при возврате её снова ставим без анимации
+  useEffect(() => { if (view !== 'list') pillPlaced.current = false; }, [view]);
 
   const unread = (received || []).filter((v) => !v.read).length;
 
@@ -67,8 +110,11 @@ export default function App({ registerWSHandler }) {
       markRead(v.id);
     }
     setOpened({ valentine: { ...v, read: true }, rect });
-    // Даём альбому кадр на затухание, пока карточка уже летит
-    setTimeout(() => setView('viewer'), 0);
+    /* Просмотр — единственный переход без очереди: карточка должна вылететь
+       из своего места в списке, поэтому альбом остаётся на экране и гаснет
+       под ней (класс vl-dim), а не исчезает заранее. */
+    setPhase('idle');
+    setView('viewer');
   }
 
   /* Удаление отложенное: карточка уходит из списка сразу, но на сервер
@@ -80,7 +126,7 @@ export default function App({ registerWSHandler }) {
     if (idx < 0) return;
     const backup = list[idx];
     setReceived(list.filter((v) => v.id !== id));
-    if (fromViewer) { setOpened(null); setView('list'); setTab('received'); }
+    if (fromViewer) { setOpened(null); setTab('received'); go('list'); }
 
     let undone = false;
     const commit = setTimeout(async () => {
@@ -104,8 +150,10 @@ export default function App({ registerWSHandler }) {
 
   return (
     <div id="vl-root" className={reduced ? 'vl-reduce' : ''}>
+      <Hearts paused={reduced} />
+
       {view === 'list' && (
-        <div className="vl-layer vl-settle">
+        <div className={layerCls}>
           <div className="vl-head">
             <div>
               <h1>Валентинки</h1>
@@ -135,7 +183,7 @@ export default function App({ registerWSHandler }) {
           {/* Обе панели живут одновременно — поэтому они перетекают друг в друга */}
           <div className="vl-panes">
             <div className={'vl-pane' + (tab === 'create' ? '' : ' vl-hidden')}>
-              <People contacts={contacts} onPick={(c) => { setTarget(c); setView('compose'); }} />
+              <People contacts={contacts} onPick={(c) => { setTarget(c); go('compose'); }} />
             </div>
             <div className={'vl-pane' + (tab === 'received' ? '' : ' vl-hidden')}>
               <Album
@@ -150,24 +198,24 @@ export default function App({ registerWSHandler }) {
       )}
 
       {view === 'compose' && target && (
-        <div className="vl-layer vl-settle">
+        <div className={layerCls}>
           <Compose
             contact={target}
             stickers={stickers}
             toast={toast}
-            onCancel={() => { setView('list'); setTarget(null); }}
-            onDone={() => { setView('list'); setTarget(null); setTab('create'); }}
+            onCancel={() => { go('list'); setTimeout(() => setTarget(null), T.s); }}
+            onDone={() => { setTab('create'); go('list'); setTimeout(() => setTarget(null), T.s); }}
           />
         </div>
       )}
 
       {view === 'viewer' && opened && (
-        <div className="vl-layer vl-settle">
+        <div className={layerCls}>
           <Reveal
             valentine={opened.valentine}
             originRect={opened.rect}
             reduced={reduced}
-            onClose={() => { setOpened(null); setView('list'); setTab('received'); }}
+            onClose={() => { setTab('received'); go('list'); setTimeout(() => setOpened(null), T.s); }}
             onDelete={(id) => removeValentine(id, true)}
           />
         </div>
