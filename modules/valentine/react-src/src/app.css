@@ -121,6 +121,15 @@
 .vl-pane{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;
   transition:opacity var(--vl-t-l) var(--vl-e),transform var(--vl-t-l) var(--vl-e)}
 .vl-pane.vl-hidden{opacity:0;transform:translateY(12px) scale(.985);pointer-events:none}
+/* Панель вкладки живёт в одиночку и меняется по очереди — те же фазы, что
+   и у экранов, чтобы движение читалось одинаково во всём модуле */
+.vl-pane.vl-single.vl-out{opacity:0;transform:translateY(8px) scale(.995);pointer-events:none;
+  transition:opacity var(--vl-t-s) var(--vl-e),transform var(--vl-t-s) var(--vl-e)}
+.vl-pane.vl-single.vl-in{opacity:0;transform:translateY(12px) scale(.992);transition:none}
+.vl-pane.vl-single.vl-settle{opacity:1;transform:none}
+
+/* Список уходит медленнее обычного, пока карточка летит в просмотр */
+.vl-layer.vl-slowout{transition-duration:var(--vl-t-l)}
 .vl-pane::-webkit-scrollbar{width:8px}
 .vl-pane::-webkit-scrollbar-thumb{background:var(--vl-blush);border-radius:9px}
 
@@ -153,7 +162,11 @@
 .vl-card .vl-num{position:absolute;top:18px;right:20px;font-size:12px;font-weight:700;color:var(--vl-ink-faint);
   letter-spacing:.05em;font-variant-numeric:tabular-nums}
 .vl-card .vl-art{flex:1;display:grid;place-items:center;width:100%;padding:12px 0 8px;min-height:0;overflow:hidden}
-.vl-card .vl-art img{width:100%;height:100%;object-fit:contain;min-height:0;animation:vl-artIn var(--vl-t-l) var(--vl-e) both}
+.vl-card .vl-art img{width:100%;height:100%;object-fit:contain;min-height:0}
+/* Проявление картинки — только при смене страницы в конструкторе.
+   В просмотре его быть не должно: карточка там уже существовала в списке и
+   просто перелетает в центр, а анимация появления читалась бы как моргание. */
+.vl-compose .vl-card .vl-art img{animation:vl-artIn var(--vl-t-l) var(--vl-e) both}
 @keyframes vl-artIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
 .vl-card .vl-txt{font-family:var(--vl-hand);font-size:clamp(24px,2.4vw,31px);font-weight:600;text-align:center;
   line-height:1.14;text-wrap:balance}
@@ -211,21 +224,21 @@
   display:grid;place-items:center}
 .vl-await .vl-ic svg{width:22px;height:22px}
 @keyframes vl-breathe{0%,100%{opacity:.72}50%{opacity:1}}
-/* Строка подписи. Без рамок и без смены цвета границы на фокусе: состояние
-   показывает не обводка, а подсказка «Пиши» под строкой. Пунктир на 10%
-   короче с каждой стороны — не упирается в края карточки. */
-.vl-writewrap{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;flex:none}
-.vl-write{width:80%;border:0;border-bottom:2px dashed var(--vl-blush);background:none;text-align:center;
+/* Строка подписи: ни рамки, ни подчёркивания, ни системной каретки.
+   Состояние показывает подсказка «Пиши» — она лежит внутри строки на месте
+   placeholder и пульсирует, пока поле в фокусе и пустое. */
+.vl-writewrap{position:relative;width:100%;display:flex;justify-content:center;flex:none}
+.vl-write{width:80%;border:0;background:none;text-align:center;
   font-family:var(--vl-hand);font-size:clamp(24px,2.4vw,31px);font-weight:600;color:var(--vl-ink);padding:4px 0 7px;
   outline:none;caret-color:transparent}
-.vl-write::placeholder{color:#DCC7CC}
-/* Системную каретку убираем — вместо мигающей палки своя подсказка */
-.vl-write:focus-visible{outline:none}
-.vl-nudge{font-family:var(--vl-hand);font-size:19px;color:var(--vl-rose);height:20px;line-height:1;
-  opacity:0;transform:translateY(-3px);
-  transition:opacity var(--vl-t-m) var(--vl-e),transform var(--vl-t-m) var(--vl-e)}
-.vl-nudge.vl-on{opacity:1;transform:none;animation:vl-nudge 1.5s ease-in-out infinite}
-@keyframes vl-nudge{0%,100%{opacity:.45;transform:scale(.97)}50%{opacity:1;transform:scale(1.04)}}
+/* Селектор с id обязателен: общее правило #vl-root :focus-visible содержит
+   id и по специфичности перебило бы обычный класс, вернув обводку. */
+#vl-root .vl-write:focus,
+#vl-root .vl-write:focus-visible{outline:none;box-shadow:none;border:0}
+.vl-nudge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;
+  font-family:var(--vl-hand);font-size:clamp(24px,2.4vw,31px);font-weight:600;color:#DCC7CC;padding-bottom:3px}
+.vl-nudge.vl-pulse{color:var(--vl-rose);animation:vl-nudge 1.45s ease-in-out infinite}
+@keyframes vl-nudge{0%,100%{opacity:.5;transform:scale(.98)}50%{opacity:1;transform:scale(1.05)}}
 .vl-nav{display:flex;gap:10px;flex:none}
 .vl-btn{border:0;font-size:15px;font-weight:700;padding:14px 24px;border-radius:16px;cursor:pointer;
   transition:transform var(--vl-t-m) var(--vl-e),box-shadow var(--vl-t-m) var(--vl-e),
@@ -293,10 +306,10 @@
    наложение двух картинок. Непрозрачные листы, уходящие за центральный,
    читаются как настоящая колода. */
 .vl-slide[data-off="0"]{transform:none;opacity:1;filter:none;z-index:5;cursor:default}
-.vl-slide[data-off="-1"]{transform:translateX(-70%) scale(.78) rotate(-5deg);opacity:1;filter:brightness(.93) saturate(.9);z-index:3}
-.vl-slide[data-off="1"]{transform:translateX(70%) scale(.78) rotate(5deg);opacity:1;filter:brightness(.93) saturate(.9);z-index:3}
-.vl-slide[data-off="-2"]{transform:translateX(-88%) scale(.66) rotate(-8deg);opacity:0;filter:brightness(.9);z-index:1;pointer-events:none}
-.vl-slide[data-off="2"]{transform:translateX(88%) scale(.66) rotate(8deg);opacity:0;filter:brightness(.9);z-index:1;pointer-events:none}
+.vl-slide[data-off="-1"]{transform:translateX(-70%) scale(.78) rotate(-5deg);opacity:1;filter:blur(3.5px) brightness(.94) saturate(.85);z-index:3}
+.vl-slide[data-off="1"]{transform:translateX(70%) scale(.78) rotate(5deg);opacity:1;filter:blur(3.5px) brightness(.94) saturate(.85);z-index:3}
+.vl-slide[data-off="-2"]{transform:translateX(-88%) scale(.66) rotate(-8deg);opacity:0;filter:blur(6px) brightness(.9);z-index:1;pointer-events:none}
+.vl-slide[data-off="2"]{transform:translateX(88%) scale(.66) rotate(8deg);opacity:0;filter:blur(6px) brightness(.9);z-index:1;pointer-events:none}
 .vl-slide[data-off="far"]{opacity:0;transform:scale(.6);pointer-events:none;z-index:0}
 /* Старт раскрытия: соседи спрятаны ПОД основной карточкой */
 .vl-deck.vl-folded .vl-slide:not([data-off="0"]){transform:none !important;opacity:0 !important}
@@ -326,6 +339,39 @@
 @keyframes vl-shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
 
 /* ── Тост ── */
+/* ══ Подтверждение отправки: сердце летит от тебя к получателю ══ */
+.vl-sent{position:absolute;inset:0;z-index:40;display:grid;place-items:center;pointer-events:none;
+  background:rgba(253,247,241,.72);backdrop-filter:blur(3px);
+  animation:vl-sent-bg var(--vl-t-m) var(--vl-e) both}
+@keyframes vl-sent-bg{from{opacity:0}to{opacity:1}}
+.vl-sent-inner{display:flex;flex-direction:column;align-items:center;gap:22px}
+.vl-sent-row{position:relative;display:flex;align-items:center;gap:96px;
+  transition:opacity var(--vl-t-m) var(--vl-e),transform var(--vl-t-m) var(--vl-e)}
+.vl-sent-ava{width:60px;height:60px;border-radius:50%;overflow:hidden;display:grid;place-items:center;
+  background:linear-gradient(150deg,var(--vl-blush),var(--vl-rose));color:#fff;font-weight:700;font-size:22px;
+  box-shadow:var(--vl-rest)}
+.vl-sent-ava img{width:100%;height:100%;object-fit:cover}
+.vl-sent-to{animation:vl-sent-await 1.1s ease-in-out infinite}
+@keyframes vl-sent-await{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.vl-sent-heart{position:absolute;left:60px;top:50%;width:26px;height:26px;color:var(--vl-ruby);
+  transform:translate(-50%,-50%) scale(.5);opacity:0;
+  animation:vl-sent-fly var(--vl-t-xl) var(--vl-e-io) both}
+.vl-sent-heart svg{width:100%;height:100%}
+@keyframes vl-sent-fly{
+  0%{transform:translate(-50%,-50%) scale(.4) rotate(-12deg);opacity:0}
+  18%{opacity:1}
+  55%{transform:translate(48px,-90%) scale(1.25) rotate(6deg)}
+  100%{transform:translate(96px,-50%) scale(.55) rotate(-4deg);opacity:0}
+}
+.vl-sent-label{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;color:var(--vl-ink);
+  opacity:0;transform:translateY(8px);
+  transition:opacity var(--vl-t-m) var(--vl-e),transform var(--vl-t-m) var(--vl-e)}
+.vl-sent-mark{width:19px;height:19px;color:var(--vl-ruby);display:inline-flex}
+.vl-sent-mark svg{width:100%;height:100%}
+/* Аватарки уходят — остаётся надпись */
+.vl-sent-inner.vl-done .vl-sent-row{opacity:0;transform:scale(.9)}
+.vl-sent-inner.vl-done .vl-sent-label{opacity:1;transform:none}
+
 .vl-toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,24px);opacity:0;pointer-events:none;
   background:var(--vl-ink);color:#fff;font-size:14.5px;font-weight:600;padding:13px 16px 13px 20px;border-radius:16px;
   display:flex;align-items:center;gap:14px;box-shadow:0 20px 44px -20px rgba(62,44,49,.85);z-index:60;

@@ -47,9 +47,24 @@ const tabA = await p.locator('.vl-tab').first().boundingBox();
 check('капсула выровнена по вкладке', Math.abs(pill.x - tabA.x) < 1.5 && Math.abs(pill.width - tabA.width) < 1.5,
   'капсула x=' + pill.x.toFixed(1) + ' w=' + pill.width.toFixed(1) + ', вкладка x=' + tabA.x.toFixed(1) + ' w=' + tabA.width.toFixed(1));
 
-// Архив
-await p.click('.vl-tab:has-text("Признания")');
-await p.waitForTimeout(800);
+// Переключение вкладок тоже должно идти по очереди, без наложения панелей
+const paneOverlap = await p.evaluate(async () => {
+  let maxPanes = 0;
+  const t0 = performance.now();
+  [...document.querySelectorAll('.vl-tab')].find((b) => b.textContent.includes('Признания')).click();
+  await new Promise((res) => {
+    const tick = () => {
+      const vis = [...document.querySelectorAll('.vl-pane')]
+        .filter((el) => parseFloat(getComputedStyle(el).opacity) > 0.06).length;
+      maxPanes = Math.max(maxPanes, vis);
+      if (performance.now() - t0 < 900) requestAnimationFrame(tick); else res();
+    };
+    requestAnimationFrame(tick);
+  });
+  return maxPanes;
+});
+check('панели вкладок не накладываются', paneOverlap <= 1, 'одновременно видимых панелей: ' + paneOverlap);
+await p.waitForTimeout(500);
 const mb = await p.locator('.vl-mini').first().boundingBox();
 check('карточки архива 10:16', Math.abs(mb.width / mb.height - 0.625) < 0.01, (mb.width / mb.height).toFixed(3));
 
@@ -124,12 +139,20 @@ check('в кнопке нет эмодзи', !(await p.locator('.vl-btn.vl-main'
 await p.fill('.vl-write', '');
 await p.locator('.vl-write').focus();
 await p.waitForTimeout(300);
-check('подсказка «Пиши» появилась', await p.locator('.vl-nudge.vl-on').count() === 1);
+check('подсказка «Пиши» пульсирует', await p.locator('.vl-nudge.vl-pulse').count() === 1);
 await p.fill('.vl-write', 'текст');
 await p.waitForTimeout(300);
-check('подсказка исчезла, когда есть текст', await p.locator('.vl-nudge.vl-on').count() === 0);
-const caret = await p.evaluate(() => getComputedStyle(document.querySelector('.vl-write')).caretColor);
-check('системная каретка скрыта', caret === 'rgba(0, 0, 0, 0)' || caret === 'transparent', caret);
+check('подсказка исчезла, когда есть текст', await p.locator('.vl-nudge').count() === 0);
+const inputStyle = await p.evaluate(() => {
+  const el = document.querySelector('.vl-write');
+  el.focus();
+  const cs = getComputedStyle(el);
+  return { caret: cs.caretColor, bw: cs.borderBottomWidth, bs: cs.borderBottomStyle, outline: cs.outlineStyle };
+});
+check('системная каретка скрыта', inputStyle.caret === 'rgba(0, 0, 0, 0)', inputStyle.caret);
+check('у строки подписи нет ни подчёркивания, ни обводки',
+  (inputStyle.bw === '0px' || inputStyle.bs === 'none') && inputStyle.outline === 'none',
+  JSON.stringify(inputStyle));
 await p.fill('.vl-write', '');
 
 for (let i = 0; i < 5; i++) {
@@ -139,13 +162,24 @@ for (let i = 0; i < 5; i++) {
   await p.click('.vl-btn.vl-main');
   await p.waitForTimeout(220);
 }
-await p.waitForTimeout(700);
+await p.waitForTimeout(400);
 const sent = await p.evaluate(() => window.__sent);
 check('отправлено 5 страниц', sent && sent.pages && sent.pages.length === 5);
 check('у всех страниц есть картинка и текст',
   sent && sent.pages.every((x) => x.sticker && x.text.trim()));
-check('вернулись в список после отправки', await p.locator('.vl-people').count() === 1);
+
+// Подтверждение отправки — полёт сердца, а не строка текста
+check('показан полёт сердца', await p.locator('.vl-sent').count() === 1);
+check('в подтверждении нет строки «отправлена для»',
+  !(await p.locator('.vl-sent').innerText()).includes('отправлена для'));
 await p.screenshot({ path: 'mod-5-sent.png' });
+await p.waitForTimeout(900);
+check('после полёта осталась надпись «Отправлено»',
+  (await p.locator('.vl-sent-label').innerText()).trim().startsWith('Отправлено'));
+await p.screenshot({ path: 'mod-5b-sent-label.png' });
+await p.waitForTimeout(1800);
+check('подтверждение само исчезает', await p.locator('.vl-sent').count() === 0);
+check('вернулись в список после отправки', await p.locator('.vl-people').count() === 1);
 
 /* Переход между экранами должен идти по очереди: в любой момент времени
    на экране виден ровно один слой, а не два наложенных. */

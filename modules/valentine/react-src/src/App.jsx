@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getContacts, getStickers, getReceived, markRead, deleteValentine } from './api.js';
+import { getContacts, getStickers, getReceived, getProfile, markRead, deleteValentine } from './api.js';
 import { useMotionMode } from './motion.js';
 import { HEART, T } from './icons.jsx';
 import People from './People.jsx';
@@ -7,6 +7,7 @@ import Album from './Album.jsx';
 import Compose from './Compose.jsx';
 import Reveal from './Reveal.jsx';
 import Hearts from './Hearts.jsx';
+import SentFlight from './SentFlight.jsx';
 import './app.css';
 
 export default function App({ registerWSHandler }) {
@@ -20,6 +21,8 @@ export default function App({ registerWSHandler }) {
   const [target, setTarget] = useState(null);     // кому пишем
   const [opened, setOpened] = useState(null);     // {valentine, rect}
   const [toastMsg, setToastMsg] = useState(null);
+  const [profile, setProfile] = useState(null);   // нужен для анимации отправки
+  const [sentTo, setSentTo] = useState(null);     // кому только что отправили
 
   const tabsRef = useRef(null);
   const pillRef = useRef(null);
@@ -33,6 +36,13 @@ export default function App({ registerWSHandler }) {
      там карточка летит из своего места в списке, поэтому слои живут
      одновременно, а альбом гасится отдельно (класс vl-dim). */
   const [phase, setPhase] = useState('idle');
+  /* Список остаётся смонтированным, пока карточка летит в просмотр: иначе
+     шапка и вкладки исчезали бы мгновенно, рывком. */
+  const [listLeaving, setListLeaving] = useState(false);
+  /* Вкладки переключаются так же по очереди, как и экраны: панель сначала
+     полностью уходит и только потом появляется вторая. */
+  const [tabPhase, setTabPhase] = useState('idle');
+  const tabTimer = useRef(null);
 
   function go(next, opts = {}) {
     if (opts.instant) { setView(next); setPhase('idle'); return; }
@@ -45,9 +55,22 @@ export default function App({ registerWSHandler }) {
     }, T.s);
   }
 
+  function switchTab(next) {
+    if (next === tab || tabPhase !== 'idle') return;
+    clearTimeout(tabTimer.current);
+    setTabPhase('out');
+    tabTimer.current = setTimeout(() => {
+      setTab(next);
+      setTabPhase('in');
+      requestAnimationFrame(() => requestAnimationFrame(() => setTabPhase('idle')));
+    }, T.s);
+  }
+
   const layerCls = 'vl-layer ' + (phase === 'out' ? 'vl-out' : phase === 'in' ? 'vl-in' : 'vl-settle');
 
-  useEffect(() => () => { clearTimeout(goTimer.current); clearTimeout(toastTimer.current); }, []);
+  useEffect(() => () => {
+    clearTimeout(goTimer.current); clearTimeout(toastTimer.current); clearTimeout(tabTimer.current);
+  }, []);
 
   const toast = useCallback((msg, action) => {
     setToastMsg({ msg, action });
@@ -62,10 +85,11 @@ export default function App({ registerWSHandler }) {
 
   useEffect(() => {
     (async () => {
-      const [c, s, r] = await Promise.all([getContacts(), getStickers(), getReceived()]);
+      const [c, s, r, pr] = await Promise.all([getContacts(), getStickers(), getReceived(), getProfile()]);
       setContacts((c && c.contacts) || []);
       setStickers((s && s.stickers) || []);
       setReceived(Array.isArray(r) ? r : []);
+      setProfile(pr || null);
     })();
     registerWSHandler((data) => { if (data.type === 'valentine') reloadReceived(); });
   }, [registerWSHandler, reloadReceived]);
@@ -111,10 +135,13 @@ export default function App({ registerWSHandler }) {
     }
     setOpened({ valentine: { ...v, read: true }, rect });
     /* Просмотр — единственный переход без очереди: карточка должна вылететь
-       из своего места в списке, поэтому альбом остаётся на экране и гаснет
-       под ней (класс vl-dim), а не исчезает заранее. */
+       из своего места в списке. Поэтому список остаётся смонтированным и
+       плавно гаснет целиком — шапка, вкладки и остальные карточки, — пока
+       выбранная летит в центр. */
     setPhase('idle');
+    setListLeaving(true);
     setView('viewer');
+    setTimeout(() => setListLeaving(false), T.l);
   }
 
   /* Удаление отложенное: карточка уходит из списка сразу, но на сервер
@@ -152,8 +179,8 @@ export default function App({ registerWSHandler }) {
     <div id="vl-root" className={reduced ? 'vl-reduce' : ''}>
       <Hearts paused={reduced} />
 
-      {view === 'list' && (
-        <div className={layerCls}>
+      {(view === 'list' || listLeaving) && (
+        <div className={view === 'list' ? layerCls : 'vl-layer vl-out vl-slowout'}>
           <div className="vl-head">
             <div>
               <h1>Валентинки</h1>
@@ -169,29 +196,31 @@ export default function App({ registerWSHandler }) {
             <button
               role="tab" aria-selected={tab === 'create'}
               className={'vl-tab' + (tab === 'create' ? ' vl-on' : '')}
-              onClick={() => setTab('create')}
+              onClick={() => switchTab('create')}
             >Создать</button>
             <button
               role="tab" aria-selected={tab === 'received'}
               className={'vl-tab' + (tab === 'received' ? ' vl-on' : '')}
-              onClick={() => setTab('received')}
+              onClick={() => switchTab('received')}
             >
               Признания{unread > 0 && <span className="vl-cnt">{unread}</span>}
             </button>
           </div>
 
-          {/* Обе панели живут одновременно — поэтому они перетекают друг в друга */}
+          {/* Видна ровно одна панель: вторая монтируется только после того,
+              как первая полностью ушла. */}
           <div className="vl-panes">
-            <div className={'vl-pane' + (tab === 'create' ? '' : ' vl-hidden')}>
-              <People contacts={contacts} onPick={(c) => { setTarget(c); go('compose'); }} />
-            </div>
-            <div className={'vl-pane' + (tab === 'received' ? '' : ' vl-hidden')}>
-              <Album
-                received={received}
-                dimFor={opened ? opened.valentine.id : null}
-                onOpen={openValentine}
-                onDelete={(id) => removeValentine(id, false)}
-              />
+            <div className={'vl-pane vl-single ' + (tabPhase === 'out' ? 'vl-out' : tabPhase === 'in' ? 'vl-in' : 'vl-settle')}>
+              {tab === 'create' ? (
+                <People contacts={contacts} onPick={(c) => { setTarget(c); go('compose'); }} />
+              ) : (
+                <Album
+                  received={received}
+                  dimFor={opened ? opened.valentine.id : null}
+                  onOpen={openValentine}
+                  onDelete={(id) => removeValentine(id, false)}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -204,7 +233,12 @@ export default function App({ registerWSHandler }) {
             stickers={stickers}
             toast={toast}
             onCancel={() => { go('list'); setTimeout(() => setTarget(null), T.s); }}
-            onDone={() => { setTab('create'); go('list'); setTimeout(() => setTarget(null), T.s); }}
+            onDone={(who) => {
+              setSentTo(who);            // покажем полёт сердца вместо строки в тосте
+              setTab('create');
+              go('list');
+              setTimeout(() => setTarget(null), T.s);
+            }}
           />
         </div>
       )}
@@ -219,6 +253,10 @@ export default function App({ registerWSHandler }) {
             onDelete={(id) => removeValentine(id, true)}
           />
         </div>
+      )}
+
+      {sentTo && (
+        <SentFlight me={profile} to={sentTo} reduced={reduced} onDone={() => setSentTo(null)} />
       )}
 
       {motion.showHint && (

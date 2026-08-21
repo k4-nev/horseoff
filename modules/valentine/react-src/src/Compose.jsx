@@ -50,12 +50,10 @@ export default function Compose({ contact, stickers, onDone, onCancel, toast }) 
     if (page < 4) { setPage(page + 1); return; }
     setSending(true);
     const payload = pages.map((p) => ({ sticker: p.sticker, text: p.text }));
-    const name = contact.display_name || contact.username;
     const result = await sendValentine(contact.id, payload);
     setSending(false);
     if (result && result.status === 'ok') {
-      toast('Валентинка отправлена для ' + forWhom(name));
-      onDone();
+      onDone(contact); // подтверждение показывает полёт сердца, а не строка текста
     } else {
       toast((result && result.error) || 'Не удалось отправить — попробуй ещё раз');
     }
@@ -122,15 +120,17 @@ export default function Compose({ contact, stickers, onDone, onCancel, toast }) 
                 className="vl-write"
                 value={cur.text}
                 maxLength={60}
-                placeholder="напиши продолжение…"
+                aria-label="Продолжение фразы «Любовь это…»"
                 onFocus={() => setWriting(true)}
                 onBlur={() => setWriting(false)}
                 onChange={(e) => patch({ text: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter' && ready && !sending) advance(); }}
               />
-              <span className={'vl-nudge' + (writing && !cur.text ? ' vl-on' : '')} aria-hidden="true">
-                Пиши
-              </span>
+              {/* Своя подсказка вместо placeholder: лежит внутри строки и
+                  пульсирует, пока поле в фокусе и пустое */}
+              {!cur.text && (
+                <span className={'vl-nudge' + (writing ? ' vl-pulse' : '')} aria-hidden="true">Пиши</span>
+              )}
             </div>
           </div>
 
