@@ -50,7 +50,7 @@ MSG_DIR.mkdir(exist_ok=True)
 # Push notifications
 PUSH_DIR = DATA_DIR / 'push'
 PUSH_DIR.mkdir(exist_ok=True)
-VAPID_DIR = ROOT_DIR / 'pwa'
+VAPID_DIR = DATA_DIR
 VAPID_PRIVATE_KEY = VAPID_DIR / 'vapid_private.pem'
 VAPID_PUBLIC_KEY_FILE = VAPID_DIR / 'vapid_public.txt'
 VAPID_EMAIL = 'mailto:admin@horseoff-workspace.ru'
