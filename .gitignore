@@ -1,0 +1,17 @@
+.claude/
+__pycache__/
+*.pyc
+data/
+
+# Secrets — never commit private keys
+*.pem
+*.key
+
+# Ruflo/claude-flow tooling — local runtime state, not project code
+.env
+.env.local
+.env.*.local
+.claude-flow/
+.swarm/
+.agents/
+.mcp.json

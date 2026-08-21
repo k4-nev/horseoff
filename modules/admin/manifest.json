@@ -1,0 +1,8 @@
+{
+  "id": "admin",
+  "name": "Пользователи",
+  "icon": "users",
+  "version": "2.201",
+  "entry": "admin.html",
+  "min_role": "arcana"
+}

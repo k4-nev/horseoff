@@ -1,0 +1,8 @@
+{
+  "id": "bots",
+  "name": "Боты",
+  "icon": "bots",
+  "version": "1.0",
+  "entry": "bots.html",
+  "min_role": "immortal"
+}
