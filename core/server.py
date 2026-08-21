@@ -69,23 +69,25 @@ def get_vapid_public_key():
 
 def save_push_sub(user_id, subscription):
     f = PUSH_DIR / f"{user_id}.json"
-    try:
-        subs = json.loads(f.read_text()) if f.exists() else []
-    except: subs = []
-    # Avoid duplicates by endpoint
-    ep = subscription.get('endpoint', '')
-    subs = [s for s in subs if s.get('endpoint') != ep]
-    subs.append(subscription)
-    f.write_text(json.dumps(subs, ensure_ascii=False))
+    with get_file_lock(f):
+        try:
+            subs = json.loads(f.read_text()) if f.exists() else []
+        except: subs = []
+        # Avoid duplicates by endpoint
+        ep = subscription.get('endpoint', '')
+        subs = [s for s in subs if s.get('endpoint') != ep]
+        subs.append(subscription)
+        write_json_atomic(f, subs, ensure_ascii=False)
 
 def remove_push_sub(user_id, endpoint):
     f = PUSH_DIR / f"{user_id}.json"
-    if not f.exists(): return
-    try:
-        subs = json.loads(f.read_text())
-        subs = [s for s in subs if s.get('endpoint') != endpoint]
-        f.write_text(json.dumps(subs, ensure_ascii=False))
-    except: pass
+    with get_file_lock(f):
+        if not f.exists(): return
+        try:
+            subs = json.loads(f.read_text())
+            subs = [s for s in subs if s.get('endpoint') != endpoint]
+            write_json_atomic(f, subs, ensure_ascii=False)
+        except: pass
 
 def get_push_subs(user_id):
     f = PUSH_DIR / f"{user_id}.json"
@@ -123,10 +125,14 @@ def send_push(user_id, title, body, url='/', sender_id=''):
             print(f"[PUSH] Exception: {e}")
     if dead:
         f = PUSH_DIR / f"{user_id}.json"
-        try:
-            subs = [s for s in subs if s.get('endpoint') not in dead]
-            f.write_text(json.dumps(subs, ensure_ascii=False))
-        except: pass
+        with get_file_lock(f):
+            try:
+                # Re-read under the lock: a concurrent subscribe may have landed
+                # since we loaded `subs` above, and we must not clobber it.
+                fresh = json.loads(f.read_text()) if f.exists() else []
+                fresh = [s for s in fresh if s.get('endpoint') not in dead]
+                write_json_atomic(f, fresh, ensure_ascii=False)
+            except: pass
 
 def is_user_online(user_id):
     """Check if user has active WS connection."""
@@ -200,6 +206,80 @@ def get_remaining_block(ip):
             return int(r['blocked_until'] - time.time())
     return 0
 
+# Per-account limiting: login_attempts above is per-IP only, so a distributed
+# credential-stuffing attack (many IPs, one target account) sails through it
+# untouched. account_attempts tracks failures per *username* regardless of
+# source IP. A login from an IP the account has logged in from before (see
+# known_ips on the user record) is treated as the real owner and exempted
+# from the account-level block, so an attacker can't lock the real owner out
+# just by spraying wrong passwords at their username.
+account_attempts = {}  # username -> {'count': int, 'blocked_until': float}
+
+def get_account_remaining_block(username):
+    with rate_lock:
+        r = account_attempts.get(username)
+        if r and r.get('blocked_until') and time.time() < r['blocked_until']:
+            return int(r['blocked_until'] - time.time())
+    return 0
+
+def record_account_failed(username, ip):
+    user = find_user(username)
+    if not user: return  # unknown username: nothing to protect, per-IP limit still applies
+    known = ip in (user.get('known_ips') or [])
+    with rate_lock:
+        r = account_attempts.get(username, {'count': 0, 'blocked_until': 0})
+        r['count'] = r.get('count', 0) + 1
+        if r['count'] >= 5:
+            r = {'count': 0, 'blocked_until': 0 if known else time.time() + 60}
+        account_attempts[username] = r
+
+def record_account_success(username, ip):
+    with rate_lock:
+        account_attempts.pop(username, None)
+    remember_ip(username, ip)
+
+def remember_ip(username, ip):
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        for u in users:
+            if u['username'] == username:
+                ips = u.get('known_ips') or []
+                if ip not in ips:
+                    u['known_ips'] = (ips + [ip])[-8:]
+                    save_users(users)
+                break
+
+# ============================================================
+# CONCURRENT FILE ACCESS
+# ============================================================
+# The HTTP handler (main thread, one request at a time) and the WS server
+# (separate daemon thread running its own asyncio loop) both read-modify-write
+# the same JSON files under data/ with no coordination between the two threads.
+# Within a single thread there's no race (HTTP is sequential; the WS handler
+# never awaits between reading a file and writing it back), but across the two
+# threads a read-modify-write can interleave and silently drop one side's
+# change. _file_locks gives every file path its own lock shared by both
+# threads; write_json_atomic makes the write itself crash-safe (temp file +
+# os.replace, so a kill mid-write can never leave a half-written/corrupt file).
+_file_locks = {}
+_file_locks_meta = threading.Lock()
+
+def get_file_lock(path):
+    key = str(path)
+    with _file_locks_meta:
+        lock = _file_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _file_locks[key] = lock
+        return lock
+
+def write_json_atomic(path, data, **kwargs):
+    path = Path(path)
+    tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, **kwargs)
+    os.replace(tmp, path)
+
 # ============================================================
 # USERS & AUTH
 # ============================================================
@@ -238,7 +318,7 @@ def load_users():
     return []
 
 def save_users(users):
-    with open(USERS_FILE, 'w') as f: json.dump(users, f, indent=2, ensure_ascii=False)
+    write_json_atomic(USERS_FILE, users, indent=2, ensure_ascii=False)
     os.chmod(str(USERS_FILE), 0o600)
 
 
@@ -285,47 +365,50 @@ def create_user(username, password, role, display_name=''):
     if display_name:
         ok, msg = validate_display_name(display_name)
         if not ok: return False, msg
-    users = load_users()
-    if any(u['username'] == username for u in users): return False, "Пользователь уже существует"
-    salt, h = _hash(password)
-    default_mods = load_settings().get('default_modules', ['messenger'])
-    users.append({'id': secrets.token_hex(8), 'username': username, 'role': role,
-        'display_name': display_name.strip() if display_name else '',
-        'modules': list(default_mods),
-        'salt': salt, 'password_hash': h, 'created': time.strftime("%Y-%m-%d %H:%M:%S")})
-    save_users(users)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        if any(u['username'] == username for u in users): return False, "Пользователь уже существует"
+        salt, h = _hash(password)
+        default_mods = load_settings().get('default_modules', ['messenger'])
+        users.append({'id': secrets.token_hex(8), 'username': username, 'role': role,
+            'display_name': display_name.strip() if display_name else '',
+            'modules': list(default_mods),
+            'salt': salt, 'password_hash': h, 'created': time.strftime("%Y-%m-%d %H:%M:%S")})
+        save_users(users)
     return True, "OK"
 
 def update_user(uid, data):
-    users = load_users()
-    u = next((u for u in users if u['id'] == uid), None)
-    if not u: return False, "Не найден"
-    if 'username' in data and data['username']:
-        new_name = data['username'].strip()
-        if new_name != u['username']:
-            ok, msg = validate_username(new_name)
-            if not ok: return False, msg
-            if any(x['username'] == new_name for x in users): return False, "Логин уже занят"
-            u['username'] = new_name
-    if 'display_name' in data:
-        dn = data['display_name'].strip() if data['display_name'] else ''
-        if dn:
-            ok, msg = validate_display_name(dn)
-            if not ok: return False, msg
-        u['display_name'] = dn
-    if 'role' in data: u['role'] = data['role']
-    if 'modules' in data: u['modules'] = data['modules']
-    if 'password' in data and data['password']:
-        s, h = _hash(data['password'])
-        u['salt'] = s; u['password_hash'] = h
-    save_users(users)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        u = next((u for u in users if u['id'] == uid), None)
+        if not u: return False, "Не найден"
+        if 'username' in data and data['username']:
+            new_name = data['username'].strip()
+            if new_name != u['username']:
+                ok, msg = validate_username(new_name)
+                if not ok: return False, msg
+                if any(x['username'] == new_name for x in users): return False, "Логин уже занят"
+                u['username'] = new_name
+        if 'display_name' in data:
+            dn = data['display_name'].strip() if data['display_name'] else ''
+            if dn:
+                ok, msg = validate_display_name(dn)
+                if not ok: return False, msg
+            u['display_name'] = dn
+        if 'role' in data: u['role'] = data['role']
+        if 'modules' in data: u['modules'] = data['modules']
+        if 'password' in data and data['password']:
+            s, h = _hash(data['password'])
+            u['salt'] = s; u['password_hash'] = h
+        save_users(users)
     return True, "OK"
 
 def delete_user(uid):
-    users = load_users()
-    new = [u for u in users if u['id'] != uid]
-    if len(new) == len(users): return False
-    save_users(new)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        new = [u for u in users if u['id'] != uid]
+        if len(new) == len(users): return False
+        save_users(new)
     delete_avatar(uid)
     return True
 
@@ -388,7 +471,10 @@ def process_image(data, att_id):
 def save_attachment(data, filename, att_id):
     """Save a non-image file. Returns True on success."""
     try:
-        p = ATTACH_DIR / f"{att_id}_{filename}"
+        # filename comes from the client-supplied Content-Disposition header — strip any
+        # directory components so a crafted "../../core/shell.html" can't escape ATTACH_DIR.
+        safe_name = Path(filename).name
+        p = ATTACH_DIR / f"{att_id}_{safe_name}"
         p.write_bytes(data)
         return True
     except: return False
@@ -551,10 +637,11 @@ def change_password(username, old_pw, new_pw):
     if not u: return False, "Неверный текущий пароль"
     s, h = _hash(new_pw)
     u['salt'] = s; u['password_hash'] = h
-    users = load_users()
-    for i, usr in enumerate(users):
-        if usr['id'] == u['id']: users[i] = u; break
-    save_users(users)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        for i, usr in enumerate(users):
+            if usr['id'] == u['id']: users[i] = u; break
+        save_users(users)
     return True, "OK"
 
 def get_token_from_handler(handler):
@@ -658,10 +745,11 @@ def get_messages(chat_key, offset=0, limit=50):
 
 def save_message(chat_key, msg):
     f = MSG_DIR / f"{chat_key}.json"
-    try: msgs = json.loads(f.read_text()) if f.exists() else []
-    except: msgs = []
-    msgs.append(msg)
-    f.write_text(json.dumps(msgs, ensure_ascii=False))
+    with get_file_lock(f):
+        try: msgs = json.loads(f.read_text()) if f.exists() else []
+        except: msgs = []
+        msgs.append(msg)
+        write_json_atomic(f, msgs, ensure_ascii=False)
     return msg
 
 def get_last_message(chat_key):
@@ -695,14 +783,15 @@ def get_msg_count(chat_key):
 def mark_read(chat_key, user_id):
     f = MSG_DIR / f"{chat_key}.json"
     if not f.exists(): return
-    try:
-        msgs = json.loads(f.read_text())
-        changed = False
-        for m in reversed(msgs):
-            if m['from'] == user_id: break
-            if not m.get('read'): m['read'] = True; changed = True
-        if changed: f.write_text(json.dumps(msgs, ensure_ascii=False))
-    except: pass
+    with get_file_lock(f):
+        try:
+            msgs = json.loads(f.read_text())
+            changed = False
+            for m in reversed(msgs):
+                if m['from'] == user_id: break
+                if not m.get('read'): m['read'] = True; changed = True
+            if changed: write_json_atomic(f, msgs, ensure_ascii=False)
+        except: pass
 
 def get_user_status(user_id):
     """Aggregate presence across all of a user's connections.
@@ -1103,18 +1192,19 @@ async def handle_ws(websocket):
                             f = MSG_DIR / f"{chat_key}.json"
                             if f.exists():
                                 try:
-                                    msgs = json.loads(f.read_text())
-                                    updated_reactions = {}
-                                    for m in msgs:
-                                        if m['id'] == msg_id:
-                                            if 'reactions' not in m: m['reactions'] = {}
-                                            if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
-                                                del m['reactions'][s['id']]
-                                            else:
-                                                m['reactions'][s['id']] = emoji
-                                            updated_reactions = m.get('reactions', {})
-                                            break
-                                    f.write_text(json.dumps(msgs, ensure_ascii=False))
+                                    with get_file_lock(f):
+                                        msgs = json.loads(f.read_text())
+                                        updated_reactions = {}
+                                        for m in msgs:
+                                            if m['id'] == msg_id:
+                                                if 'reactions' not in m: m['reactions'] = {}
+                                                if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
+                                                    del m['reactions'][s['id']]
+                                                else:
+                                                    m['reactions'][s['id']] = emoji
+                                                updated_reactions = m.get('reactions', {})
+                                                break
+                                        write_json_atomic(f, msgs, ensure_ascii=False)
                                     await websocket.send(json.dumps({'type':'reaction','chat':chat_key,'msg_id':msg_id,'reactions':updated_reactions}))
                                     other_ids = [p for p in parts if p != s['id']]
                                     for oid in other_ids:
@@ -1134,15 +1224,17 @@ async def handle_ws(websocket):
                             f = MSG_DIR / f"{chat_key}.json"
                             if f.exists():
                                 try:
-                                    msgs = json.loads(f.read_text())
-                                    ok = False
-                                    for m in msgs:
-                                        if m['id'] == msg_id and m['from'] == s['id']:
-                                            if time.time() - m['time'] <= 172800:
-                                                m['text'] = new_text; m['edited'] = True; ok = True
-                                            break
+                                    with get_file_lock(f):
+                                        msgs = json.loads(f.read_text())
+                                        ok = False
+                                        for m in msgs:
+                                            if m['id'] == msg_id and m['from'] == s['id']:
+                                                if time.time() - m['time'] <= 172800:
+                                                    m['text'] = new_text; m['edited'] = True; ok = True
+                                                break
+                                        if ok:
+                                            write_json_atomic(f, msgs, ensure_ascii=False)
                                     if ok:
-                                        f.write_text(json.dumps(msgs, ensure_ascii=False))
                                         resp = {'type':'edited','chat':chat_key,'msg_id':msg_id,'text':new_text}
                                         await websocket.send(json.dumps(resp))
                                         other_ids = [p for p in parts if p != s['id']]
@@ -1164,11 +1256,15 @@ async def handle_ws(websocket):
                             f = MSG_DIR / f"{chat_key}.json"
                             if f.exists():
                                 try:
-                                    msgs = json.loads(f.read_text())
-                                    mo = next((m for m in msgs if m['id'] == msg_id), None)
-                                    if mo and mo['from'] == s['id'] and time.time() - mo['time'] <= 172800:
-                                        msgs = [m for m in msgs if m['id'] != msg_id]
-                                        f.write_text(json.dumps(msgs, ensure_ascii=False))
+                                    deleted = False
+                                    with get_file_lock(f):
+                                        msgs = json.loads(f.read_text())
+                                        mo = next((m for m in msgs if m['id'] == msg_id), None)
+                                        if mo and mo['from'] == s['id'] and time.time() - mo['time'] <= 172800:
+                                            msgs = [m for m in msgs if m['id'] != msg_id]
+                                            write_json_atomic(f, msgs, ensure_ascii=False)
+                                            deleted = True
+                                    if deleted:
                                         resp = {'type':'deleted','chat':chat_key,'msg_id':msg_id}
                                         await websocket.send(json.dumps(resp))
                                         other_ids = [p for p in parts if p != s['id']]
@@ -1193,7 +1289,8 @@ async def handle_ws(websocket):
                     chat_key = data.get('chat', '')
                     if chat_key and s['id'] in chat_key.split('_'):
                         f = MSG_DIR / f"{chat_key}.json"
-                        if f.exists(): f.write_text('[]')
+                        with get_file_lock(f):
+                            if f.exists(): write_json_atomic(f, [])
                         await websocket.send(json.dumps({'type':'chat_cleared','chat':chat_key}))
 
                 elif mt == 'pin':
@@ -1766,7 +1863,11 @@ class Handler(BaseHTTPRequestHandler):
             thumb = len(parts) > 1 and parts[1] == 'thumb'
             fp = get_attachment_path(att_id, thumb)
             if fp and fp.exists():
-                return self._serve_file(fp)
+                # Only known safe-to-render media types are served inline; anything else
+                # (arbitrary uploaded files, e.g. .html/.svg) is forced to download so the
+                # browser never executes attacker-controlled content from our own origin.
+                safe_inline = IMAGE_EXTS | AUDIO_EXTS | VIDEO_EXTS | {'.pdf'}
+                return self._serve_file(fp, force_download=fp.suffix.lower() not in safe_inline)
             return self._json(404, {'error': 'Not found'})
 
         # List chat attachments for side panel
@@ -1868,6 +1969,8 @@ class Handler(BaseHTTPRequestHandler):
 
             attachments = []
             for f in files[:7]:
+                if len(f['data']) > 50 * 1024 * 1024:  # 50MB, same cap as /api/msg/upload
+                    return self._json(400, {'error': 'Файл слишком большой (макс 50 МБ)'})
                 att_id = secrets.token_hex(8)
                 fname = f['name']
                 ext = Path(fname).suffix.lower()
@@ -2019,20 +2122,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'token': create_session(user)})
 
         if path == '/api/auth/login':
-            # Rate limiting
+            # Rate limiting: per-IP first (cheap, catches single-source brute force)
             remaining = get_remaining_block(client_ip)
             if remaining > 0:
                 return self._json(429, {'error': f'Слишком много попыток. Подождите {remaining} сек.'})
             u, p = data.get('username','').strip(), data.get('password','')
+            # Per-account: catches distributed attempts against one username from many IPs
+            acc_remaining = get_account_remaining_block(u)
+            if acc_remaining > 0:
+                return self._json(429, {'error': f'Аккаунт временно заблокирован. Подождите {acc_remaining} сек.'})
             user = verify_pw(u, p)
             if user:
                 record_success_login(client_ip)
+                record_account_success(u, client_ip)
                 device_info = {k: data.get(k, '') for k in ('device_id', 'user_agent', 'platform')}
                 return self._json(200, {'token': create_session(user, device_info)})
             record_failed_login(client_ip)
+            record_account_failed(u, client_ip)
             remaining = get_remaining_block(client_ip)
             if remaining > 0:
                 return self._json(429, {'error': f'Слишком много попыток. Подождите {remaining} сек.'})
+            acc_remaining = get_account_remaining_block(u)
+            if acc_remaining > 0:
+                return self._json(429, {'error': f'Аккаунт временно заблокирован. Подождите {acc_remaining} сек.'})
             return self._json(401, {'error': 'Неверный логин или пароль'})
 
         if path == '/api/auth/logout':
@@ -2143,7 +2255,8 @@ class Handler(BaseHTTPRequestHandler):
             parts = chat_key.split('_')
             if s['id'] not in parts: return self._json(403, {'error': 'Нет доступа'})
             f = MSG_DIR / f"{chat_key}.json"
-            if f.exists(): f.write_text('[]')
+            with get_file_lock(f):
+                if f.exists(): write_json_atomic(f, [])
             return self._json(200, {'status': 'ok'})
 
         if path == '/api/msg/send':
@@ -2169,13 +2282,14 @@ class Handler(BaseHTTPRequestHandler):
             f = MSG_DIR / f"{chat_key}.json"
             if not f.exists(): return self._json(404, {'error': 'Not found'})
             try:
-                msgs = json.loads(f.read_text())
-                for m in msgs:
-                    if m['id'] == msg_id:
-                        if m['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
-                        if time.time() - m['time'] > 172800: return self._json(400, {'error': '>2 дней'})
-                        m['text'] = new_text; m['edited'] = True; break
-                f.write_text(json.dumps(msgs, ensure_ascii=False))
+                with get_file_lock(f):
+                    msgs = json.loads(f.read_text())
+                    for m in msgs:
+                        if m['id'] == msg_id:
+                            if m['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
+                            if time.time() - m['time'] > 172800: return self._json(400, {'error': '>2 дней'})
+                            m['text'] = new_text; m['edited'] = True; break
+                    write_json_atomic(f, msgs, ensure_ascii=False)
                 return self._json(200, {'status': 'ok'})
             except: return self._json(500, {'error': 'Error'})
 
@@ -2188,13 +2302,14 @@ class Handler(BaseHTTPRequestHandler):
             f = MSG_DIR / f"{chat_key}.json"
             if not f.exists(): return self._json(404, {'error': 'Not found'})
             try:
-                msgs = json.loads(f.read_text())
-                mo = next((m for m in msgs if m['id'] == msg_id), None)
-                if not mo: return self._json(404, {'error': 'Not found'})
-                if mo['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
-                if time.time() - mo['time'] > 172800: return self._json(400, {'error': '>2 дней'})
-                msgs = [m for m in msgs if m['id'] != msg_id]
-                f.write_text(json.dumps(msgs, ensure_ascii=False))
+                with get_file_lock(f):
+                    msgs = json.loads(f.read_text())
+                    mo = next((m for m in msgs if m['id'] == msg_id), None)
+                    if not mo: return self._json(404, {'error': 'Not found'})
+                    if mo['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
+                    if time.time() - mo['time'] > 172800: return self._json(400, {'error': '>2 дней'})
+                    msgs = [m for m in msgs if m['id'] != msg_id]
+                    write_json_atomic(f, msgs, ensure_ascii=False)
                 return self._json(200, {'status': 'ok'})
             except: return self._json(500, {'error': 'Error'})
 
@@ -2208,18 +2323,19 @@ class Handler(BaseHTTPRequestHandler):
             f = MSG_DIR / f"{chat_key}.json"
             if not f.exists(): return self._json(404, {'error': 'Not found'})
             try:
-                msgs = json.loads(f.read_text())
-                updated_msg = None
-                for m in msgs:
-                    if m['id'] == msg_id:
-                        if 'reactions' not in m: m['reactions'] = {}
-                        if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
-                            del m['reactions'][s['id']]
-                        else:
-                            m['reactions'][s['id']] = emoji
-                        updated_msg = m
-                        break
-                f.write_text(json.dumps(msgs, ensure_ascii=False))
+                with get_file_lock(f):
+                    msgs = json.loads(f.read_text())
+                    updated_msg = None
+                    for m in msgs:
+                        if m['id'] == msg_id:
+                            if 'reactions' not in m: m['reactions'] = {}
+                            if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
+                                del m['reactions'][s['id']]
+                            else:
+                                m['reactions'][s['id']] = emoji
+                            updated_msg = m
+                            break
+                    write_json_atomic(f, msgs, ensure_ascii=False)
                 # Push reaction update to other user via WS
                 if updated_msg:
                     other_id = [p for p in parts if p != s['id']]
@@ -2314,7 +2430,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
-    def _serve_file(self, filepath, base_dir=None):
+    def _serve_file(self, filepath, base_dir=None, force_download=False):
         filepath = Path(filepath).resolve()
         # Path traversal guard: ensure file stays within its base directory
         if base_dir is not None:
@@ -2323,7 +2439,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(403, {'error': 'Forbidden'})
         if not filepath.exists(): return self._json(404, {'error': 'Not found'})
         ext = filepath.suffix
-        mime = MIME.get(ext, 'application/octet-stream')
+        # Untrusted uploads (arbitrary extension) must never be served as text/html or
+        # image/svg+xml etc. — force a safe download instead of letting the browser render them.
+        if force_download:
+            mime = 'application/octet-stream'
+        else:
+            mime = MIME.get(ext, 'application/octet-stream')
         size = filepath.stat().st_size
         # Range requests for streaming
         rh = self.headers.get('Range')
@@ -2345,11 +2466,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except: pass
         self.send_response(200)
-        self.send_header('Content-Type', f'{mime}; charset=utf-8' if ext in ('.html','.css','.js','.json') else mime)
+        self.send_header('Content-Type', f'{mime}; charset=utf-8' if ext in ('.html','.css','.js','.json') and not force_download else mime)
         self.send_header('Content-Length', str(size))
         self.send_header('Accept-Ranges', 'bytes')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
+        if force_download:
+            self.send_header('Content-Disposition', 'attachment')
         self.end_headers()
         self.wfile.write(filepath.read_bytes())
 

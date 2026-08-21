@@ -1,12 +1,12 @@
 """Channels module API."""
-import json, time, secrets, threading, base64
+import json, time, secrets, threading, base64, os
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data' / 'channels'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SPACES_FILE = DATA_DIR / 'spaces.json'
-_lock = threading.Lock()
+_lock = threading.Lock()  # guards spaces.json: callers wrap their own load+modify+save with it
 ADMIN_ROLES = ('arcana', 'immortal', 'legendary')
 
 def _load(path, default=None):
@@ -17,7 +17,23 @@ def _load(path, default=None):
     return default
 
 def _save(path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    os.replace(tmp, path)
+
+# Per-path locks for anything keyed by space_id/channel_id (each key gets its
+# own lock so unrelated spaces/channels don't serialize behind one another).
+_file_locks = {}
+_file_locks_meta = threading.Lock()
+
+def _get_file_lock(path):
+    key = str(path)
+    with _file_locks_meta:
+        lock = _file_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _file_locks[key] = lock
+        return lock
 
 def _json(handler, code, data):
     handler.send_response(code)
@@ -26,8 +42,7 @@ def _json(handler, code, data):
     handler.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
 def load_spaces(): return _load(SPACES_FILE, [])
-def save_spaces(spaces):
-    with _lock: _save(SPACES_FILE, spaces)
+def save_spaces(spaces): _save(SPACES_FILE, spaces)  # caller must hold _lock
 
 def load_channels(space_id): return _load(DATA_DIR / f'space_{space_id}_channels.json', [])
 def save_channels(space_id, ch): _save(DATA_DIR / f'space_{space_id}_channels.json', ch)
@@ -41,10 +56,11 @@ def load_messages(channel_id, limit=50):
 
 def save_message(channel_id, msg):
     path = DATA_DIR / f'chan_{channel_id}.json'
-    msgs = _load(path, [])
-    msgs.append(msg)
-    if len(msgs) > 5000: msgs = msgs[-5000:]
-    _save(path, msgs)
+    with _get_file_lock(path):
+        msgs = _load(path, [])
+        msgs.append(msg)
+        if len(msgs) > 5000: msgs = msgs[-5000:]
+        _save(path, msgs)
 
 def get_space_photo_b64(space_id):
     p = DATA_DIR / f'space_{space_id}.jpg'
@@ -233,22 +249,26 @@ def handle_post(handler, session, path, data):
         if not name or len(name) > 40: return _json(handler, 400, {'error': 'Название группы 1-40 символов'})
         photo_b64 = data.get('photo')
         edit_id = data.get('edit_id')
-        spaces = load_spaces()
+        with _lock:
+            spaces = load_spaces()
+            if edit_id:
+                for sp in spaces:
+                    if sp['id'] == edit_id:
+                        sp['name'] = name
+                        break
+                save_spaces(spaces)
+            else:
+                sp_type = data.get('type', 'text')
+                if sp_type not in ('text', 'voice_group'): sp_type = 'text'
+                space = {'id': secrets.token_hex(6), 'name': name, 'type': sp_type, 'owner_id': session['id'], 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+                spaces.append(space)
+                save_spaces(spaces)
         if edit_id:
-            for sp in spaces:
-                if sp['id'] == edit_id:
-                    sp['name'] = name
-                    break
-            save_spaces(spaces)
             if photo_b64: save_space_photo(edit_id, photo_b64)
             elif data.get('remove_photo'): delete_space_photo(edit_id)
             return _json(handler, 200, {'status': 'ok'})
-        sp_type = data.get('type', 'text')
-        if sp_type not in ('text', 'voice_group'): sp_type = 'text'
-        space = {'id': secrets.token_hex(6), 'name': name, 'type': sp_type, 'owner_id': session['id'], 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
-        spaces.append(space)
-        save_spaces(spaces)
-        save_members(space['id'], [{'user_id': session['id'], 'role': 'owner', 'joined': space['created']}])
+        with _get_file_lock(DATA_DIR / f"space_{space['id']}_members.json"):
+            save_members(space['id'], [{'user_id': session['id'], 'role': 'owner', 'joined': space['created']}])
         if photo_b64: save_space_photo(space['id'], photo_b64)
         return _json(handler, 200, {'status': 'ok', 'space': space})
 
@@ -260,20 +280,23 @@ def handle_post(handler, session, path, data):
         icon = data.get('icon', 'channels')
         if not name or len(name) > 30: return _json(handler, 400, {'error': 'Название 1-30 символов'})
         edit_id = data.get('edit_id')
-        channels = load_channels(space_id)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
+            channels = load_channels(space_id)
+            if edit_id:
+                for ch in channels:
+                    if ch['id'] == edit_id:
+                        ch['name'] = name
+                        ch['icon'] = icon
+                        break
+                save_channels(space_id, channels)
+            else:
+                ch_type = data.get('type', 'text')
+                if ch_type not in ('text', 'voice'): ch_type = 'text'
+                channel = {'id': secrets.token_hex(6), 'name': name, 'icon': icon, 'type': ch_type, 'space_id': space_id, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+                channels.append(channel)
+                save_channels(space_id, channels)
         if edit_id:
-            for ch in channels:
-                if ch['id'] == edit_id:
-                    ch['name'] = name
-                    ch['icon'] = icon
-                    break
-            save_channels(space_id, channels)
             return _json(handler, 200, {'status': 'ok'})
-        ch_type = data.get('type', 'text')
-        if ch_type not in ('text', 'voice'): ch_type = 'text'
-        channel = {'id': secrets.token_hex(6), 'name': name, 'icon': icon, 'type': ch_type, 'space_id': space_id, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
-        channels.append(channel)
-        save_channels(space_id, channels)
         return _json(handler, 200, {'status': 'ok', 'channel': channel})
 
     # POST /api/mod/channels/members
@@ -282,22 +305,25 @@ def handle_post(handler, session, path, data):
         space_id = data.get('space_id', '')
         user_ids = data.get('user_ids', [])
         set_mod = data.get('set_moderator')  # {user_id, value}
-        members = load_members(space_id)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
+            members = load_members(space_id)
+            if set_mod:
+                uid = set_mod.get('user_id')
+                val = set_mod.get('value', False)
+                for m in members:
+                    if m['user_id'] == uid:
+                        m['role'] = 'moderator' if val else 'member'
+                        break
+                save_members(space_id, members)
+            else:
+                existing = set(m['user_id'] for m in members)
+                now = time.strftime('%Y-%m-%d %H:%M:%S')
+                for uid in user_ids:
+                    if uid not in existing:
+                        members.append({'user_id': uid, 'role': 'member', 'joined': now})
+                save_members(space_id, members)
         if set_mod:
-            uid = set_mod.get('user_id')
-            val = set_mod.get('value', False)
-            for m in members:
-                if m['user_id'] == uid:
-                    m['role'] = 'moderator' if val else 'member'
-                    break
-            save_members(space_id, members)
             return _json(handler, 200, {'status': 'ok'})
-        existing = set(m['user_id'] for m in members)
-        now = time.strftime('%Y-%m-%d %H:%M:%S')
-        for uid in user_ids:
-            if uid not in existing:
-                members.append({'user_id': uid, 'role': 'member', 'joined': now})
-        save_members(space_id, members)
         return _json(handler, 200, {'status': 'ok'})
 
     return _json(handler, 404, {'error': 'Not found'})
@@ -320,9 +346,10 @@ def handle_delete(handler, session, path):
     # DELETE space
     if p.endswith('/spaces'):
         space_id = data.get('space_id', '')
-        spaces = load_spaces()
-        spaces = [sp for sp in spaces if sp['id'] != space_id]
-        save_spaces(spaces)
+        with _lock:
+            spaces = load_spaces()
+            spaces = [sp for sp in spaces if sp['id'] != space_id]
+            save_spaces(spaces)
         for f in DATA_DIR.glob(f'space_{space_id}_*'): f.unlink(missing_ok=True)
         delete_space_photo(space_id)
         return _json(handler, 200, {'status': 'ok'})
@@ -331,9 +358,10 @@ def handle_delete(handler, session, path):
     if p.endswith('/channels'):
         space_id = data.get('space_id', '')
         channel_id = data.get('channel_id', '')
-        channels = load_channels(space_id)
-        channels = [ch for ch in channels if ch['id'] != channel_id]
-        save_channels(space_id, channels)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
+            channels = load_channels(space_id)
+            channels = [ch for ch in channels if ch['id'] != channel_id]
+            save_channels(space_id, channels)
         (DATA_DIR / f'chan_{channel_id}.json').unlink(missing_ok=True)
         return _json(handler, 200, {'status': 'ok'})
 
@@ -341,9 +369,10 @@ def handle_delete(handler, session, path):
     if p.endswith('/members'):
         space_id = data.get('space_id', '')
         user_id = data.get('user_id', '')
-        members = load_members(space_id)
-        members = [m for m in members if m['user_id'] != user_id]
-        save_members(space_id, members)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
+            members = load_members(space_id)
+            members = [m for m in members if m['user_id'] != user_id]
+            save_members(space_id, members)
         return _json(handler, 200, {'status': 'ok'})
 
     return _json(handler, 404, {'error': 'Not found'})

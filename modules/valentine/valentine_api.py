@@ -1,5 +1,5 @@
 """Valentine module API — v1.0"""
-import json, time, secrets, threading
+import json, time, secrets, threading, os
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -25,8 +25,11 @@ def _load_valentines(user_id):
     return []
 
 def _save_valentines(user_id, valentines):
-    with _lock:
-        (DATA_DIR / f'{user_id}.json').write_text(json.dumps(valentines, ensure_ascii=False, indent=2))
+    # Caller must hold _lock around load+modify+save — this only writes.
+    p = DATA_DIR / f'{user_id}.json'
+    tmp = p.with_name(p.name + f'.tmp{os.getpid()}')
+    tmp.write_text(json.dumps(valentines, ensure_ascii=False, indent=2))
+    os.replace(tmp, p)
 
 def _get_stickers():
     if not STICKERS_DIR.exists(): return []
@@ -77,9 +80,10 @@ def handle_post(handler, s, path, data):
             'pages': [{'sticker': p['sticker'], 'text': str(p['text']).strip()} for p in pages]
         }
 
-        valentines = _load_valentines(to_id)
-        valentines.append(valentine)
-        _save_valentines(to_id, valentines)
+        with _lock:
+            valentines = _load_valentines(to_id)
+            valentines.append(valentine)
+            _save_valentines(to_id, valentines)
 
         unread = sum(1 for v in valentines if not v.get('read'))
 
@@ -105,12 +109,13 @@ def handle_post(handler, s, path, data):
 
     if path == '/api/valentine/read':
         val_id = data.get('id', '')
-        vs = _load_valentines(s['id'])
-        changed = False
-        for v in vs:
-            if v['id'] == val_id and not v.get('read'):
-                v['read'] = True; changed = True
-        if changed: _save_valentines(s['id'], vs)
+        with _lock:
+            vs = _load_valentines(s['id'])
+            changed = False
+            for v in vs:
+                if v['id'] == val_id and not v.get('read'):
+                    v['read'] = True; changed = True
+            if changed: _save_valentines(s['id'], vs)
         return _json(handler, 200, {'status': 'ok'})
 
     return _json(handler, 404, {'error': 'Not found'})
@@ -118,9 +123,10 @@ def handle_post(handler, s, path, data):
 def handle_delete(handler, s, path):
     if path.startswith('/api/valentine/'):
         val_id = path.split('/api/valentine/')[1]
-        vs = _load_valentines(s['id'])
-        vs = [v for v in vs if v['id'] != val_id]
-        _save_valentines(s['id'], vs)
+        with _lock:
+            vs = _load_valentines(s['id'])
+            vs = [v for v in vs if v['id'] != val_id]
+            _save_valentines(s['id'], vs)
         return _json(handler, 200, {'status': 'ok'})
     return _json(handler, 404, {'error': 'Not found'})
 

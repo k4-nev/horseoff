@@ -1,5 +1,5 @@
 """Bots module API — v1.0"""
-import json, secrets, time, asyncio, threading
+import json, secrets, time, asyncio, threading, os
 from pathlib import Path
 
 BOTS_DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data' / 'bots'
@@ -61,7 +61,9 @@ def _load(path, default=None):
 def _save(path, data):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        os.replace(tmp, path)
     except Exception as e:
         print(f"[BOTS] Save error {path}: {e}")
 
@@ -71,6 +73,24 @@ def _bot_path(bid): return BOTS_DATA_DIR / f'{bid}.json'
 def _load_bot(bid): return _load(_bot_path(bid), None)
 def _save_bot(b): _save(_bot_path(b['id']), b)
 def _gen_key(): return 'hb_' + secrets.token_urlsafe(32)
+
+# Per-bot locks: the HTTP admin endpoints below (handle_get/post/put/delete,
+# main thread) and handle_bot_ws (one per connected bot, running in the WS
+# asyncio thread) both do load-mutate-save on the same {bot_id}.json with no
+# coordination — e.g. an admin renaming a bot while it reports 'stats' at the
+# same moment can silently drop one of the two changes. _index_lock guards
+# BOTS_INDEX the same way.
+_bot_locks = {}
+_bot_locks_meta = threading.Lock()
+_index_lock = threading.Lock()
+
+def _get_bot_lock(bot_id):
+    with _bot_locks_meta:
+        lock = _bot_locks.get(bot_id)
+        if lock is None:
+            lock = threading.Lock()
+            _bot_locks[bot_id] = lock
+        return lock
 
 def _reset_all_offline():
     """On server startup no bot is connected — clear stale online/status state.
@@ -213,9 +233,10 @@ def handle_post(handler, session, path, data=None):
             'created_at': int(time.time()),
         }
         _save_bot(bot)
-        index = _load_index()
-        index.append({'id': bot_id, 'name': name})
-        _save_index(index)
+        with _index_lock:
+            index = _load_index()
+            index.append({'id': bot_id, 'name': name})
+            _save_index(index)
         return _json(handler, 200, {'bot': _bot_summary(bot), 'api_key': api_key})
 
     # POST /api/mod/bots/group/rename — rename a group across all its bots
@@ -228,11 +249,12 @@ def handle_post(handler, session, path, data=None):
             return _json(handler, 400, {'error': 'old and new required'})
         count = 0
         for entry in _load_index():
-            b = _load_bot(entry['id'])
-            if b and b.get('group', 'Без группы') == old:
-                b['group'] = new
-                _save_bot(b)
-                count += 1
+            with _get_bot_lock(entry['id']):
+                b = _load_bot(entry['id'])
+                if b and b.get('group', 'Без группы') == old:
+                    b['group'] = new
+                    _save_bot(b)
+                    count += 1
         return _json(handler, 200, {'ok': True, 'count': count})
 
     # Paths with bot id
@@ -241,79 +263,80 @@ def handle_post(handler, session, path, data=None):
         segs = parts[1].split('/')
         bot_id = segs[0]
         sub = segs[1] if len(segs) > 1 else ''
-        bot = _load_bot(bot_id)
-        if not bot: return _json(handler, 404, {'error': 'Not found'})
-        if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
+        with _get_bot_lock(bot_id):
+            bot = _load_bot(bot_id)
+            if not bot: return _json(handler, 404, {'error': 'Not found'})
+            if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
 
-        # POST /api/mod/bots/:id/command
-        if sub == 'command':
-            cmd = {
-                'id': secrets.token_hex(4),
-                'ctrl_id': data.get('ctrl_id'),
-                'action': data.get('action'),
-                'value': data.get('value'),
-                'ts': int(time.time()),
-                'user_id': session['id'],
-            }
-            with _bws_lock:
-                ws = bot_ws_connections.get(bot_id)
-            if ws:
-                # Deliver in real-time via bot's WebSocket
-                async def _send():
-                    try: await ws.send(json.dumps({'type': 'command', 'cmd': cmd}))
+            # POST /api/mod/bots/:id/command
+            if sub == 'command':
+                cmd = {
+                    'id': secrets.token_hex(4),
+                    'ctrl_id': data.get('ctrl_id'),
+                    'action': data.get('action'),
+                    'value': data.get('value'),
+                    'ts': int(time.time()),
+                    'user_id': session['id'],
+                }
+                with _bws_lock:
+                    ws = bot_ws_connections.get(bot_id)
+                if ws:
+                    # Deliver in real-time via bot's WebSocket
+                    async def _send():
+                        try: await ws.send(json.dumps({'type': 'command', 'cmd': cmd}))
+                        except: pass
+                    try:
+                        from server import ws_loop
+                        if ws_loop:
+                            asyncio.run_coroutine_threadsafe(_send(), ws_loop)
                     except: pass
-                try:
-                    from server import ws_loop
-                    if ws_loop:
-                        asyncio.run_coroutine_threadsafe(_send(), ws_loop)
-                except: pass
-                return _json(handler, 200, {'ok': True, 'cmd': cmd})
-            else:
-                bot.setdefault('command_queue', []).append(cmd)
+                    return _json(handler, 200, {'ok': True, 'cmd': cmd})
+                else:
+                    bot.setdefault('command_queue', []).append(cmd)
+                    _save_bot(bot)
+                    return _json(handler, 200, {'queued': True})
+
+            # POST /api/mod/bots/:id/layout
+            if sub == 'layout':
+                bot['layout'] = data.get('layout', [])
                 _save_bot(bot)
-                return _json(handler, 200, {'queued': True})
+                return _json(handler, 200, {'ok': True})
 
-        # POST /api/mod/bots/:id/layout
-        if sub == 'layout':
-            bot['layout'] = data.get('layout', [])
-            _save_bot(bot)
-            return _json(handler, 200, {'ok': True})
-
-        # POST /api/mod/bots/:id/regen_key
-        if sub == 'regen_key':
-            if session['role'] not in _OWNER_ROLES:
-                return _json(handler, 403, {'error': 'Forbidden'})
-            new_key = _gen_key()
-            bot['api_key'] = new_key
-            bot['api_key_hint'] = new_key[-6:]
-            _save_bot(bot)
-            return _json(handler, 200, {'api_key': new_key})
-
-        # POST /api/mod/bots/:id/access — grant
-        if sub == 'access':
-            uid = data.get('user_id')
-            if uid and uid not in bot.setdefault('access_ids', []):
-                bot['access_ids'].append(uid)
+            # POST /api/mod/bots/:id/regen_key
+            if sub == 'regen_key':
+                if session['role'] not in _OWNER_ROLES:
+                    return _json(handler, 403, {'error': 'Forbidden'})
+                new_key = _gen_key()
+                bot['api_key'] = new_key
+                bot['api_key_hint'] = new_key[-6:]
                 _save_bot(bot)
-                try:
-                    from server import _ws_broadcast_to_user
-                    _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'granted'})
-                except Exception as e:
-                    print(f'[BOTS] access broadcast error: {e}')
-            return _json(handler, 200, {'ok': True})
+                return _json(handler, 200, {'api_key': new_key})
 
-        # POST /api/mod/bots/:id/read — clear badge
-        if sub == 'read':
-            bot['badge'] = 0
-            _save_bot(bot)
-            return _json(handler, 200, {'ok': True})
+            # POST /api/mod/bots/:id/access — grant
+            if sub == 'access':
+                uid = data.get('user_id')
+                if uid and uid not in bot.setdefault('access_ids', []):
+                    bot['access_ids'].append(uid)
+                    _save_bot(bot)
+                    try:
+                        from server import _ws_broadcast_to_user
+                        _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'granted'})
+                    except Exception as e:
+                        print(f'[BOTS] access broadcast error: {e}')
+                return _json(handler, 200, {'ok': True})
 
-        # POST /api/mod/bots/:id/clear_log — wipe stored logs
-        if sub == 'clear_log':
-            bot['logs'] = []
-            _save_bot(bot)
-            _broadcast_bot({'type': 'bot_log_clear', 'bot_id': bot_id})
-            return _json(handler, 200, {'ok': True})
+            # POST /api/mod/bots/:id/read — clear badge
+            if sub == 'read':
+                bot['badge'] = 0
+                _save_bot(bot)
+                return _json(handler, 200, {'ok': True})
+
+            # POST /api/mod/bots/:id/clear_log — wipe stored logs
+            if sub == 'clear_log':
+                bot['logs'] = []
+                _save_bot(bot)
+                _broadcast_bot({'type': 'bot_log_clear', 'bot_id': bot_id})
+                return _json(handler, 200, {'ok': True})
 
     return _json(handler, 404, {'error': 'Not found'})
 
@@ -326,22 +349,24 @@ def handle_put(handler, session, path, data=None):
     parts = p.split('/api/mod/bots/')
     if len(parts) == 2:
         bot_id = parts[1].split('/')[0]
-        bot = _load_bot(bot_id)
-        if not bot: return _json(handler, 404, {'error': 'Not found'})
-        if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
-        if 'name' in data:
-            name = data['name'].strip()
-            if name:
-                bot['name'] = name
-                index = _load_index()
-                for e in index:
-                    if e['id'] == bot_id: e['name'] = name
-                _save_index(index)
-        if 'group' in data: bot['group'] = data['group']
-        if 'sub' in data: bot['sub'] = data['sub']
-        if 'version' in data: bot['version'] = data['version']
-        if 'avatar' in data: bot['avatar'] = data['avatar']
-        _save_bot(bot)
+        with _get_bot_lock(bot_id):
+            bot = _load_bot(bot_id)
+            if not bot: return _json(handler, 404, {'error': 'Not found'})
+            if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
+            if 'name' in data:
+                name = data['name'].strip()
+                if name:
+                    bot['name'] = name
+                    with _index_lock:
+                        index = _load_index()
+                        for e in index:
+                            if e['id'] == bot_id: e['name'] = name
+                        _save_index(index)
+            if 'group' in data: bot['group'] = data['group']
+            if 'sub' in data: bot['sub'] = data['sub']
+            if 'version' in data: bot['version'] = data['version']
+            if 'avatar' in data: bot['avatar'] = data['avatar']
+            _save_bot(bot)
         return _json(handler, 200, {'ok': True})
     return _json(handler, 404, {'error': 'Not found'})
 
@@ -354,34 +379,36 @@ def handle_delete(handler, session, path):
         segs = parts[1].split('/')
         bot_id = segs[0]
         sub = segs[1] if len(segs) > 1 else ''
-        bot = _load_bot(bot_id)
-        if not bot: return _json(handler, 404, {'error': 'Not found'})
-        if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
+        with _get_bot_lock(bot_id):
+            bot = _load_bot(bot_id)
+            if not bot: return _json(handler, 404, {'error': 'Not found'})
+            if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
 
-        # DELETE /api/mod/bots/:id/access — revoke
-        if sub == 'access':
-            length = int(handler.headers.get('Content-Length', 0))
-            body = handler.rfile.read(length)
-            try: data = json.loads(body) if body else {}
-            except: data = {}
-            uid = data.get('user_id')
-            if uid in bot.get('access_ids', []):
-                bot['access_ids'].remove(uid)
-                _save_bot(bot)
-                try:
-                    from server import _ws_broadcast_to_user
-                    _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'revoked'})
-                except Exception as e:
-                    print(f'[BOTS] access broadcast error: {e}')
-            return _json(handler, 200, {'ok': True})
+            # DELETE /api/mod/bots/:id/access — revoke
+            if sub == 'access':
+                length = int(handler.headers.get('Content-Length', 0))
+                body = handler.rfile.read(length)
+                try: data = json.loads(body) if body else {}
+                except: data = {}
+                uid = data.get('user_id')
+                if uid in bot.get('access_ids', []):
+                    bot['access_ids'].remove(uid)
+                    _save_bot(bot)
+                    try:
+                        from server import _ws_broadcast_to_user
+                        _ws_broadcast_to_user(uid, {'type': 'bot_access_update', 'bot_id': bot_id, 'action': 'revoked'})
+                    except Exception as e:
+                        print(f'[BOTS] access broadcast error: {e}')
+                return _json(handler, 200, {'ok': True})
 
-        # DELETE /api/mod/bots/:id
-        if not sub:
-            if session['role'] not in _OWNER_ROLES and session['id'] != bot.get('owner_id'):
-                return _json(handler, 403, {'error': 'Forbidden'})
-            _bot_path(bot_id).unlink(missing_ok=True)
-            _save_index([e for e in _load_index() if e['id'] != bot_id])
-            return _json(handler, 200, {'ok': True})
+            # DELETE /api/mod/bots/:id
+            if not sub:
+                if session['role'] not in _OWNER_ROLES and session['id'] != bot.get('owner_id'):
+                    return _json(handler, 403, {'error': 'Forbidden'})
+                _bot_path(bot_id).unlink(missing_ok=True)
+                with _index_lock:
+                    _save_index([e for e in _load_index() if e['id'] != bot_id])
+                return _json(handler, 200, {'ok': True})
 
     return _json(handler, 404, {'error': 'Not found'})
 
@@ -412,11 +439,12 @@ async def handle_bot_ws(websocket):
             bot_ws_connections[bot_id] = websocket
 
         # Mark online + flush queued commands
-        bot['status'] = 'online'
-        bot['last_seen'] = int(time.time())
-        queued = bot.get('command_queue', [])
-        bot['command_queue'] = []
-        _save_bot(bot)
+        with _get_bot_lock(bot_id):
+            bot['status'] = 'online'
+            bot['last_seen'] = int(time.time())
+            queued = bot.get('command_queue', [])
+            bot['command_queue'] = []
+            _save_bot(bot)
 
         await websocket.send(json.dumps({'type': 'auth_ok', 'bot_id': bot_id, 'name': bot['name']}))
         for cmd in queued:
@@ -435,12 +463,14 @@ async def handle_bot_ws(websocket):
                     await websocket.send(json.dumps({'type': 'pong'}))
 
                 elif mt == 'manifest':
-                    bot = _load_bot(bot_id)
+                    with _get_bot_lock(bot_id):
+                        bot = _load_bot(bot_id)
+                        if bot:
+                            for field in ('name', 'version', 'sub', 'controls', 'tabs'):
+                                if msg.get(field) is not None:
+                                    bot[field] = msg[field]
+                            _save_bot(bot)
                     if bot:
-                        for field in ('name', 'version', 'sub', 'controls', 'tabs'):
-                            if msg.get(field) is not None:
-                                bot[field] = msg[field]
-                        _save_bot(bot)
                         _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id,
                                         'status': 'online', 'version': bot.get('version', ''),
                                         'sub': bot.get('sub', ''), 'controls': bot.get('controls'),
@@ -451,14 +481,15 @@ async def handle_bot_ws(websocket):
                     text = msg.get('msg', '')
                     ts = time.strftime('%H:%M:%S')
                     # Persist last 500 log lines per bot (survive reload/restart)
-                    bot = _load_bot(bot_id)
-                    if bot:
-                        logs = bot.get('logs') or []
-                        logs.append({'ts': ts, 'level': level, 'msg': text})
-                        if len(logs) > 500:
-                            logs = logs[-500:]
-                        bot['logs'] = logs
-                        _save_bot(bot)
+                    with _get_bot_lock(bot_id):
+                        bot = _load_bot(bot_id)
+                        if bot:
+                            logs = bot.get('logs') or []
+                            logs.append({'ts': ts, 'level': level, 'msg': text})
+                            if len(logs) > 500:
+                                logs = logs[-500:]
+                            bot['logs'] = logs
+                            _save_bot(bot)
                     _broadcast_bot({'type': 'bot_log', 'bot_id': bot_id,
                                     'ts': ts, 'level': level, 'msg': text})
                     # Push-уведомления из логов отключены (лог только копится,
@@ -477,39 +508,43 @@ async def handle_bot_ws(websocket):
                     data = msg.get('data', {})
                     if ctrl_id == '__status__':
                         # Bot live status — store and broadcast as bot_update
-                        bot = _load_bot(bot_id)
-                        if bot:
-                            bot['status_text'] = data.get('text', '')
-                            bot['status_dot']  = data.get('dot', 'online')
-                            bot['status_lock'] = bool(data.get('lock', False))
-                            _save_bot(bot)
+                        with _get_bot_lock(bot_id):
+                            bot = _load_bot(bot_id)
+                            if bot:
+                                bot['status_text'] = data.get('text', '')
+                                bot['status_dot']  = data.get('dot', 'online')
+                                bot['status_lock'] = bool(data.get('lock', False))
+                                _save_bot(bot)
                         _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id,
                                         'status_text': data.get('text', ''),
                                         'status_dot':  data.get('dot', 'online'),
                                         'status_lock': bool(data.get('lock', False))})
                     else:
                         # Persist updated value into stored controls
-                        bot = _load_bot(bot_id)
-                        if bot and bot.get('controls'):
-                            for ctrl in bot['controls']:
-                                if ctrl.get('id') == ctrl_id:
-                                    ctrl.update(data)
-                                    break
-                            _save_bot(bot)
+                        with _get_bot_lock(bot_id):
+                            bot = _load_bot(bot_id)
+                            if bot and bot.get('controls'):
+                                for ctrl in bot['controls']:
+                                    if ctrl.get('id') == ctrl_id:
+                                        ctrl.update(data)
+                                        break
+                                _save_bot(bot)
                         _broadcast_bot({'type': 'ctrl_update', 'bot_id': bot_id,
                                         'ctrl_id': ctrl_id, 'data': data})
 
                 elif mt == 'stats':
-                    bot = _load_bot(bot_id)
+                    with _get_bot_lock(bot_id):
+                        bot = _load_bot(bot_id)
+                        if bot:
+                            # Block-based stats: bot declares which stat components it needs.
+                            if 'blocks' in msg:
+                                stats = {'blocks': msg['blocks']}
+                            else:
+                                # legacy kpi/hourly/daily
+                                stats = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
+                            bot['stats'] = stats
+                            _save_bot(bot)
                     if bot:
-                        # Block-based stats: bot declares which stat components it needs.
-                        if 'blocks' in msg:
-                            stats = {'blocks': msg['blocks']}
-                        else:
-                            # legacy kpi/hourly/daily
-                            stats = {k: msg[k] for k in ('kpi', 'hourly', 'daily') if k in msg}
-                        bot['stats'] = stats
-                        _save_bot(bot)
                         _broadcast_bot({'type': 'bot_stats', 'bot_id': bot_id, 'stats': stats})
 
             except (json.JSONDecodeError, KeyError):
@@ -521,18 +556,20 @@ async def handle_bot_ws(websocket):
         if bot_id:
             with _bws_lock:
                 bot_ws_connections.pop(bot_id, None)
-            bot = _load_bot(bot_id)
+            with _get_bot_lock(bot_id):
+                bot = _load_bot(bot_id)
+                if bot:
+                    bot['status'] = 'offline'
+                    bot['last_seen'] = int(time.time())
+                    bot['status_text'] = ''
+                    bot['status_dot'] = ''
+                    bot['status_lock'] = False
+                    # Reset live control values so stale data isn't shown on reconnect
+                    for ctrl in (bot.get('controls') or []):
+                        for field in ('text', 'value', 'rows', 'total', 'src'):
+                            ctrl.pop(field, None)
+                    _save_bot(bot)
             if bot:
-                bot['status'] = 'offline'
-                bot['last_seen'] = int(time.time())
-                bot['status_text'] = ''
-                bot['status_dot'] = ''
-                bot['status_lock'] = False
-                # Reset live control values so stale data isn't shown on reconnect
-                for ctrl in (bot.get('controls') or []):
-                    for field in ('text', 'value', 'rows', 'total', 'src'):
-                        ctrl.pop(field, None)
-                _save_bot(bot)
                 _broadcast_bot({'type': 'bot_update', 'bot_id': bot_id, 'status': 'offline',
                                 'status_text': '', 'status_dot': '', 'status_lock': False})
 

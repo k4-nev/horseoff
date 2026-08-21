@@ -275,7 +275,7 @@ const Channels = {
     var cnt = document.getElementById('chSearchCount');
     if (cnt) { cnt.textContent = ''; cnt.className = 'ch-search-count'; }
     document.querySelectorAll('.ch-msg-search-match,.ch-msg-search-active').forEach(function(el) {
-      el.outerHTML = el.textContent;
+      el.replaceWith(document.createTextNode(el.textContent));
     });
     this._searchMatches = []; this._searchIdx = -1;
   },
@@ -287,11 +287,12 @@ const Channels = {
     // Highlight matches in rendered message texts
     var msgs = document.querySelectorAll('.ch-msg-text');
     var matches = [];
+    var self = this;
     msgs.forEach(function(el) {
       var orig = el.getAttribute('data-orig') || el.textContent;
       el.setAttribute('data-orig', orig);
       var re = new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
-      el.innerHTML = orig.replace(re, '<mark class="ch-msg-search-match">$1</mark>');
+      el.innerHTML = self._esc(orig).replace(re, '<mark class="ch-msg-search-match">$1</mark>');
       el.querySelectorAll('.ch-msg-search-match').forEach(function(m){ matches.push(m); });
     });
     this._searchMatches = matches;
