@@ -1,0 +1,615 @@
+<title>Любовь это…</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Caveat:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   «Любовь это…» — прототип модуля Признания
+
+   ЕДИНАЯ СИСТЕМА ДВИЖЕНИЯ
+   Всё в модуле подчиняется одним и тем же токенам времени и кривым —
+   ховер плитки, перелистывание слайдера, смена вкладки и раскрытие
+   признания используют одну «физику», поэтому переходы читаются как один
+   материал, а не как набор разных эффектов.
+
+   Кривая --e (ease-out quint) даёт длинный мягкий выкат без отскока:
+   движение стартует заметно и очень долго успокаивается — это и есть
+   «жидкое» ощущение. Ускорения (--e-io) — только там, где объект летит
+   из точки в точку и должен сначала разогнаться.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --paper:#FDF7F1;
+  --paper-deep:#F5EAE1;
+  --card:#FFFFFF;
+  --blush:#FADDE2;
+  --blush-soft:#FCEDF0;
+  --rose:#DD8395;
+  --rose-deep:#B45C71;
+  --ruby:#C4485F;
+  --gold:#EFC777;
+  --ink:#3E2C31;
+  --ink-soft:#7A6167;
+  --ink-faint:#A8949A;
+
+  --lift:0 26px 54px -22px rgba(180,92,113,.42), 0 6px 16px -8px rgba(62,44,49,.12);
+  --rest:0 12px 30px -18px rgba(180,92,113,.34);
+  --flat:0 6px 16px -12px rgba(180,92,113,.4);
+
+  /* время (темп на 20% быстрее исходного набора) */
+  --t-xs:210ms;   /* цвет, мелкие состояния */
+  --t-s:335ms;    /* появление подписей, точки */
+  --t-m:495ms;    /* ховер: разворот стопки */
+  --t-back:575ms; /* уход ховера — чуть дольше, «оседает» */
+  --t-l:625ms;    /* слайдер, смена вкладки */
+  --t-xl:735ms;   /* полёт карточки при раскрытии */
+
+  /* кривые
+     ВАЖНО: ease-out-quint вроде (.22,1,.36,1) выглядит «плавным» на бумаге,
+     но проходит ~80% пути за первые 20% времени — глаз читает это как рывок
+     с незаметным хвостом, сколько длительность ни увеличивай. Поэтому здесь
+     кривые с мягким СТАРТОМ и долгим торможением: движение набирает ход
+     постепенно, и только это даёт «жидкое» ощущение. */
+  --e:cubic-bezier(.4,.12,.2,1);       /* базовая: мягкий старт, долгий выкат */
+  --e-io:cubic-bezier(.55,.03,.22,1);  /* полёт из точки в точку */
+
+  --ui:'Manrope',system-ui,-apple-system,sans-serif;
+  --hand:'Caveat','Segoe Script',cursive;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--ui);
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+button{font-family:inherit;color:inherit}
+:focus-visible{outline:2.5px solid var(--rose);outline-offset:3px;border-radius:8px}
+
+#app{position:relative;height:100%;overflow:hidden;
+  background:
+    radial-gradient(58% 38% at 12% 0%,rgba(250,221,226,.55),transparent 68%),
+    radial-gradient(48% 34% at 100% 12%,rgba(203,220,197,.28),transparent 70%),
+    var(--paper)}
+.layer{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
+
+/* Смена экрана целиком — общий для всех переходов приём */
+.layer.out{opacity:0;transform:translateY(10px) scale(.994);
+  transition:opacity var(--t-s) var(--e),transform var(--t-s) var(--e);pointer-events:none}
+.layer.in{opacity:0;transform:translateY(14px) scale(.99)}
+.layer.settle{opacity:1;transform:none;
+  transition:opacity var(--t-l) var(--e),transform var(--t-l) var(--e)}
+
+/* ── Шапка ── */
+.head{padding:26px 30px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex:none}
+.head h1{margin:0;font-size:clamp(22px,2.6vw,29px);font-weight:800;letter-spacing:-.02em;line-height:1.08;text-wrap:balance}
+.head .sub{margin-top:6px;font-size:14px;font-weight:500;color:var(--ink-faint)}
+.mark{width:36px;height:36px;border-radius:13px;background:var(--blush);display:grid;place-items:center;color:var(--ruby);flex:none}
+.mark svg{width:19px;height:19px}
+.back{border:0;background:var(--paper-deep);color:var(--ink-soft);font-size:14px;font-weight:700;
+  padding:9px 16px 9px 12px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:background var(--t-xs) var(--e),transform var(--t-m) var(--e)}
+.back:hover{background:var(--blush-soft);transform:translateX(-3px)}
+
+/* ── Вкладки: индикатор перетекает, а не перепрыгивает ── */
+.tabs{margin:0 30px 20px;position:relative;display:inline-flex;align-self:flex-start;padding:4px;
+  background:var(--paper-deep);border-radius:999px;flex:none}
+.tabpill{position:absolute;top:4px;left:0;height:calc(100% - 8px);border-radius:999px;background:var(--card);
+  box-shadow:var(--rest);transition:transform var(--t-l) var(--e),width var(--t-l) var(--e);z-index:0}
+.tab{position:relative;z-index:1;border:0;background:none;font-size:14px;font-weight:600;color:var(--ink-soft);
+  padding:9px 18px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;
+  transition:color var(--t-m) var(--e)}
+.tab.on{color:var(--ink)}
+.tab .cnt{font-size:11px;font-weight:800;background:var(--ruby);color:#fff;border-radius:999px;padding:2px 7px;min-width:19px;text-align:center}
+
+.label{margin:0 30px 12px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);flex:none}
+
+/* ── Панели вкладок живут одновременно и перетекают друг в друга ── */
+.panes{position:relative;flex:1;min-height:0}
+.pane{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;
+  transition:opacity var(--t-l) var(--e),transform var(--t-l) var(--e)}
+.pane[data-state="hidden"]{opacity:0;transform:translateY(12px) scale(.985);pointer-events:none}
+.pane[data-state="shown"]{opacity:1;transform:none}
+.pane::-webkit-scrollbar{width:8px}
+.pane::-webkit-scrollbar-thumb{background:var(--blush);border-radius:9px}
+
+/* ══ Получатели — карточки, а не растянутые строки ══ */
+.people{padding:0 30px 30px;display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+.person{position:relative;border:0;background:none;padding:0;cursor:pointer}
+.person::before,.person::after{content:'';position:absolute;inset:0;background:var(--card);border-radius:22px;
+  box-shadow:var(--flat);opacity:0;transform:rotate(0) scale(.94);
+  transition:opacity var(--t-back) var(--e),transform var(--t-back) var(--e)}
+.person .face{position:relative;z-index:1;background:var(--card);border-radius:22px;box-shadow:var(--rest);
+  padding:24px 16px 18px;display:flex;flex-direction:column;align-items:center;gap:12px;
+  transition:transform var(--t-back) var(--e),box-shadow var(--t-back) var(--e)}
+.person:hover::before,.person:focus-visible::before{opacity:1;transform:rotate(-6.5deg) translate(-4px,4px) scale(.975);
+  transition-duration:var(--t-m)}
+.person:hover::after,.person:focus-visible::after{opacity:1;transform:rotate(5deg) translate(4px,3px) scale(.98);
+  transition-duration:var(--t-m)}
+.person:hover .face,.person:focus-visible .face{transform:rotate(-1.8deg) translateY(-8px);box-shadow:var(--lift);
+  transition-duration:var(--t-m)}
+.ava{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(150deg,var(--blush),var(--rose));color:#fff;font-weight:700;font-size:23px;
+  transition:transform var(--t-back) var(--e)}
+.person:hover .ava{transform:scale(1.06);transition-duration:var(--t-m)}
+.person .txtwrap{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.person .nm{font-size:15.5px;font-weight:700}
+.person .un{font-size:13px;color:var(--ink-faint)}
+
+/* ══ КАРТОЧКА — герой ══ */
+.card{background:var(--card);border-radius:26px;box-shadow:var(--lift);padding:20px 20px 22px;
+  display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+.card .cap{font-family:var(--hand);font-size:23px;font-weight:600;color:var(--rose-deep);align-self:flex-start;line-height:1}
+.card .num{position:absolute;top:18px;right:20px;font-size:12px;font-weight:700;color:var(--ink-faint);
+  letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.card .art{flex:1;display:grid;place-items:center;width:100%;padding:12px 0 8px;min-height:0;overflow:hidden}
+.card .art img{width:100%;height:100%;object-fit:contain;min-height:0;
+  animation:artIn var(--t-l) var(--e) both}
+@keyframes artIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.card .txt{font-family:var(--hand);font-size:clamp(24px,2.4vw,31px);font-weight:600;text-align:center;line-height:1.14;text-wrap:balance}
+
+/* ══ КОНСТРУКТОР ══ */
+.compose{flex:1;min-height:0;display:grid;grid-template-columns:1fr 372px;gap:26px;padding:0 30px 28px}
+.pickwrap{background:var(--card);border-radius:26px;box-shadow:var(--rest);padding:22px 8px 22px 22px;
+  display:flex;flex-direction:column;min-height:0}
+.pickwrap .ttl{font-size:15.5px;font-weight:700}
+.pickwrap .hint{font-size:13px;color:var(--ink-faint);margin-top:2px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:18px;
+  overflow-y:auto;overflow-x:hidden;padding:12px 16px 16px 6px;min-height:0}
+.grid::-webkit-scrollbar{width:8px}
+.grid::-webkit-scrollbar-thumb{background:var(--blush);border-radius:9px}
+
+/* ── Плитка: наклон + стопка листов позади. Без единой рамки ── */
+.tile{position:relative;border:0;background:none;padding:0;cursor:pointer;aspect-ratio:1}
+.tile::before,.tile::after{content:'';position:absolute;inset:0;background:var(--card);border-radius:18px;
+  box-shadow:var(--flat);opacity:0;transform:rotate(0deg) scale(.94);
+  transition:opacity var(--t-back) var(--e),transform var(--t-back) var(--e)}
+.tile .face{position:relative;z-index:1;height:100%;display:grid;place-items:center;padding:11px;
+  background:var(--card);border-radius:18px;box-shadow:var(--rest);overflow:hidden;
+  transition:transform var(--t-back) var(--e),box-shadow var(--t-back) var(--e)}
+.tile img{width:100%;height:100%;object-fit:contain;min-height:0;pointer-events:none}
+.tile:hover::before,.tile:focus-visible::before{opacity:1;transform:rotate(-7.5deg) translate(-3px,4px) scale(.97);transition-duration:var(--t-m)}
+.tile:hover::after,.tile:focus-visible::after{opacity:1;transform:rotate(5.5deg) translate(3px,3px) scale(.975);transition-duration:var(--t-m)}
+.tile:hover .face,.tile:focus-visible .face{transform:rotate(-2deg) translateY(-7px);box-shadow:var(--lift);transition-duration:var(--t-m)}
+.tile.sel::before{opacity:1;transform:rotate(-9.5deg) translate(-5px,5px) scale(.965)}
+.tile.sel::after{opacity:1;transform:rotate(7.5deg) translate(5px,4px) scale(.97)}
+.tile.sel .face{transform:rotate(-2.6deg) translateY(-9px);
+  box-shadow:0 26px 52px -20px rgba(196,72,95,.55)}
+
+/* ── Правая колонка ── */
+.stage{display:flex;flex-direction:column;gap:16px;min-height:0}
+.slots{display:flex;gap:9px;justify-content:center;flex:none}
+.slot{width:44px;height:57px;border-radius:11px;background:var(--paper-deep);display:grid;place-items:center;padding:5px;
+  overflow:hidden;transition:transform var(--t-m) var(--e),background var(--t-m) var(--e),box-shadow var(--t-m) var(--e)}
+.slot img{width:100%;height:100%;object-fit:contain;min-height:0}
+.slot.now{background:var(--card);transform:translateY(-5px) rotate(-3.5deg);box-shadow:var(--rest)}
+.slot.done{background:var(--card);box-shadow:var(--flat)}
+.stage .card{flex:1;min-height:0}
+.await{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--ink-faint);font-size:14px;
+  font-weight:500;text-align:center;max-width:210px;text-wrap:balance;animation:breathe 3.6s ease-in-out infinite}
+.await .ic{width:44px;height:44px;border-radius:16px;background:var(--blush-soft);color:var(--blush);display:grid;place-items:center}
+.await .ic svg{width:22px;height:22px}
+@keyframes breathe{0%,100%{opacity:.72}50%{opacity:1}}
+.write{width:100%;border:0;border-bottom:2px dashed var(--blush);background:none;text-align:center;
+  font-family:var(--hand);font-size:clamp(24px,2.4vw,31px);font-weight:600;color:var(--ink);padding:4px 0 7px;outline:none;
+  transition:border-color var(--t-m) var(--e)}
+.write:focus{border-bottom-color:var(--rose)}
+.write::placeholder{color:#DCC7CC}
+.nav{display:flex;gap:10px;flex:none}
+.btn{border:0;font-size:15px;font-weight:700;padding:14px 24px;border-radius:16px;cursor:pointer;
+  transition:transform var(--t-m) var(--e),box-shadow var(--t-m) var(--e),background var(--t-xs) var(--e),color var(--t-xs) var(--e)}
+.btn.ghost{background:var(--paper-deep);color:var(--ink-soft)}
+.btn.ghost:hover{background:var(--blush-soft)}
+.btn.main{flex:1;background:var(--ruby);color:#fff;box-shadow:0 14px 30px -16px rgba(196,72,95,.95)}
+.btn.main:hover:not(:disabled){transform:translateY(-3px);box-shadow:0 22px 38px -16px rgba(196,72,95,.95)}
+.btn.main:disabled{background:var(--blush);color:#fff;box-shadow:none;cursor:not-allowed}
+.btn.trash{display:inline-flex;align-items:center;gap:9px;padding:11px 20px;font-size:14px;background:none;color:var(--ink-faint)}
+.btn.trash svg{width:16px;height:16px;flex:none}
+.btn.trash:hover{background:rgba(196,72,95,.09);color:var(--ruby)}
+
+/* ══ АРХИВ: вертикальные карточки 10:16 ══ */
+.album{padding:6px 30px 30px;display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:24px}
+.mini{position:relative;aspect-ratio:10/16;border:0;background:none;padding:0;cursor:pointer;
+  transition:opacity var(--t-m) var(--e),transform var(--t-m) var(--e)}
+.mini::before,.mini::after{content:'';position:absolute;inset:0;background:var(--card);border-radius:22px;
+  box-shadow:var(--flat);opacity:0;transform:rotate(0) scale(.95);
+  transition:opacity var(--t-back) var(--e),transform var(--t-back) var(--e)}
+.mini .face{position:relative;z-index:1;height:100%;width:100%;background:var(--card);border-radius:22px;box-shadow:var(--rest);
+  padding:16px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:9px;overflow:hidden;border:0;cursor:pointer;
+  transition:transform var(--t-back) var(--e),box-shadow var(--t-back) var(--e)}
+.mini:hover::before,.mini:focus-within::before{opacity:1;transform:rotate(-6.5deg) translate(-4px,4px) scale(.975);transition-duration:var(--t-m)}
+.mini:hover::after,.mini:focus-within::after{opacity:1;transform:rotate(5deg) translate(4px,3px) scale(.98);transition-duration:var(--t-m)}
+.mini:hover .face,.mini:focus-within .face{transform:rotate(-1.6deg) translateY(-8px);box-shadow:var(--lift);transition-duration:var(--t-m)}
+.mini .art{flex:1;width:100%;display:grid;place-items:center;min-height:0;overflow:hidden}
+.mini .art img{width:100%;height:100%;object-fit:contain;min-height:0}
+.mini .cp{font-family:var(--hand);font-size:20px;line-height:1.15;text-align:center;text-wrap:balance}
+.mini .who{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-faint);flex:none}
+.mini .who .a{width:21px;height:21px;border-radius:50%;background:linear-gradient(150deg,var(--blush),var(--rose));
+  color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center}
+.mini.new .face{box-shadow:0 16px 34px -16px rgba(239,199,119,.95),0 4px 10px -6px rgba(196,72,95,.18)}
+.ribbon{position:absolute;top:12px;left:12px;z-index:2;background:var(--gold);color:#5A4212;font-size:10px;font-weight:800;
+  padding:4px 9px;border-radius:999px;letter-spacing:.04em;pointer-events:none}
+.del{position:absolute;top:10px;right:10px;z-index:3;width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--paper-deep);color:var(--ink-soft);display:grid;place-items:center;opacity:0;transform:scale(.82);
+  transition:opacity var(--t-m) var(--e),transform var(--t-m) var(--e),background var(--t-xs),color var(--t-xs)}
+.mini:hover .del,.mini:focus-within .del{opacity:1;transform:scale(1)}
+.del:hover{background:var(--ruby);color:#fff}
+.del svg{width:15px;height:15px}
+.mini.going{opacity:0;transform:scale(.88) rotate(-4deg);pointer-events:none}
+/* Карточка, из которой раскрывается признание — остальные плавно тают */
+.album.dim .mini{opacity:0;transform:translateY(8px) scale(.97);
+  transition:opacity var(--t-l) var(--e),transform var(--t-l) var(--e)}
+.album.dim .mini.origin{opacity:0;transition-duration:var(--t-xs)}
+
+/* ══ ПРОСМОТР ══ */
+.viewer{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:8px 30px 26px}
+.deck{position:relative;width:min(330px,72vw);height:min(430px,58vh);flex:none}
+.deck .slide{position:absolute;inset:0;cursor:pointer;
+  transition:transform var(--t-l) var(--e),opacity var(--t-l) var(--e)}
+.deck .slide .card{height:100%}
+.deck .slide[data-off="0"]{transform:none;opacity:1;z-index:5;cursor:default}
+.deck .slide[data-off="-1"]{transform:translateX(-62%) scale(.8) rotate(-5deg);opacity:.42;z-index:3}
+.deck .slide[data-off="1"]{transform:translateX(62%) scale(.8) rotate(5deg);opacity:.42;z-index:3}
+.deck .slide[data-off="-2"]{transform:translateX(-82%) scale(.68) rotate(-8deg);opacity:0;z-index:1;pointer-events:none}
+.deck .slide[data-off="2"]{transform:translateX(82%) scale(.68) rotate(8deg);opacity:0;z-index:1;pointer-events:none}
+.deck .slide[data-off="far"]{opacity:0;transform:scale(.6);pointer-events:none;z-index:0}
+/* Стартовое состояние раскрытия: соседи спрятаны ПОД основной карточкой */
+.deck.folded .slide:not([data-off="0"]){transform:none !important;opacity:0 !important}
+
+/* Ползунок точек перетекает по дорожке */
+.dots{position:relative;display:flex;gap:15px;align-items:center;flex:none;height:8px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--blush);border:0;padding:0;cursor:pointer;
+  transition:opacity var(--t-s) var(--e)}
+.dot.under{opacity:0}
+.dpill{position:absolute;left:0;top:50%;width:22px;height:7px;border-radius:99px;background:var(--rose);
+  transform:translate(-7.5px,-50%);transition:transform var(--t-l) var(--e);pointer-events:none}
+.from{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--ink-soft);flex:none}
+.from .a{width:29px;height:29px;border-radius:50%;background:linear-gradient(150deg,var(--blush),var(--rose));
+  color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+
+/* Обвязка просмотра появляется после того, как карточка долетела */
+.chrome{opacity:0;transform:translateY(12px);
+  transition:opacity var(--t-l) var(--e),transform var(--t-l) var(--e)}
+.chrome.on{opacity:1;transform:none}
+
+.empty{padding:70px 30px;text-align:center;color:var(--ink-faint)}
+.empty .ic{font-size:46px}
+.empty .t{font-size:17px;font-weight:700;color:var(--ink);margin-top:12px}
+.empty .s{font-size:14px;margin-top:5px}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,24px);opacity:0;pointer-events:none;
+  background:var(--ink);color:#fff;font-size:14.5px;font-weight:600;padding:13px 16px 13px 20px;border-radius:16px;
+  display:flex;align-items:center;gap:14px;box-shadow:0 20px 44px -20px rgba(62,44,49,.85);z-index:60;
+  transition:opacity var(--t-l) var(--e),transform var(--t-l) var(--e)}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{border:0;background:rgba(255,255,255,.16);color:#fff;font-size:13.5px;font-weight:700;
+  padding:7px 13px;border-radius:10px;cursor:pointer;transition:background var(--t-xs)}
+.toast button:hover{background:rgba(255,255,255,.3)}
+
+@media (max-width:860px){
+  .head{padding:20px 18px 12px}
+  .tabs{margin:0 18px 16px}
+  .label{margin:0 18px 10px}
+  /* На телефоне строки уместнее сетки — узкий экран, длинный список */
+  .people{padding:0 18px 24px;grid-template-columns:1fr;gap:10px}
+  .person .face{flex-direction:row;align-items:center;gap:14px;padding:13px 16px;border-radius:18px}
+  .person::before,.person::after{border-radius:18px}
+  .ava{width:46px;height:46px;font-size:17px}
+  .person .txtwrap{align-items:flex-start;text-align:left}
+  .album{padding:4px 18px 26px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+  .compose{grid-template-columns:1fr;gap:14px;padding:0 18px 18px;grid-template-rows:auto 1fr}
+  .stage{order:-1}
+  .stage .card{height:min(340px,42vh);flex:none}
+  .pickwrap{padding:16px 6px 16px 16px;border-radius:22px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:14px}
+  .viewer{padding:4px 14px 20px}
+}
+
+/* ── Уважение к «уменьшить движение» ──────────────────────────────────────
+   Раньше здесь был media-query, который глушил ВСЁ до 0.01мс. На системах,
+   где анимации Windows отключены (обычное дело для Server/RDP), браузер
+   репортит reduce — и весь модуль выглядел как набор мгновенных скачков,
+   независимо от того, что заложено в дизайн.
+   Теперь: во-первых, деградация мягкая — короткие фейды остаются, убираются
+   только длинные полёты; во-вторых, режимом управляет класс, а не media,
+   поэтому его можно осознанно переключить кнопкой ниже. */
+html.reduce-motion *{
+  animation-duration:1ms !important;
+  transition-duration:140ms !important;
+}
+.motion-note{position:fixed;right:20px;bottom:20px;z-index:70;display:none;align-items:center;gap:14px;
+  max-width:340px;background:var(--ink);color:#fff;padding:13px 14px 13px 18px;border-radius:16px;
+  font-size:13.5px;font-weight:600;line-height:1.35;box-shadow:0 20px 44px -20px rgba(62,44,49,.85)}
+html.reduce-motion .motion-note{display:flex}
+.motion-note button{border:0;background:rgba(255,255,255,.16);color:#fff;font-size:13px;font-weight:700;
+  padding:8px 13px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:background var(--t-xs)}
+.motion-note button:hover{background:rgba(255,255,255,.32)}
+</style>
+
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<div class="motion-note">
+  <span>В системе отключены анимации, поэтому переходы показаны мгновенными.</span>
+  <button onclick="forceMotion()">Показать движение</button>
+</div>
+
+<script>
+const STICKERS = __STICKERS__;
+const CAPTIONS = ['пить один коктейль на двоих','строить что-то вместе','сидеть рядом и молчать',
+  'ждать и дождаться','смеяться над одним и тем же','просыпаться не одному'];
+const PEOPLE = [
+  {id:'u1',name:'Аня',un:'anya'},{id:'u2',name:'Миша',un:'mikhail'},
+  {id:'u3',name:'Катя',un:'katya'},{id:'u4',name:'Лена',un:'lena'},
+];
+let received = [
+  {id:'v1',from:'Аня',time:'1 час назад',read:false,pages:[0,4,2,5,1].map((s,i)=>({s,t:CAPTIONS[i]}))},
+  {id:'v2',from:'Миша',time:'вчера',read:false,pages:[1,3,5,0,2].map((s,i)=>({s,t:CAPTIONS[(i+1)%6]}))},
+  {id:'v3',from:'Аня',time:'3 марта',read:true,pages:[2,0,4,1,3].map((s,i)=>({s,t:CAPTIONS[(i+2)%6]}))},
+  {id:'v4',from:'Катя',time:'1 марта',read:true,pages:[3,5,1,2,0].map((s,i)=>({s,t:CAPTIONS[(i+3)%6]}))},
+  {id:'v5',from:'Миша',time:'28 февраля',read:true,pages:[4,2,0,5,1].map((s,i)=>({s,t:CAPTIONS[(i+4)%6]}))},
+];
+
+const HEART='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+const TRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+
+/* Режимом движения управляет класс, а не media-query — так его можно
+   осознанно включить, даже если система просит «меньше движения».
+   localStorage может бросить исключение (приватный режим, превью) — глушим. */
+const MQ=matchMedia('(prefers-reduced-motion: reduce)');
+function motionForced(){try{return localStorage.getItem('vl-motion')==='on'}catch(e){return false}}
+function applyMotion(){document.documentElement.classList.toggle('reduce-motion',MQ.matches&&!motionForced())}
+function forceMotion(){try{localStorage.setItem('vl-motion','on')}catch(e){}applyMotion()}
+if(MQ.addEventListener)MQ.addEventListener('change',applyMotion);
+applyMotion();
+
+/* Тайминги хореографии держим в одном месте и синхронно с CSS-токенами:
+   если ускорить только CSS, задержки в JS разъедутся и слои начнут
+   исчезать раньше, чем закончится их анимация. */
+const T={xs:210,s:335,m:495,back:575,l:625,xl:735};
+
+const app=document.getElementById('app');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ini=n=>n.trim().charAt(0).toUpperCase();
+const raf2=fn=>requestAnimationFrame(()=>requestAnimationFrame(fn));
+/* Родительный падеж: «для Ани», а не «для Аня» */
+function forWhom(n){n=n.trim();const l=n.slice(-1),p=n.slice(-2,-1).toLowerCase();
+  if(l==='я')return n.slice(0,-1)+'и';
+  if(l==='а')return n.slice(0,-1)+('жчшщкгх'.includes(p)?'и':'ы');return n;}
+
+let tab='create', draft=null, vState=null;
+let toastTimer;
+function toast(msg,label,fn){
+  const el=document.getElementById('toast');
+  el.innerHTML='<span>'+esc(msg)+'</span>'+(label?'<button id="tAct">'+esc(label)+'</button>':'');
+  el.classList.add('show');
+  if(label)document.getElementById('tAct').onclick=()=>{el.classList.remove('show');clearTimeout(toastTimer);fn&&fn();};
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),4800);
+}
+function headHTML(title,sub,back){
+  return '<div class="head"><div>'
+    +(back?'<button class="back" onclick="toList()">‹ Назад</button><div style="height:12px"></div>':'')
+    +'<h1>'+esc(title)+'</h1><div class="sub">'+esc(sub)+'</div></div>'
+    +'<div class="mark">'+HEART+'</div></div>';
+}
+/* Единый приём смены экрана: старый слой тает, новый всплывает */
+function swapLayer(html,after){
+  const old=app.querySelector('.layer');
+  if(old){old.classList.add('out');setTimeout(()=>old.remove(),T.s);}
+  const el=document.createElement('div');
+  el.className='layer in';el.innerHTML=html;app.appendChild(el);
+  raf2(()=>{el.classList.remove('in');el.classList.add('settle');after&&after(el);});
+  return el;
+}
+
+/* ═══ СПИСОК ═══ */
+function listHTML(){
+  const unread=received.filter(v=>!v.read).length;
+  return headHTML('Валентинки','Кому сегодня признаемся?')
+    +'<div class="tabs"><span class="tabpill" id="tabpill"></span>'
+    +'<button class="tab" id="tabA" onclick="setTab(\'create\')">Создать</button>'
+    +'<button class="tab" id="tabB" onclick="setTab(\'received\')">Признания'
+    +(unread?'<span class="cnt">'+unread+'</span>':'')+'</button></div>'
+    +'<div class="panes">'
+      +'<div class="pane" id="paneA">'+peopleHTML()+'</div>'
+      +'<div class="pane" id="paneB">'+albumHTML()+'</div>'
+    +'</div>';
+}
+function peopleHTML(){
+  return '<div class="label">Кому отправим</div><div class="people">'
+    +PEOPLE.map(p=>'<button class="person" onclick="startDraft(\''+p.id+'\')">'
+      +'<span class="face"><span class="ava">'+ini(p.name)+'</span>'
+      +'<span class="txtwrap"><span class="nm">'+esc(p.name)+'</span>'
+      +'<span class="un">@'+esc(p.un)+'</span></span></span></button>').join('')
+    +'</div>';
+}
+function albumHTML(){
+  if(!received.length)return '<div class="empty"><div class="ic">💌</div>'
+    +'<div class="t">Пока тихо…</div><div class="s">Здесь появятся признания, которые тебе отправят</div></div>';
+  return '<div class="album" id="album">'+received.map(v=>{
+    const p=v.pages[0];
+    return '<div class="mini'+(!v.read?' new':'')+'" id="m_'+v.id+'">'
+      +(!v.read?'<span class="ribbon">новое</span>':'')
+      +'<button class="del" title="Удалить" onclick="event.stopPropagation();delVal(\''+v.id+'\')">'+TRASH+'</button>'
+      +'<button class="face" onclick="openVal(\''+v.id+'\')">'
+      +'<span class="art"><img src="'+STICKERS[p.s]+'" alt=""></span>'
+      +'<span class="cp">'+esc(p.t)+'</span>'
+      +'<span class="who"><span class="a">'+ini(v.from)+'</span>'+esc(v.from)+' · '+esc(v.time)+'</span>'
+      +'</button></div>';}).join('')+'</div>';
+}
+function renderList(){ swapLayer(listHTML(),()=>applyTab(false)); }
+function toList(){ renderList(); }
+
+/* Вкладки перетекают: индикатор едет, панели перекрёстно тают */
+function applyTab(animate){
+  const a=document.getElementById('tabA'),b=document.getElementById('tabB'),pill=document.getElementById('tabpill');
+  const pa=document.getElementById('paneA'),pb=document.getElementById('paneB');
+  if(!a||!pill)return;
+  const on=tab==='create'?a:b;
+  a.classList.toggle('on',tab==='create'); b.classList.toggle('on',tab!=='create');
+  if(!animate)pill.style.transition='none';
+  pill.style.width=on.offsetWidth+'px';
+  pill.style.transform='translateX('+(on.offsetLeft-4)+'px)';
+  if(!animate)raf2(()=>pill.style.transition='');
+  pa.dataset.state=tab==='create'?'shown':'hidden';
+  pb.dataset.state=tab==='create'?'hidden':'shown';
+}
+function setTab(t){ if(t===tab)return; tab=t; applyTab(true); }
+
+/* ═══ КОНСТРУКТОР ═══ */
+function startDraft(pid){
+  const p=PEOPLE.find(x=>x.id===pid);
+  draft={to:p,page:0,pages:Array.from({length:5},()=>({s:null,t:''}))};
+  swapLayer(composeHTML(),bindCompose);
+}
+function composeHTML(){
+  const d=draft,cur=d.pages[d.page],ok=cur.s!==null&&cur.t.trim();
+  return headHTML('Признание для '+forWhom(d.to.name),'Собери пять карточек — по одной на каждое «любовь это…»',true)
+    +'<div class="compose"><div class="pickwrap">'
+    +'<div class="ttl">Выбери картинку</div><div class="hint">Страница '+(d.page+1)+' из 5</div>'
+    +'<div class="grid">'+STICKERS.map((src,i)=>
+      '<button class="tile'+(cur.s===i?' sel':'')+'" onclick="pick('+i+')" aria-label="Картинка '+(i+1)+'">'
+      +'<span class="face"><img src="'+src+'" alt=""></span></button>').join('')+'</div></div>'
+    +'<div class="stage"><div class="slots">'
+    +d.pages.map((p,i)=>'<div class="slot'+(i===d.page?' now':(p.s!==null?' done':''))+'">'
+      +(p.s!==null?'<img src="'+STICKERS[p.s]+'" alt="">':'')+'</div>').join('')+'</div>'
+    +'<div class="card"><span class="cap">Любовь это…</span><span class="num">'+(d.page+1)+' / 5</span>'
+    +'<span class="art" id="art">'+(cur.s!==null?'<img src="'+STICKERS[cur.s]+'" alt="">'
+      :'<span class="await"><span class="ic">'+HEART+'</span>Выбери картинку — она встанет сюда</span>')+'</span>'
+    +'<input class="write" id="w" placeholder="напиши продолжение…" maxlength="60" value="'+esc(cur.t)+'"></div>'
+    +'<div class="nav">'+(d.page>0?'<button class="btn ghost" onclick="pageBy(-1)">Назад</button>':'')
+    +'<button class="btn main" id="nextBtn" '+(ok?'':'disabled')+' onclick="advance()">'
+    +(d.page===4?'Отправить 💌':'Далее')+'</button></div></div></div>';
+}
+function bindCompose(){
+  const w=document.getElementById('w');if(!w)return;
+  w.oninput=e=>{draft.pages[draft.page].t=e.target.value;
+    document.getElementById('nextBtn').disabled=!(draft.pages[draft.page].s!==null&&e.target.value.trim());};
+}
+/* Выбор картинки не перерисовывает экран — она мягко «встаёт» в карточку */
+function pick(i){
+  draft.pages[draft.page].s=i;
+  document.querySelectorAll('.tile').forEach((t,k)=>t.classList.toggle('sel',k===i));
+  const art=document.getElementById('art');
+  art.innerHTML='<img src="'+STICKERS[i]+'" alt="">';
+  const slot=document.querySelectorAll('.slot')[draft.page];
+  if(slot)slot.innerHTML='<img src="'+STICKERS[i]+'" alt="">';
+  const w=document.getElementById('w');
+  document.getElementById('nextBtn').disabled=!(w&&w.value.trim());
+  if(w&&!w.value)w.focus();
+}
+function pageBy(d){draft.page=Math.max(0,Math.min(4,draft.page+d));swapLayer(composeHTML(),bindCompose);}
+function advance(){
+  if(draft.page<4){pageBy(1);return;}
+  const name=draft.to.name;draft=null;tab='create';renderList();
+  toast('Валентинка отправлена для '+forWhom(name),'Отменить',()=>toast('Отправка отменена'));
+}
+
+/* ═══ РАСКРЫТИЕ ПРИЗНАНИЯ ═══
+   Хореография: карточка складывается, летит из своего места в центр,
+   из неё выезжают соседние слайды, обвязка проявляется следом. */
+function openVal(id){
+  const v=received.find(x=>x.id===id);if(!v)return;
+  if(!v.read)v.read=true;
+  vState={v,page:0};
+
+  const reduced=document.documentElement.classList.contains('reduce-motion');
+  const originEl=reduced?null:document.querySelector('#m_'+id+' .face');
+  const from=originEl?originEl.getBoundingClientRect():null;
+  const album=document.getElementById('album');
+  const oldLayer=app.querySelector('.layer');
+  if(album){ document.getElementById('m_'+id).classList.add('origin'); album.classList.add('dim'); }
+
+  const el=document.createElement('div');
+  el.className='layer';el.style.opacity='0';el.innerHTML=viewerHTML(true);
+  app.appendChild(el);
+
+  const main=el.querySelector('.slide[data-off="0"]');
+  const deck=el.querySelector('.deck');
+  requestAnimationFrame(()=>{
+    el.style.transition='opacity var(--t-s) var(--e)';
+    el.style.opacity='1';
+    if(from&&main){
+      const to=main.getBoundingClientRect();
+      const dx=(from.left+from.width/2)-(to.left+to.width/2);
+      const dy=(from.top+from.height/2)-(to.top+to.height/2);
+      const sx=from.width/to.width, sy=from.height/to.height;
+      main.style.transition='none';
+      main.style.transform='translate('+dx+'px,'+dy+'px) scale('+sx+','+sy+')';
+      main.style.transformOrigin='center';
+      raf2(()=>{
+        main.style.transition='transform var(--t-xl) var(--e-io)';
+        main.style.transform='';
+        /* соседи «вылезают» из-под неё, пока она ещё летит */
+        setTimeout(()=>{ deck.classList.remove('folded'); },Math.round(T.xl*.41));
+        setTimeout(()=>{ main.style.transition=''; },T.xl+60);
+      });
+    } else { deck.classList.remove('folded'); }
+    setTimeout(()=>{ el.querySelectorAll('.chrome').forEach(c=>c.classList.add('on')); },Math.round(T.xl*.33));
+    setTimeout(()=>{ if(oldLayer)oldLayer.remove(); },T.l);
+  });
+  bindDots(el);
+}
+function viewerHTML(folded){
+  const {v}=vState;
+  return '<div class="chrome">'+headHTML('От '+forWhom(v.from),'Признание из пяти карточек · '+v.time,true)+'</div>'
+    +'<div class="viewer"><div class="deck'+(folded?' folded':'')+'" id="deck">'
+    +v.pages.map((p,i)=>'<div class="slide" data-i="'+i+'" data-off="'+(i===0?'0':(i===1?'1':(i===2?'2':'far')))+'" onclick="vGo('+i+')">'
+      +'<div class="card"><span class="cap">Любовь это…</span><span class="num">'+(i+1)+' / 5</span>'
+      +'<span class="art"><img src="'+STICKERS[p.s]+'" alt=""></span>'
+      +'<span class="txt">'+esc(p.t)+'</span></div></div>').join('')+'</div>'
+    +'<div class="chrome"><div class="dots" id="dots"><span class="dpill" id="dpill"></span>'
+    +v.pages.map((_,i)=>'<button class="dot" data-d="'+i+'" onclick="vGo('+i+')" aria-label="Карточка '+(i+1)+'"></button>').join('')
+    +'</div></div>'
+    +'<div class="chrome from"><span class="a">'+ini(v.from)+'</span>от '+esc(forWhom(v.from))+', с любовью</div>'
+    +'<div class="chrome"><button class="btn trash" onclick="delVal(\''+v.id+'\',true)">'+TRASH+'Удалить</button></div>'
+    +'</div>';
+}
+function bindDots(root){
+  const dots=(root||document).querySelectorAll('.dot');
+  if(!dots.length)return;
+  raf2(()=>paintDeck());
+}
+function paintDeck(){
+  if(!vState)return;
+  const cur=vState.page;
+  document.querySelectorAll('#deck .slide').forEach(el=>{
+    const off=(+el.dataset.i)-cur;
+    el.dataset.off=Math.abs(off)>2?'far':String(off);
+  });
+  const dots=document.querySelectorAll('.dot'),pill=document.getElementById('dpill');
+  dots.forEach((d,i)=>d.classList.toggle('under',i===cur));
+  if(pill&&dots[cur])pill.style.transform='translate('+(dots[cur].offsetLeft-7.5)+'px,-50%)';
+}
+function vGo(i){ if(!vState||i<0||i>4||i===vState.page)return; vState.page=i; paintDeck(); }
+
+/* ═══ УДАЛЕНИЕ ═══ */
+function delVal(id,fromViewer){
+  const idx=received.findIndex(v=>v.id===id);if(idx<0)return;
+  const backup=received[idx];
+  const finish=()=>{
+    received=received.filter(v=>v.id!==id);
+    if(fromViewer){vState=null;tab='received';renderList();}
+    else{const p=document.getElementById('paneB');if(p)p.innerHTML=albumHTML();}
+    toast('Признание удалено','Вернуть',()=>{received.splice(idx,0,backup);
+      if(document.getElementById('paneB'))document.getElementById('paneB').innerHTML=albumHTML();else renderList();});
+  };
+  const el=document.getElementById('m_'+id);
+  if(el&&!fromViewer){el.classList.add('going');setTimeout(finish,T.m);}else finish();
+}
+
+document.addEventListener('keydown',e=>{
+  if(vState){
+    if(e.key==='ArrowRight')vGo(vState.page+1);
+    if(e.key==='ArrowLeft')vGo(vState.page-1);
+    if(e.key==='Escape'){vState=null;tab='received';renderList();}
+  }
+});
+let tx=null;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(tx===null)return;const dx=e.changedTouches[0].clientX-tx;tx=null;
+  if(Math.abs(dx)<45)return;
+  if(vState)vGo(vState.page+(dx<0?1:-1));
+  else if(draft&&dx>0)pageBy(-1);
+},{passive:true});
+window.addEventListener('resize',()=>{applyTab(false);paintDeck();});
+
+renderList();
+</script>

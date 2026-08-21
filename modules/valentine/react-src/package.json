@@ -1,0 +1,22 @@
+{
+  "name": "valentine-react",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "smoke": "node smoke-test.mjs",
+    "visual": "node test-module.mjs",
+    "concept": "node build-concept.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.1.0",
+    "jsdom": "^25.0.1"
+  }
+}

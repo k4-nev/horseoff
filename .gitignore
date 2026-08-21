@@ -2,6 +2,13 @@
 __pycache__/
 *.pyc
 data/
+node_modules/
+
+# Артефакты локальных прогонов тестов и сборка прототипа со вшитыми картинками.
+# Собранные valentine.js/.css КОММИТЯТСЯ — на сервере сборки нет, деплой идёт scp.
+modules/*/react-src/*.png
+modules/*/react-src/concept-app.html
+modules/*/react-src/*.tmp
 
 # Secrets — never commit private keys
 *.pem
