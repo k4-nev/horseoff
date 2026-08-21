@@ -23,6 +23,14 @@ console.log('\n── ПК, обычный режим ──');
 const p = await open(1280, 860);
 
 check('модуль смонтировался', await p.locator('#vl-root').count() === 1);
+
+/* Ловушка, на которой модуль уже падал в проде: у оболочки нет цепочки
+   определённых высот, поэтому height:100% схлопывается в ноль и модуль
+   становится невидимым, хотя в DOM он есть. */
+const rootBox = await p.locator('#vl-root').boundingBox();
+check('у модуля есть реальная высота', rootBox && rootBox.height > 400,
+  rootBox ? Math.round(rootBox.width) + 'x' + Math.round(rootBox.height) : 'нет коробки');
+check('шапка видна на экране', (await p.locator('.vl-head h1').boundingBox()).height > 10);
 check('контракт window.Valentine.onWS', await p.evaluate(() => typeof window.Valentine?.onWS === 'function'));
 check('модуль светлый, а не тёмный от оболочки',
   (await p.evaluate(() => getComputedStyle(document.querySelector('#vl-root')).backgroundColor)).includes('253, 247, 241'));
@@ -117,12 +125,27 @@ await m.screenshot({ path: 'mod-6-mobile-viewer.png' });
 check('нет горизонтального скролла (телефон)',
   !(await m.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)));
 
+console.log('\n── Обычный пользователь: подсказки быть не должно ──');
+check('у пользователя с анимациями подсказки нет',
+  await p.locator('.vl-toast:has-text("отключены анимации")').count() === 0);
+
 console.log('\n── Режим «уменьшить движение» ──');
 const r = await open(1280, 860, 'reduce');
 check('плашка про анимации показана', await r.locator('.vl-toast:has-text("отключены анимации")').count() === 1);
 const redDur = await r.evaluate(() => getComputedStyle(document.querySelector('.vl-person .vl-face')).transitionDuration);
 check('деградация мягкая, не в ноль', redDur.split(',').every((d) => d.trim() === '0.14s'), redDur);
-await r.click('.vl-toast button');
+// Закрытие подсказки крестиком должно запоминаться и не мешать дальше
+const r2 = await open(1280, 860, 'reduce');
+await r2.click('.vl-toast button.vl-quiet');
+await r2.waitForTimeout(300);
+check('подсказку можно закрыть навсегда', await r2.locator('.vl-toast').count() === 0);
+await r2.reload();
+await r2.waitForFunction(() => window.__ready === true);
+await r2.waitForTimeout(600);
+check('после перезагрузки закрытая подсказка не возвращается',
+  await r2.locator('.vl-toast:has-text("отключены анимации")').count() === 0);
+
+await r.click('.vl-toast button:not(.vl-quiet)');
 await r.waitForTimeout(400);
 const afterDur = await r.evaluate(() => getComputedStyle(document.querySelector('.vl-person .vl-face')).transitionDuration);
 const stillReduced = await r.evaluate(() => document.querySelector('#vl-root').classList.contains('vl-reduce'));

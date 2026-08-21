@@ -5,31 +5,38 @@ import { useEffect, useState } from 'react';
    Server и RDP) браузер репортит prefers-reduced-motion: reduce, и глухое
    правило вида *{transition-duration:.01ms} превращает весь модуль в набор
    мгновенных скачков — пользователь не видит дизайн вообще. Здесь вместо
-   этого мягкая деградация (короткие фейды) плюс возможность включить
-   движение осознанно. */
+   этого мягкая деградация плюс возможность включить движение осознанно.
+
+   Подсказку показываем ТОЛЬКО тем, у кого система просит меньше движения,
+   и её можно закрыть навсегда: для человека, отключившего анимации
+   намеренно (укачивание, вестибулярные нарушения), это осознанный выбор,
+   а не проблема, которую нужно чинить всплывашкой. */
 const MQ = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 const KEY = 'vl-motion';
 
-const forced = () => {
-  try { return localStorage.getItem(KEY) === 'on'; } catch { return false; }
+const read = () => {
+  try { return localStorage.getItem(KEY); } catch { return null; }
+};
+const write = (v) => {
+  try { localStorage.setItem(KEY, v); } catch { /* приватный режим — не критично */ }
 };
 
-export function enableMotion() {
-  try { localStorage.setItem(KEY, 'on'); } catch { /* приватный режим — не критично */ }
-}
-
-export function useReducedMotion() {
-  const [reduced, setReduced] = useState(() => !!(MQ && MQ.matches) && !forced());
+export function useMotionMode() {
+  const systemReduce = !!(MQ && MQ.matches);
+  const [choice, setChoice] = useState(read); // 'on' | 'dismissed' | null
 
   useEffect(() => {
-    if (!MQ) return;
-    const sync = () => setReduced(MQ.matches && !forced());
-    if (MQ.addEventListener) {
-      MQ.addEventListener('change', sync);
-      return () => MQ.removeEventListener('change', sync);
-    }
-    return undefined;
+    if (!MQ || !MQ.addEventListener) return undefined;
+    const sync = () => setChoice(read());
+    MQ.addEventListener('change', sync);
+    return () => MQ.removeEventListener('change', sync);
   }, []);
 
-  return [reduced, () => { enableMotion(); setReduced(false); }];
+  return {
+    reduced: systemReduce && choice !== 'on',
+    // Подсказка только пока человек не сделал выбор
+    showHint: systemReduce && choice === null,
+    enable: () => { write('on'); setChoice('on'); },
+    dismiss: () => { write('dismissed'); setChoice('dismissed'); },
+  };
 }

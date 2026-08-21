@@ -13,11 +13,15 @@
    работают на одних кривых и токенах времени, поэтому переходы читаются
    как один материал.
    ═══════════════════════════════════════════════════════════════════════ */
-/* Точка монтирования держит высоту, выданную оболочкой модулю */
-#vl-mount{height:100%;min-height:0;display:flex;flex-direction:column}
+/* Высоту модуль задаёт себе сам — тем же способом, что messenger/channels/bots.
+   Полагаться на height:100% нельзя: .content в shell.html — это <main> с
+   display:block, а у .module-container стилей нет вовсе, поэтому цепочки
+   определённых высот от оболочки не существует и height:100% схлопнулся бы
+   в auto, а при абсолютно позиционированном содержимом — в нулевую высоту. */
+#vl-mount{height:100vh;height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 
 #vl-root{
-  flex:1;
+  flex:1;min-height:0;
   --vl-paper:#FDF7F1;
   --vl-paper-deep:#F5EAE1;
   --vl-card:#FFFFFF;
@@ -285,6 +289,8 @@
 .vl-toast button{border:0;background:rgba(255,255,255,.16);color:#fff;font-size:13.5px;font-weight:700;
   padding:7px 13px;border-radius:10px;cursor:pointer;transition:background var(--vl-t-xs)}
 .vl-toast button:hover{background:rgba(255,255,255,.3)}
+.vl-toast button.vl-quiet{background:none;padding:7px 9px;opacity:.6;font-size:14px}
+.vl-toast button.vl-quiet:hover{background:rgba(255,255,255,.14);opacity:1}
 
 @media (max-width:860px){
   .vl-head{padding:20px 18px 12px}

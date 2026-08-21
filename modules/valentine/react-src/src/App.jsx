@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getContacts, getStickers, getReceived, markRead, deleteValentine } from './api.js';
-import { useReducedMotion } from './motion.js';
+import { useMotionMode } from './motion.js';
 import { HEART, T } from './icons.jsx';
 import People from './People.jsx';
 import Album from './Album.jsx';
@@ -9,7 +9,8 @@ import Reveal from './Reveal.jsx';
 import './app.css';
 
 export default function App({ registerWSHandler }) {
-  const [reduced, enableMotion] = useReducedMotion();
+  const motion = useMotionMode();
+  const reduced = motion.reduced;
   const [view, setView] = useState('list');       // list | compose | viewer
   const [tab, setTab] = useState('create');
   const [contacts, setContacts] = useState(null); // null = ещё грузим
@@ -172,14 +173,15 @@ export default function App({ registerWSHandler }) {
         </div>
       )}
 
-      {reduced && (
-        <div className="vl-toast vl-show" style={{ bottom: 26 }}>
-          <span>В системе отключены анимации, поэтому переходы показаны мгновенными.</span>
-          <button onClick={enableMotion}>Показать движение</button>
+      {motion.showHint && (
+        <div className="vl-toast vl-show">
+          <span>В системе отключены анимации, поэтому переходы показаны без движения.</span>
+          <button onClick={motion.enable}>Включить</button>
+          <button className="vl-quiet" onClick={motion.dismiss} aria-label="Больше не показывать">✕</button>
         </div>
       )}
 
-      {!reduced && toastMsg && (
+      {!motion.showHint && toastMsg && (
         <div className="vl-toast vl-show">
           <span>{toastMsg.msg}</span>
           {toastMsg.action && (
