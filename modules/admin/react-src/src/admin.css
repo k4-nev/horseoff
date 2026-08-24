@@ -1,0 +1,680 @@
+/* ─── Токены модуля («Свод», палитра Сланец) ──────────────────────────────
+   Только светлая тема — тёмная сейчас не прорабатывается (см. память
+   design_theme_light_only). Шильдики .role-badge НЕ здесь — они общие для
+   всего приложения, живут в core/shell.css и не подчиняются этой палитре. */
+.adm-shell {
+  --adm-bg: #fdfcff;
+  --adm-surface2: #f6f4fb;
+  --adm-tray: #eae6f4;
+  --adm-border: rgba(45, 30, 70, 0.1);
+  --adm-text: #1f1a2b;
+  --adm-dim: #655d78;
+  --adm-faint: #9c93ac;
+  --adm-accent: #6d4fc7;
+  --adm-accent-ink: #ffffff;
+  --adm-danger: #c9403a;
+
+  /* Кривые с мягким стартом (см. modules/valentine/react-src/src/app.css) —
+     ease-out-quint-подобные кривые проходят большую часть пути в первые 20%
+     времени и читаются как рывок, поэтому здесь свой мягкий разгон. */
+  --adm-e: cubic-bezier(0.4, 0.12, 0.2, 1);
+  --adm-e-io: cubic-bezier(0.55, 0.03, 0.22, 1);
+  --adm-t-xs: 180ms;
+  --adm-t-s: 280ms;
+  --adm-t-m: 400ms;
+  --adm-t-l: 520ms;
+
+  background: var(--adm-bg);
+  color: var(--adm-text);
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  position: relative;
+}
+
+/* Честная деградация под prefers-reduced-motion: не глушим transition-duration
+   до 0 глобально (это ломает JS-таймеры, ждущие "настоящей" длительности —
+   ровно та проблема, из-за которой в valentine отказались от этого приёма),
+   а укорачиваем сами токены. JS-сторона (Drawer.jsx) укорачивает свой
+   setTimeout синхронно с этим через проп reduced. */
+.adm-shell[data-motion='off'] {
+  --adm-t-xs: 1ms;
+  --adm-t-s: 1ms;
+  --adm-t-m: 60ms;
+  --adm-t-l: 60ms;
+}
+
+.adm-shell * {
+  box-sizing: border-box;
+}
+
+/* ─── Тулбар ──────────────────────────────────────────────────────────── */
+.adm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--adm-border);
+  flex-wrap: wrap;
+}
+
+/* Вдавленный/тактильный поиск — в тон общей теме объёма (было плоским) */
+.adm-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--adm-surface2);
+  border: none;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 4px rgba(45, 30, 70, 0.1), inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 0 0 0.5px rgba(45, 30, 70, 0.05);
+  padding: 0 11px;
+  height: 36px;
+  color: var(--adm-faint);
+  width: 220px;
+  transition: box-shadow var(--adm-t-xs) var(--adm-e);
+}
+.adm-search:focus-within {
+  box-shadow: inset 0 2px 4px rgba(45, 30, 70, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1.5px var(--adm-accent);
+}
+.adm-search input {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--adm-text);
+  font: inherit;
+  font-size: 12.6px;
+  width: 100%;
+}
+.adm-search input::placeholder {
+  color: var(--adm-faint);
+}
+
+/* Объёмный дропдаун — референс wb-dd-btn */
+.adm-dd {
+  position: relative;
+}
+.adm-dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fff, var(--adm-surface2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 1px 1px rgba(45, 30, 70, 0.06), 0 3px 8px -3px rgba(45, 30, 70, 0.18);
+  color: var(--adm-text);
+  font: inherit;
+  font-size: 12.6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow var(--adm-t-xs) var(--adm-e);
+}
+.adm-dd-btn:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 1px 1px rgba(45, 30, 70, 0.06), 0 5px 12px -3px rgba(45, 30, 70, 0.24);
+}
+.adm-dd-btn .adm-ic {
+  transition: transform var(--adm-t-xs) var(--adm-e);
+}
+.adm-dd.open .adm-dd-btn .adm-ic {
+  transform: rotate(180deg);
+}
+.adm-dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 5;
+  min-width: 168px;
+  background: #fff;
+  border-radius: 11px;
+  padding: 6px;
+  box-shadow: 0 1px 1px rgba(45, 30, 70, 0.07), 0 14px 30px -10px rgba(45, 30, 70, 0.3);
+  transform-origin: top left;
+  opacity: 0;
+  transform: scale(0.97) translateY(-4px);
+  pointer-events: none;
+  transition: opacity var(--adm-t-xs) var(--adm-e), transform var(--adm-t-xs) var(--adm-e);
+}
+.adm-dd.open .adm-dd-menu {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+/* Пункты выравнены по левому краю — раньше .role-badge с margin-left:auto
+   уезжал вправо, будучи единственным ребёнком строки без текста рядом. */
+.adm-dd-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  gap: 8px;
+  padding: 7px 9px;
+  border: none;
+  background: none;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12.4px;
+  font-weight: 500;
+  color: var(--adm-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--adm-t-xs) var(--adm-e);
+}
+.adm-dd-item:hover {
+  background: var(--adm-surface2);
+}
+.adm-dd-item.on {
+  font-weight: 700;
+}
+
+/* Вдавленный лоток — референс wb-btn-tray */
+.adm-tray {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 13px;
+  background: var(--adm-tray);
+  box-shadow: inset 0 2px 5px rgba(45, 30, 70, 0.12), inset 0 -1px 0 rgba(255, 255, 255, 0.6), 0 0 0 0.5px rgba(45, 30, 70, 0.04);
+  margin-left: auto;
+}
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12.6px;
+  font-weight: 600;
+  border-radius: 9px;
+  height: 32px;
+  padding: 0 13px;
+  cursor: pointer;
+  border: none;
+  color: var(--adm-text);
+  background: linear-gradient(180deg, #fff, var(--adm-surface2));
+  box-shadow: inset 0 0 0 0.5px rgba(45, 30, 70, 0.1), 0 1px 1px rgba(45, 30, 70, 0.05);
+  transition: box-shadow var(--adm-t-xs) var(--adm-e), transform var(--adm-t-xs) var(--adm-e);
+}
+.adm-btn:active {
+  transform: translateY(1px);
+}
+.adm-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.adm-btn-primary {
+  background: var(--adm-accent);
+  color: var(--adm-accent-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+/* ─── Таблица ─────────────────────────────────────────────────────────── */
+.adm-head-row {
+  display: grid;
+  grid-template-columns: 26px 1fr 108px 68px;
+  padding: 9px 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-faint);
+  border-bottom: 1px solid var(--adm-border);
+}
+.adm-table {
+  flex: 1;
+  overflow: auto;
+}
+.adm-row-wrap {
+  border-bottom: 1px solid var(--adm-border);
+}
+.adm-row {
+  display: grid;
+  grid-template-columns: 26px 1fr 108px 68px;
+  align-items: center;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: background var(--adm-t-xs) var(--adm-e);
+}
+.adm-row-wrap:hover .adm-row {
+  background: var(--adm-surface2);
+}
+.adm-row-wrap.expanded .adm-row {
+  background: color-mix(in srgb, var(--adm-accent) 6%, var(--adm-bg));
+}
+.adm-chevron {
+  background: none;
+  border: none;
+  color: var(--adm-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.adm-chevron .adm-ic {
+  transform: rotate(-90deg);
+  transition: transform var(--adm-t-s) var(--adm-e-io);
+}
+.adm-row-wrap.expanded .adm-chevron .adm-ic {
+  transform: rotate(0);
+}
+.adm-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.adm-ava {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--adm-surface2);
+  border: 1px solid var(--adm-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--adm-dim);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.adm-ava img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.adm-meta {
+  min-width: 0;
+}
+.adm-line1 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.adm-name {
+  font-weight: 600;
+  font-size: 12.7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adm-name.handle-only {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--adm-dim);
+  font-weight: 500;
+}
+.adm-handle {
+  font-size: 11px;
+  color: var(--adm-faint);
+  margin-top: 1px;
+}
+/* Последняя активность — переиспользует @keyframes live-pulse из core/shell.css
+   (уже глобально доступен на странице, второй раз не объявляем). Точка несёт
+   цвет статуса, текст всегда нейтрально-серый — даже "Онлайн"/"Отошёл". */
+.adm-presence {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--adm-faint);
+  margin-top: 2px;
+}
+.adm-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success, #22c55e);
+  flex-shrink: 0;
+  animation: live-pulse var(--adm-pulse-speed, 2s) infinite;
+}
+.adm-live-dot.away {
+  background: #fbbf24;
+  animation: none;
+}
+.adm-dots {
+  display: flex;
+  gap: 4px;
+}
+.adm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--adm-border);
+  transition: background var(--adm-t-s) var(--adm-e);
+}
+.adm-dot.on {
+  background: var(--adm-accent);
+}
+.adm-row-actions {
+  display: flex;
+  justify-self: end;
+}
+.adm-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--adm-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--adm-t-xs) var(--adm-e), color var(--adm-t-xs) var(--adm-e), transform var(--adm-t-xs) var(--adm-e);
+}
+.adm-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.adm-icon-btn:active {
+  transform: scale(0.92);
+}
+.adm-icon-btn.danger:hover {
+  color: var(--adm-danger);
+  background: rgba(201, 64, 58, 0.08);
+}
+
+.adm-expand {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--adm-t-s) var(--adm-e-io);
+}
+.adm-row-wrap.expanded .adm-expand {
+  max-height: 280px;
+}
+.adm-expand-in {
+  padding: 14px 20px 18px 62px;
+}
+.adm-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-faint);
+  margin-bottom: 9px;
+}
+.adm-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 12px;
+}
+.adm-god-note {
+  font-size: 11px;
+  color: var(--adm-faint);
+  margin-top: 8px;
+  font-style: italic;
+}
+.adm-tog-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 12.4px;
+  background: var(--adm-surface2);
+  border-radius: 9px;
+}
+.adm-switch {
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: #dcdde2;
+  border: none;
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background var(--adm-t-xs) var(--adm-e);
+}
+.adm-switch.on {
+  background: var(--adm-accent);
+}
+.adm-switch.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.adm-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  transition: transform var(--adm-t-xs) var(--adm-e-io);
+}
+.adm-switch.on .adm-switch-knob {
+  transform: translateX(12px);
+}
+.adm-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--adm-faint);
+  font-size: 12.8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── Drawer — общий для «добавить», «редактировать», «модули по умолчанию» */
+.adm-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+.adm-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(31, 26, 43, 0.28);
+  opacity: 0;
+  transition: opacity var(--adm-t-m) var(--adm-e);
+  pointer-events: none;
+}
+.adm-drawer-overlay.visible .adm-scrim {
+  opacity: 1;
+  pointer-events: auto;
+}
+.adm-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 100vw);
+  background: var(--adm-bg);
+  box-shadow: -16px 0 40px -20px rgba(31, 26, 43, 0.4);
+  padding: 20px;
+  overflow: auto;
+  color: var(--adm-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  transform: translateX(100%);
+  transition: transform var(--adm-t-m) var(--adm-e-io);
+  pointer-events: none;
+}
+.adm-drawer-overlay.visible .adm-drawer {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+.adm-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 14.5px;
+  margin-bottom: 4px;
+}
+.adm-drawer-sub {
+  font-size: 11.5px;
+  color: var(--adm-faint);
+  margin-bottom: 16px;
+}
+/* Крестик закрытия — теперь по центру кнопки (не хватало flex-центровки) */
+.adm-x {
+  background: var(--adm-surface2);
+  border: none;
+  color: var(--adm-dim);
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background var(--adm-t-xs) var(--adm-e), color var(--adm-t-xs) var(--adm-e);
+}
+.adm-x:hover {
+  background: var(--adm-tray);
+  color: var(--adm-text);
+}
+.adm-field {
+  display: block;
+  margin-bottom: 13px;
+}
+.adm-field span {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--adm-faint);
+  margin-bottom: 5px;
+}
+.adm-input {
+  width: 100%;
+  background: var(--adm-surface2);
+  border: 1px solid var(--adm-border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--adm-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12.7px;
+  transition: box-shadow var(--adm-t-xs) var(--adm-e);
+}
+.adm-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 1.5px var(--adm-accent);
+}
+.adm-tier-strip {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.adm-tier-chip {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.4;
+  filter: grayscale(0.4);
+  transform: scale(0.96);
+  transition: opacity var(--adm-t-xs) var(--adm-e), filter var(--adm-t-xs) var(--adm-e), transform var(--adm-t-xs) var(--adm-e);
+}
+.adm-tier-chip.on {
+  opacity: 1;
+  filter: none;
+  transform: scale(1);
+}
+.adm-drawer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+/* Модули по умолчанию — тот же язык, отдельное содержимое drawer'а */
+.adm-defaults-desc {
+  font-size: 12.5px;
+  color: var(--adm-dim);
+  line-height: 1.55;
+  margin: 2px 0 18px;
+}
+.adm-defaults-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Подсказка про reduced-motion */
+.adm-motion-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  font-size: 11.5px;
+  color: var(--adm-dim);
+  background: var(--adm-surface2);
+  border-top: 1px solid var(--adm-border);
+}
+.adm-motion-hint button {
+  border: none;
+  background: none;
+  color: var(--adm-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.adm-ic {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .adm-head-row,
+  .adm-row {
+    grid-template-columns: 22px 1fr 76px;
+  }
+  .adm-dots,
+  .adm-head-row span:nth-child(3) {
+    display: none;
+  }
+  .adm-search {
+    width: 100%;
+    order: -1;
+  }
+  .adm-drawer {
+    width: 100%;
+  }
+}
+
+/* <473px: поиск — своя строка на всю ширину (order:-1 выносит его первым),
+   фильтр ролей + «Модули по умолчанию» + «Добавить» — вторая строка вместе.
+   flex-shrink:0 на .adm-dd-btn — «Все роли» не должна сжиматься/съезжать,
+   вместо этого схлопывается только текстовая подпись у «Модули по умолчанию»
+   (главный виновник переполнения, см. фидбек пользователя). */
+@media (max-width: 473px) {
+  .adm-toolbar {
+    padding: 14px 14px;
+    gap: 8px;
+  }
+  .adm-search {
+    width: 100%;
+    order: -1;
+  }
+  .adm-dd-btn {
+    flex-shrink: 0;
+  }
+  .adm-btn-label {
+    display: none;
+  }
+  .adm-tray .adm-btn:not(.adm-btn-primary) {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+}

@@ -42,7 +42,12 @@ ssh root@157.22.207.243 "systemctl restart horseoff"
 
 ## Stack
 
-- Vanilla JS + Python WebSocket backend (no frameworks)
+- Python WebSocket backend (no backend frameworks)
+- Frontend: гибрид. Большинство модулей — vanilla JS. Модуль `valentine`
+  («Признания») переведён на React (Vite-сборка в
+  `modules/valentine/react-src/`, компилируется в бандл, который грузится
+  через `modules/valentine/valentine.js`). Новые модули по умолчанию
+  делать на vanilla JS, если явно не решено переводить на React.
 - WebRTC mesh P2P (max 6 speakers, unlimited listeners)
 - Branch for development: `claude/gallant-fermi-2y4cbp`
 

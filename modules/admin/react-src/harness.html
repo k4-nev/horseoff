@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>admin — harness</title>
+<style>
+  /* Токены оболочки: модуль не должен от них зависеть, но они есть в проде.
+     Скопировано из core/shell.css как есть — минимальный набор, который
+     реально использует admin.css (+ общие .modal-overlay/.role-badge/.btn/
+     .form-* классы, которые модуль ожидает от оболочки). */
+  :root{
+    --bg:#1c1e2a; --surface:#252838; --surface2:#2e3146; --border:#3a3d55;
+    --text:#e2e4f0; --text-dim:#8890a8; --accent:#00d4aa; --accent-glow:rgba(0,212,170,0.12);
+    --danger:#ff4466; --scrollbar:rgba(255,255,255,0.05);
+  }
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:'Inter',sans-serif;min-height:100vh;overflow:hidden}
+  .app{display:flex;height:100vh}
+  .content{flex:1;overflow-y:auto;min-width:0}
+
+  /* Общие классы оболочки, которые admin.css НЕ переопределяет — их обязана
+     дать сама оболочка (core/shell.css). Копия оттуда, чтобы харнесс не врал
+     о контракте. */
+  .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:center}
+  .modal-overlay.active{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .modal-title{font-size:16px;font-weight:700}
+  .modal-close{background:none;border:none;color:var(--text-dim);cursor:pointer}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+  .form-group{margin-bottom:14px}
+  .form-label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px}
+  .form-input{width:100%;box-sizing:border-box;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px}
+  .form-hint{font-size:10px;color:var(--text-dim);margin-top:4px}
+  .input-eye{position:relative}
+  .eye-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer}
+  .btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600}
+  .btn-primary{background:var(--accent);color:#04140f}
+  .btn-secondary{background:var(--surface2);color:var(--text)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .role-badge{line-height:1;display:inline-flex;align-items:center;padding:3px 11px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase}
+  .role-badge.common{color:rgb(74,90,114);background:rgb(200,213,230)}
+  .role-badge.uncommon{color:rgb(30,72,124);background:rgb(160,200,240)}
+  .role-badge.rare{color:#fff;background:rgb(90,115,255)}
+  .role-badge.mythical{color:#fff;background:rgb(160,60,220)}
+  .role-badge.legendary{color:#221;background:rgb(240,190,60)}
+  .role-badge.immortal{color:#fff;background:rgb(220,40,80)}
+  .role-badge.arcana{color:#fff;background:rgb(20,20,20)}
+  .spinner{width:20px;height:20px;border:2px solid var(--surface2);border-top-color:var(--accent);border-radius:50%}
+  .loading{display:flex;align-items:center;justify-content:center;padding:30px}
+  .ico{display:inline-block;width:1em;height:1em}
+</style>
+</head>
+<body>
+<div class="app"><main class="content" id="moduleContent"></main></div>
+<script>
+/* Точная эмуляция того, как core/shell.js грузит модуль: три файла как
+   ТЕКСТ, html+css через innerHTML в контейнер, js — инлайновым <script>.
+   Плюс window.Shell.api/toast/closeModal — минимальный мок контракта
+   оболочки. Все вызовы записываются в window.__calls / window.__toasts,
+   чтобы test-module.mjs мог их проверить. */
+const params = new URLSearchParams(location.search);
+const EMPTY = params.get('empty') === '1';
+const PRESENCE = params.get('presence') === '1';
+
+// "Вчера" считаем от реального текущего времени теста, чтобы не зависеть
+// от даты запуска (иначе жёстко зашитый epoch рано или поздно перестанет
+// быть "вчера").
+const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); yesterday.setHours(19, 30, 0, 0);
+const olderDate = new Date(); olderDate.setFullYear(olderDate.getFullYear() - 1); olderDate.setMonth(7, 24); olderDate.setHours(13, 45, 0, 0); // 24 августа прошлого года
+
+let users = EMPTY ? [] : PRESENCE ? [
+  {id:'p1', username:'today_user', display_name:'Сегодняшний', role:'common', modules:['messenger'], avatar:null, created:'2024-01-01', status:'offline', last_seen: (Date.now() - 40 * 60 * 1000) / 1000},
+  {id:'p2', username:'yesterday_user', display_name:'Вчерашний', role:'common', modules:['messenger'], avatar:null, created:'2024-01-01', status:'offline', last_seen: yesterday.getTime() / 1000},
+  {id:'p3', username:'old_user', display_name:'Старый', role:'common', modules:['messenger'], avatar:null, created:'2024-01-01', status:'offline', last_seen: olderDate.getTime() / 1000},
+  {id:'p4', username:'nodata_user', display_name:'Без данных', role:'common', modules:['messenger'], avatar:null, created:'2024-01-01', status:'offline', last_seen: 0},
+] : [
+  {id:'u1', username:'god', display_name:'Хозяин', role:'arcana', modules:[], avatar:null, created:'2024-01-01', status:'online', last_seen: Date.now() / 1000},
+  {id:'u2', username:'ivan', display_name:'Иван Иванов', role:'common', modules:['messenger','channels'], avatar:null, created:'2024-02-02', status:'away', last_seen: Date.now() / 1000},
+  {id:'u3', username:'anna', display_name:null, role:'rare', modules:['messenger'], avatar:null, created:'2024-03-03', status:'offline', last_seen: yesterday.getTime() / 1000},
+];
+
+const allModulesRaw = [
+  {id:'messenger', name:'Мессенджер', min_role:'common'},
+  {id:'channels', name:'Каналы', min_role:'common'},
+  {id:'valentine', name:'Признания', min_role:'common'},
+  {id:'admin', name:'Пользователи', min_role:'arcana'},
+];
+
+let defaultModules = ['messenger'];
+
+window.__calls = [];
+window.__toasts = [];
+
+window.Shell = {
+  token: 'test-token',
+  user: {username:'tester', id:'u0'},
+  toast: (msg, type) => { window.__toasts.push({msg, type: type || 'ok'}); },
+  closeModal: (id) => { const el = document.getElementById(id); if (el) el.classList.remove('active'); },
+  api: async (path, opts) => {
+    const method = (opts && opts.method) || 'GET';
+    await new Promise(r => setTimeout(r, 30)); // сеть не мгновенна
+    window.__calls.push({path, method, body: opts && opts.body ? JSON.parse(opts.body) : undefined});
+
+    if (path === '/api/modules/all') return allModulesRaw;
+    if (path === '/api/users' && method === 'GET') return users;
+    if (path === '/api/users' && method === 'POST') {
+      const body = JSON.parse(opts.body);
+      const nu = {id:'new1', username: body.username, display_name: body.display_name || null, role: body.role, modules:['messenger'], avatar:null, created:'2024-09-09'};
+      users = [...users, nu];
+      return {status:'ok', id:'new1'};
+    }
+    if (path.startsWith('/api/users/') && method === 'PUT') {
+      const id = path.split('/api/users/')[1];
+      const body = JSON.parse(opts.body);
+      users = users.map(u => u.id === id ? {...u, ...body} : u);
+      return {status:'ok'};
+    }
+    if (path.startsWith('/api/users/') && method === 'DELETE') {
+      const id = path.split('/api/users/')[1];
+      users = users.filter(u => u.id !== id);
+      return {status:'ok'};
+    }
+    if (path === '/api/settings/default-modules' && method === 'GET') return {modules: defaultModules};
+    if (path === '/api/settings/default-modules' && method === 'POST') {
+      defaultModules = JSON.parse(opts.body).modules;
+      return {status:'ok'};
+    }
+    return {status:'ok'};
+  },
+};
+
+(async () => {
+  const [html, css, js] = await Promise.all([
+    fetch('/modules/admin/admin.html').then(r=>r.text()),
+    fetch('/modules/admin/admin.css').then(r=>r.text()),
+    fetch('/modules/admin/admin.js').then(r=>r.text()),
+  ]);
+  const content = document.getElementById('moduleContent');
+  const container = document.createElement('div');
+  container.className = 'module-container';
+  container.dataset.moduleId = 'admin';
+  container.innerHTML = '<style>' + css + '</style>' + html;
+  content.appendChild(container);
+  const s = document.createElement('script');
+  s.textContent = js;
+  container.appendChild(s);
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

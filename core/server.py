@@ -1807,7 +1807,10 @@ class Handler(BaseHTTPRequestHandler):
             s = require_role(self, 'arcana')
             if not s: return self._json(401, {'error': 'Unauthorized'})
             users = load_users()
-            safe = [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'modules':u.get('modules',['messenger']),'created':u['created'],'avatar':get_avatar_b64(u['id'])} for u in users]
+            def _last_seen(uid):
+                vals = [sess.get('last_seen', 0) for sess in sessions.values() if sess.get('id') == uid]
+                return max(vals) if vals else 0
+            safe = [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'modules':u.get('modules',['messenger']),'created':u['created'],'avatar':get_avatar_b64(u['id']),'status':get_user_status(u['id']),'last_seen':_last_seen(u['id'])} for u in users]
             return self._json(200, safe)
 
         if path == '/api/ws-port':
