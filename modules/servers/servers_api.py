@@ -49,7 +49,9 @@ def _load_json(path, default=None):
     return default if default is not None else []
 
 def _save_json(path, data):
-    with open(path, 'w') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+    with open(tmp, 'w') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
 
 def load_metrics_hist():
     global metrics_hist
@@ -277,12 +279,18 @@ def daily_ruvds():
 
 # ---- SSH with password (for initial setup) ----
 def _ssh_pass(ip, port, user, password, cmd, timeout=120):
-    """SSH using sshpass for password auth."""
+    """SSH using sshpass for password auth.
+
+    Password goes via the SSHPASS env var + `-e`, not `-p <password>` — a
+    command-line argument is visible to any local user/process via `ps aux`
+    for the life of the subprocess; an env var set only for this child isn't.
+    """
     try:
-        c = ["sshpass", "-p", password, "ssh",
+        c = ["sshpass", "-e", "ssh",
              "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10",
              "-p", str(port), f"{user}@{ip}", cmd]
-        p = subprocess.run(c, capture_output=True, text=True, timeout=timeout)
+        env = {**os.environ, "SSHPASS": password}
+        p = subprocess.run(c, capture_output=True, text=True, timeout=timeout, env=env)
         return p.returncode == 0, p.stdout.strip(), p.stderr.strip()
     except subprocess.TimeoutExpired:
         return False, "", "Timeout"
@@ -617,6 +625,7 @@ def handle_put(handler, session, path, data):
             sl = load_servers()
             idx = next((i for i,s in enumerate(sl) if s['ip']==oip), None)
             if idx is None: return _h_json(handler, 404, {'error':'Не найден'})
+            if sl[idx].get('role') == 'host': return _h_json(handler, 403, {'error':'Host сервер нельзя редактировать'})
             nip = data.get('ip', oip)
             if nip != oip and any(s['ip']==nip for i,s in enumerate(sl) if i!=idx):
                 return _h_json(handler, 400, {'error':'IP уже существует'})
@@ -632,8 +641,10 @@ def handle_delete(handler, session, path):
         ip = path.split('/api/mod/servers/delete/')[1]
         with servers_lock:
             sl = load_servers()
+            target = next((s for s in sl if s['ip'] == ip), None)
+            if target is None: return _h_json(handler, 404, {'error':'Не найден'})
+            if target.get('role') == 'host': return _h_json(handler, 403, {'error':'Host сервер нельзя удалить'})
             new = [s for s in sl if s['ip'] != ip]
-            if len(new) == len(sl): return _h_json(handler, 404, {'error':'Не найден'})
             save_servers(new)
         return _h_json(handler, 200, {'status':'ok'})
 
