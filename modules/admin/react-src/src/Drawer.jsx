@@ -7,7 +7,7 @@ import Icon from './Icon.jsx';
    с CSS-длительностью transition (--adm-t-m), и укорачивается вместе с ней
    при reduced-motion — рассинхрон JS/CSS был бы ровно той проблемой, из-за
    которой в valentine отказались от глухого transition-duration:.01ms. */
-const CLOSE_MS = { full: 400, reduced: 60 };
+const CLOSE_MS = { full: 250, reduced: 60 };
 
 export default function Drawer({ open, title, subtitle, onClose, children, reduced }) {
   const [mounted, setMounted] = useState(open);

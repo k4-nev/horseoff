@@ -41,9 +41,9 @@ export default function UserRow({ user, allModules, expanded, onToggleExpand, on
             </div>
           </div>
         </div>
-        <div className="adm-dots" title={mods.length + '/' + allModules.length + ' модулей'}>
+        <div className="adm-dots" title={(isGod ? allModules.length : mods.length) + '/' + allModules.length + ' модулей'}>
           {allModules.map((m) => (
-            <span key={m.id} className={'adm-dot' + (mods.includes(m.id) ? ' on' : '')} />
+            <span key={m.id} className={'adm-dot' + (isGod || mods.includes(m.id) ? ' on' : '')} />
           ))}
         </div>
         <div className="adm-row-actions" onClick={(e) => e.stopPropagation()}>
@@ -81,7 +81,7 @@ export default function UserRow({ user, allModules, expanded, onToggleExpand, on
               );
             })}
           </div>
-          {isGod && <div className="adm-god-note">GOD имеет доступ ко всем модулям</div>}
+          {isGod && <div className="adm-god-note">Arcana имеет доступ ко всем модулям</div>}
         </div>
       </div>
     </div>

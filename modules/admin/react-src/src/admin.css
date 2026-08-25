@@ -19,10 +19,10 @@
      времени и читаются как рывок, поэтому здесь свой мягкий разгон. */
   --adm-e: cubic-bezier(0.4, 0.12, 0.2, 1);
   --adm-e-io: cubic-bezier(0.55, 0.03, 0.22, 1);
-  --adm-t-xs: 180ms;
-  --adm-t-s: 280ms;
-  --adm-t-m: 400ms;
-  --adm-t-l: 520ms;
+  --adm-t-xs: 110ms;
+  --adm-t-s: 175ms;
+  --adm-t-m: 250ms;
+  --adm-t-l: 325ms;
 
   background: var(--adm-bg);
   color: var(--adm-text);

@@ -125,7 +125,9 @@ try {
     return [...row.querySelectorAll('.adm-switch')].map((s) => ({ on: s.classList.contains('on'), disabled: s.disabled }));
   });
   check('у arcana все тумблеры on+disabled', godStates.length === 3 && godStates.every((s) => s.on && s.disabled), JSON.stringify(godStates));
-  check('пометка про GOD показана', (await godRow.textContent()).includes('GOD имеет доступ'));
+  check('пометка про Arcana показана', (await godRow.textContent()).includes('Arcana имеет доступ'));
+  const godDots = await godRow.locator('.adm-dot').evaluateAll((els) => els.map((el) => el.classList.contains('on')));
+  check('у arcana все точки .adm-dots горят (доступ ко всем модулям, а не 1)', godDots.length === 3 && godDots.every(Boolean), JSON.stringify(godDots));
   await godRow.locator('.adm-row').click();
   await p.waitForTimeout(350);
 
