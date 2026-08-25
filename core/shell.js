@@ -15,6 +15,10 @@ const Shell = {
 
   connectWS() {
     if (!this.token) return;
+    // Guard against overlapping connects: iOS can fire close/open in quick
+    // succession while backgrounding/foregrounding, and stacking sockets
+    // just adds to the reconnect storm instead of fixing it.
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var url = proto + '//' + window.location.host + '/ws';
     try {
@@ -28,6 +32,20 @@ const Shell = {
           if (data.type === 'auth_ok') {
             this.wsReady = true;
             this._wsRetries = 0;
+          }
+          else if (data.type === 'error') {
+            if (data.msg === 'Unauthorized') {
+              // The token is genuinely dead (expired/revoked/evicted storage),
+              // not a transient network hiccup — retrying it forever is what
+              // hammered the per-IP login limiter and took the whole IP down
+              // for every other user behind it (2026-08-24 iOS incident).
+              // Same recovery path as an HTTP 401: drop it, show login.
+              this._wsRetries = 0;
+              this.logout();
+            }
+            // Other WS-level errors (e.g. rate-limited) just let the normal
+            // onclose backoff below retry — nothing else to do here.
+            return;
           }
           else if (data.type === 'message') this.onWSMessage(data);
           else if (data.type === 'typing') this.onWSTyping(data);
@@ -60,9 +78,12 @@ const Shell = {
       };
       this.ws.onclose = () => {
         this.wsReady = false;
-        // Fast reconnect: 1s first, then 3s
-        var delay = this._wsRetries > 0 ? 3000 : 1000;
+        if (!this.token) return; // logout() during this connection — nothing to retry
+        // Exponential backoff capped at 30s: fast first retry (network blips,
+        // iOS backgrounding), but a genuinely down server or a still-stuck
+        // client no longer gets hammered every 1-3s forever.
         this._wsRetries = (this._wsRetries || 0) + 1;
+        var delay = Math.min(1000 * Math.pow(2, this._wsRetries - 1), 30000);
         setTimeout(() => this.connectWS(), delay);
       };
       this.ws.onerror = () => {};

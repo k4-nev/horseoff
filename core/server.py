@@ -672,7 +672,10 @@ def get_session(handler):
         s = sessions.get(token)
         if not s: return None
         if time.time() > s['expires']: del sessions[token]; save_sessions(); return None
+        # Sliding expiry: an active session shouldn't hard-expire mid-use just
+        # because SESSION_TTL counts from login, not from last activity.
         s['last_seen'] = time.time()
+        s['expires'] = s['last_seen'] + SESSION_TTL
     save_sessions()
     return s
 
@@ -682,6 +685,7 @@ def get_session_by_token(token):
         if not s: return None
         if time.time() > s['expires']: del sessions[token]; save_sessions(); return None
         s['last_seen'] = time.time()
+        s['expires'] = s['last_seen'] + SESSION_TTL
     save_sessions()
     return s
 
@@ -1025,7 +1029,12 @@ async def handle_ws(websocket):
         t = data['token']
         s = get_session_by_token(t)
         if not s:
-            record_failed_login(ip)
+            # NOT record_failed_login here: this is a 256-bit secrets.token_urlsafe(32)
+            # session token, not a guessable password — an expired/stale token is a
+            # normal lifecycle event (session TTL hit, client storage evicted), not
+            # a brute-force signal. Counting it as one let a single client stuck
+            # retrying a dead token blow through the per-IP login limiter and take
+            # every other user on that IP down with it (see 2026-08-24 iOS incident).
             await websocket.send(json.dumps({'type':'error','msg':'Unauthorized'}))
             await websocket.close(); return
 
