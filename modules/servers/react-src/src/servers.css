@@ -34,7 +34,6 @@
 .srv-badge-tray{display:flex;align-items:center;gap:4px;padding:5px;background:var(--surface2);border-radius:11px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.18)}
 
 /* Segmented filter */
-.srv-pills{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px}
 .srv-pill{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:5px 10px;border-radius:7px;cursor:pointer;transition:all 0.18s;border:none;background:transparent;display:inline-flex;align-items:center;gap:5px;color:var(--text-dim)}
 .srv-pill-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;transition:box-shadow 0.2s}
 .srv-pill-count{font-size:9px;background:rgba(255,255,255,0.07);border-radius:3px;padding:1px 4px;font-weight:600;min-width:14px;text-align:center}
@@ -50,7 +49,6 @@
 .srv-pill.client.active{color:var(--warning)}
 .srv-pill.client.active .srv-pill-dot{box-shadow:0 0 5px var(--warning)}
 .srv-pill:not(.active){opacity:0.45}
-.srv-pills-mobile{display:none;gap:5px}
 
 /* Table — 9 columns (role cell merged) */
 .srv-table-head{display:grid;grid-template-columns:104px minmax(200px,1fr) 140px 88px 110px 100px 186px 56px 56px;gap:10px;padding:5px 18px 2px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);margin-bottom:4px;background:var(--bg)}
@@ -84,12 +82,6 @@
 .inline-bar{width:100%;height:3px;background:var(--bg);border-radius:2px;margin-top:3px;overflow:hidden}
 .inline-bar-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
 .inline-bar-fill.low{background:var(--accent)}.inline-bar-fill.mid{background:var(--warning)}.inline-bar-fill.high{background:var(--danger)}
-.proxy-tag{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px}
-.proxy-tag.up{background:rgba(0,212,170,0.08);color:var(--accent)}.proxy-tag.down{background:rgba(255,68,102,0.08);color:var(--danger)}
-.tag-dot{width:5px;height:5px;border-radius:50%}
-.proxy-tag.up .tag-dot{background:var(--accent)}.proxy-tag.down .tag-dot{background:var(--danger)}
-.service-tag{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px}
-.service-tag.running{background:rgba(0,212,170,0.08);color:var(--accent)}.service-tag.stopped{background:rgba(255,68,102,0.08);color:var(--danger)}
 .days-tag{display:inline-flex;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px}
 .days-tag.green{background:rgba(0,212,170,0.08);color:var(--accent)}.days-tag.yellow{background:rgba(255,170,34,0.12);color:var(--warning)}.days-tag.red{background:rgba(255,68,102,0.08);color:var(--danger)}
 
@@ -209,37 +201,6 @@
 @keyframes metricFlash{0%{transform:scale(1.04);color:var(--accent)}100%{transform:scale(1)}}
 .srv-data-updated{animation:metricFlash 0.4s ease-out}
 
-/* Mobile */
-@media(max-width:1200px){
-.srv-header-row1{flex-direction:column;gap:8px;align-items:flex-start}
-.srv-actions{width:100%;flex-wrap:wrap}
-.srv-summary .srv-badge-tray{display:none}
-.srv-pills-mobile{display:flex}
-.srv-table-head{display:none!important}
-.srv-summary{flex-wrap:wrap;gap:8px}
-.srv-metric-tray{gap:3px;flex-wrap:wrap}
-.srv-metric-tile{padding:7px 12px;min-width:70px}
-.srv-metric-value{font-size:18px}
-.srv-row{display:block!important;padding:10px 12px;position:relative}
-.srv-row.srv-hidden{display:none!important}
-.srv-row>*{display:none!important}
-.srv-row>.mob-top{display:flex!important}
-.srv-row>.row-name{display:block!important}
-.srv-row>.row-name>.row-name-sub{display:none}
-.srv-row>.mob-info{display:grid!important}
-.srv-row>.mob-ip{display:block!important}
-.mob-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
-.mob-top-left{display:flex;align-items:center;gap:8px}
-.mob-actions{display:flex;gap:6px}
-.mob-actions .mob-btn{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center}
-.mob-actions .mob-btn svg{width:15px;height:15px}
-.mob-ip{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);margin-top:5px}
-.mob-info{grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
-.mob-info .mi{display:flex;flex-direction:column;gap:2px}
-.mob-info .mi-l{font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-dim);font-weight:500}
-.mob-info .mi-v{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600}
-}
-@media(max-width:480px){.srv-clock{display:none}.mob-info{grid-template-columns:1fr 1fr 1fr 1fr}.srv-expand-grid{grid-template-columns:1fr 1fr 1fr}}
 
 /* ─── LIGHT THEME ─── */
 
@@ -320,3 +281,198 @@ body.theme-light .srv-expand-value{color:#374151}
 /* Scrollbar (light) */
 body.theme-light .srv-wrap::-webkit-scrollbar-thumb{background:var(--scrollbar)}
 body.theme-light .srv-wrap::-webkit-scrollbar-thumb:hover{background:var(--scrollbar)}
+
+/* ─── Выезжающая панель: создать / добавить / редактировать ────────────
+   Раньше это были центральные .modal-overlay из core/shell.css. Форма
+   создания — 13 полей: в модалке на телефоне она занимала весь экран и всё
+   равно скроллилась, а на десктопе перекрывала список, ради которого её и
+   открывают. Панель справа — тот же приём, что в модуле admin (adm-drawer).
+   Длительность 240мс жёстко совпадает с CLOSE_MS в Drawer.jsx. */
+.srv-drawer-overlay{position:fixed;inset:0;z-index:1000;pointer-events:none}
+.srv-scrim{position:absolute;inset:0;background:rgba(12,16,26,.45);backdrop-filter:blur(3px);opacity:0;transition:opacity 240ms cubic-bezier(.4,.12,.2,1);pointer-events:none}
+.srv-drawer-overlay.visible .srv-scrim{opacity:1;pointer-events:auto}
+.srv-drawer{position:absolute;top:0;right:0;bottom:0;width:min(400px,100vw);box-sizing:border-box;background:var(--surface);border-left:1px solid var(--border);box-shadow:-18px 0 44px -22px rgba(12,16,26,.5);padding:18px 20px 0;overflow-y:auto;overscroll-behavior:contain;color:var(--text);font-family:'Inter',sans-serif;transform:translateX(100%);transition:transform 240ms cubic-bezier(.55,.03,.22,1);pointer-events:none}
+.srv-drawer-overlay.visible .srv-drawer{transform:none;pointer-events:auto}
+/* Сдвиг гасим, длительность — нет: таймер размонтирования в Drawer.jsx
+   завязан ровно на эти 240мс, обнуление duration его рассинхронит. */
+@media(prefers-reduced-motion:reduce){
+.srv-drawer{transform:none;opacity:0;transition:opacity 240ms linear}
+.srv-drawer-overlay.visible .srv-drawer{opacity:1}
+}
+.srv-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.srv-drawer-title{font-size:16px;font-weight:700;letter-spacing:-.01em}
+.srv-drawer-sub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);margin-top:3px}
+.srv-drawer-body{margin-top:16px}
+.srv-x{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:8px;background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:background .15s,color .15s}
+.srv-x:hover{background:var(--border);color:var(--text)}
+
+/* Поля формы внутри панели */
+.srv-field{display:block;margin-bottom:12px}
+.srv-field>span{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:5px}
+.srv-field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.srv-input{width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
+.srv-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.srv-input::placeholder{color:var(--text-dim);opacity:.55}
+.srv-input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.srv-input[type=number]::-webkit-outer-spin-button,.srv-input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.srv-hint{font-size:11px;color:var(--text-dim);margin-top:5px}
+.srv-eye{position:relative;display:flex;align-items:center}
+.srv-eye .srv-input{padding-right:38px}
+.srv-eye-btn{position:absolute;right:6px;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:4px;display:flex;align-items:center}
+.srv-eye-btn:hover{color:var(--text)}
+/* Полка действий липнет к низу панели: форма создания (13 полей) выше
+   экрана телефона, и «Создать» иначе достаётся только доскроллом. */
+.srv-drawer-actions{position:sticky;bottom:0;z-index:2;display:flex;gap:10px;margin:20px -20px 0;padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--border)}
+.srv-drawer-actions .btn{flex:1;padding:0 12px}
+
+/* ─── Свой выпадающий список вместо <select> ──────────────────────────
+   Нативный <select> рисует список средствами ОС — поверх светлого
+   интерфейса это выглядело системным меню из другой эпохи. Здесь список
+   обычный DOM: живёт в палитре модуля и анимируется вместе с ним. */
+.srv-sel{position:relative}
+.srv-sel-btn{width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.srv-sel-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.srv-sel-btn:disabled{opacity:.55;cursor:default}
+.srv-sel.open .srv-sel-btn{border-color:var(--accent)}
+.srv-sel-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srv-sel-val.placeholder{color:var(--text-dim)}
+.srv-sel-caret{flex-shrink:0;transition:transform .18s cubic-bezier(.4,.12,.2,1)}
+.srv-sel.open .srv-sel-caret{transform:rotate(180deg)}
+.srv-sel-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;max-height:240px;overflow-y:auto;padding:5px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 6px rgba(12,16,26,.14),0 16px 34px -12px rgba(12,16,26,.5);transform-origin:top center;opacity:0;transform:scale(.98) translateY(-4px);pointer-events:none;transition:opacity .14s cubic-bezier(.4,.12,.2,1),transform .14s cubic-bezier(.4,.12,.2,1)}
+.srv-sel.up .srv-sel-menu{top:auto;bottom:calc(100% + 6px);transform-origin:bottom center;transform:scale(.98) translateY(4px)}
+.srv-sel.open .srv-sel-menu{opacity:1;transform:none;pointer-events:auto}
+.srv-sel-item{display:block;width:100%;box-sizing:border-box;text-align:left;border:none;background:none;border-radius:8px;padding:8px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12.5px;cursor:pointer;transition:background .12s}
+.srv-sel-item.cursor{background:var(--surface2)}
+.srv-sel-item.on{font-weight:700}
+
+/* Мобильная карточка строки — на десктопе не показывается */
+.mob-card{display:none}
+
+/* ─── Панель и список: светлая тема ───────────────────────────────────── */
+body.theme-light .srv-scrim{background:rgba(23,33,54,.3)}
+body.theme-light .srv-drawer{background:#fbfcfe;border-left-color:#e4e8ef;box-shadow:-20px 0 50px -24px rgba(23,33,54,.35)}
+body.theme-light .srv-drawer-title{color:#5a6373}
+body.theme-light .srv-drawer-sub{color:#9aa6b4}
+body.theme-light .srv-drawer-actions{background:#fbfcfe;border-top-color:#e9edf3}
+body.theme-light .srv-field>span{color:#9aa6b4}
+body.theme-light .srv-input,body.theme-light .srv-sel-btn{background:#fff;border-color:#e4e8ef;color:#5a6373;box-shadow:inset 0 1px 2px rgba(23,33,54,.05)}
+body.theme-light .srv-input:focus,body.theme-light .srv-sel-btn:focus-visible{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+body.theme-light .srv-hint{color:#9aa6b4}
+body.theme-light .srv-x{background:#eef1f6;color:#8d97a5}
+body.theme-light .srv-x:hover{background:#e4e8ef;color:#5a6373}
+body.theme-light .srv-sel-menu{background:#fff;border-color:#e9edf3;box-shadow:0 1px 2px rgba(23,33,54,.06),0 18px 36px -14px rgba(23,33,54,.34)}
+body.theme-light .srv-sel-item{color:#5a6373}
+body.theme-light .srv-sel-item.cursor{background:#f2f5fa}
+
+/* ─── Мобильная адаптация ──────────────────────────────────────────────
+   Идёт последней в файле специально: правила светлой темы выше не обёрнуты
+   в media, а media-запрос сам по себе специфичности не добавляет — иначе
+   пришлось бы дублировать каждое переопределение с префиксом .theme-light. */
+@media(max-width:1200px){
+.srv-wrap{padding:12px 12px 20px}
+.srv-table-head{display:none}
+.srv-header{gap:10px;margin-bottom:10px}
+.srv-header h2{font-size:19px}
+.srv-actions{gap:6px;flex-wrap:wrap}
+
+/* Сводка в две строки: плитки метрик и фильтр ролей.
+   Раньше .srv-badge-tray здесь был display:none в расчёте на парный
+   .srv-pills-mobile, которого в разметке нет вообще — фильтр по ролям
+   на телефоне просто исчезал. */
+.srv-summary{flex-direction:column;align-items:stretch;gap:8px;padding:8px;border-radius:16px}
+body.theme-light .srv-summary{padding:8px}
+.srv-metric-tray{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+body.theme-light .srv-metric-tray{gap:5px;padding:5px}
+.srv-metric-tile{min-width:0;padding:7px 9px}
+body.theme-light .srv-metric-tile{min-width:0;padding:7px 9px}
+.srv-metric-label{font-size:9px;letter-spacing:.05em}
+.srv-metric-value{font-size:17px}
+.srv-badge-tray{display:flex;gap:4px}
+.srv-badge-tray .srv-pill{flex:1;justify-content:center}
+
+/* Строка таблицы → карточка: ячейки сетки прячутся, остаётся .mob-card */
+.srv-row{display:block;padding:0;margin-bottom:6px;transform:none}
+.srv-row:hover{transform:none}
+body.theme-light .srv-row:hover{transform:none;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(23,33,54,.05),0 3px 8px rgba(23,33,54,.05)}
+.srv-row.srv-hidden{display:none}
+.srv-row>*{display:none}
+.srv-row>.mob-card{display:flex}
+
+.mob-card{flex-direction:column;gap:8px;padding:10px 12px}
+.mob-head{display:flex;align-items:center;gap:8px}
+.mob-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mob-name{font-size:14px;font-weight:700;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mob-ip{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);line-height:1.2}
+.mob-head .role-tag{flex-shrink:0}
+.mob-actions{display:flex;gap:6px;flex-shrink:0}
+.mob-btn{width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--text-dim);cursor:pointer;transition:transform .12s,color .12s,background .12s}
+.mob-btn:active{transform:scale(.92)}
+.mob-btn.del:active{color:var(--danger)}
+
+/* Метрики — тот же вдавленный лоток, что и в сводке сверху */
+.mob-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:5px;border-radius:11px;background:var(--surface2);box-shadow:inset 0 1px 3px rgba(0,0,0,.18)}
+.mob-stat{display:flex;flex-direction:column;gap:3px;min-width:0;padding:6px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--border)}
+.mob-stat-l{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim)}
+.mob-stat-v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mob-stat-v .unit{font-style:normal;font-size:10px;font-weight:500;color:var(--text-dim);margin-left:1px}
+.mob-bar{display:block;height:3px;border-radius:2px;background:var(--bg);overflow:hidden}
+.mob-bar-fill{display:block;height:100%;border-radius:2px;transition:width .5s ease}
+.mob-bar-fill.low{background:var(--accent)}
+.mob-bar-fill.mid{background:var(--warning)}
+.mob-bar-fill.high{background:var(--danger)}
+.mob-bar-fill.none{background:transparent}
+
+.mob-foot{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.mob-foot:empty{display:none}
+.mob-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)}
+.mob-up{opacity:.75}
+.mob-chevron{flex-shrink:0;margin-left:auto;color:var(--text-dim);transition:transform .2s cubic-bezier(.4,.12,.2,1)}
+.mob-chevron.open{transform:rotate(180deg)}
+
+.srv-expand{margin:-4px 0 6px;padding:10px 12px;border-radius:0 0 12px 12px}
+.srv-expand-grid{grid-template-columns:1fr 1fr;gap:9px}
+
+body.theme-light .mob-ip,body.theme-light .mob-meta,body.theme-light .mob-stat-l{color:#9aa6b4}
+body.theme-light .mob-name{color:#5a6373}
+body.theme-light .mob-stat-v{color:#6b7585}
+body.theme-light .mob-stats{background:#e9edf3;box-shadow:inset 0 2px 4px rgba(23,33,54,.12),inset 0 -1px 0 rgba(255,255,255,.6)}
+body.theme-light .mob-stat{background:linear-gradient(180deg,#fff,#f5f7fb);border-color:#e9edf3;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(23,33,54,.07)}
+body.theme-light .mob-bar{background:#e3e8ef;box-shadow:inset 0 1px 1px rgba(23,33,54,.13)}
+body.theme-light .mob-btn{background:linear-gradient(180deg,#fff,#eef1f6);border-color:#dfe4ec;color:#8d97a5;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(23,33,54,.08)}
+body.theme-light .mob-btn:active{box-shadow:inset 0 2px 4px rgba(23,33,54,.12);background:linear-gradient(180deg,#eef1f6,#e4e8f0)}
+body.theme-light .mob-chevron{color:#aab2bf}
+}
+
+/* Планшет и узкий десктоп: таблица уже не помещается, а карточка во всю
+   ширину растягивает три плитки метрик на пол-экрана и читается пустой —
+   держим список одной колонкой комфортной ширины. */
+@media(min-width:601px) and (max-width:1200px){
+.srv-wrap{max-width:800px}
+}
+
+/* Телефон: шапка в столбец, метрики 2×2, панель на весь экран */
+@media(max-width:600px){
+.srv-wrap{padding:10px 10px 18px}
+.srv-clock-group{margin-left:auto}
+.srv-clock{display:none}
+.srv-header-row1{flex-direction:column;align-items:stretch;gap:8px}
+.srv-header-row1 h2{font-size:18px}
+.srv-actions{width:100%}
+.srv-actions .srv-add-btn{flex:1 1 0;min-width:0;padding:0 12px}
+body.theme-light .srv-actions .srv-add-btn{padding:0 12px}
+.srv-metric-tray{grid-template-columns:repeat(2,1fr)}
+.srv-metric-value{font-size:18px}
+.srv-pill{padding:5px 7px;gap:4px}
+.srv-pill-count{padding:1px 3px}
+.srv-expand-grid{grid-template-columns:1fr 1fr}
+.srv-drawer{width:100vw;border-left:none;padding:16px 14px 0}
+.srv-drawer-actions{margin:18px -14px 0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px))}
+}
+
+/* Совсем узкие экраны: метрики в две колонки, чипы прокси не переносятся */
+@media(max-width:380px){
+.mob-stats{grid-template-columns:repeat(2,1fr)}
+.mob-stat:nth-child(3){grid-column:1 / -1}
+.srv-expand-grid{grid-template-columns:1fr}
+.srv-field-row{grid-template-columns:1fr}
+}

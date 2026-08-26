@@ -117,7 +117,7 @@ try {
   console.log('\n── Создать (createServer): валидация, provisioning, result, IP-конфликт ──');
   const p5 = await open(BASE);
   await p5.locator('.srv-add-btn', { hasText: 'Создать' }).click();
-  await p5.locator('.modal-actions .btn-primary', { hasText: 'Создать' }).click();
+  await p5.locator('#srvCreateModal .srv-drawer-actions .btn-primary').click();
   let toasts = await p5.evaluate(() => window.__toasts);
   check('пустая форма создания -> toast "Заполните все поля"', toasts.some((t) => t.msg === 'Заполните все поля' && t.type === 'error'));
 
@@ -126,7 +126,7 @@ try {
   await p5.fill('#srvCreateModal input[type="password"] >> nth=0', 'sshpass123');
   await p5.fill('#srvCreateModal input[placeholder="proxyuser"]', 'puser');
   await p5.fill('#srvCreateModal input[type="password"] >> nth=1', 'ppass123');
-  await p5.locator('.modal-actions .btn-primary', { hasText: 'Создать' }).click();
+  await p5.locator('#srvCreateModal .srv-drawer-actions .btn-primary').click();
   await p5.waitForTimeout(150);
   const progressOpen = await p5.locator('#srvProgressModal').evaluate((el) => el.classList.contains('active'));
   check('успешный create -> открылась progress-модалка', progressOpen);
@@ -149,12 +149,13 @@ try {
   await p5b.fill('#srvCreateModal input[type="password"] >> nth=0', 'x');
   await p5b.fill('#srvCreateModal input[placeholder="proxyuser"]', 'u');
   await p5b.fill('#srvCreateModal input[type="password"] >> nth=1', 'x');
-  await p5b.locator('.modal-actions .btn-primary', { hasText: 'Создать' }).click();
+  await p5b.locator('#srvCreateModal .srv-drawer-actions .btn-primary').click();
   await p5b.waitForTimeout(150);
   toasts = await p5b.evaluate(() => window.__toasts);
   check('create с существующим IP -> toast "IP уже существует", модалка не закрылась', toasts.some((t) => t.msg === 'IP уже существует'));
-  const stillOpen = await p5b.locator('#srvCreateModal').evaluate((el) => el.classList.contains('active'));
-  check('модалка создания осталась открытой после ошибки', stillOpen);
+  // Панель размонтируется при закрытии, поэтому «открыта» = есть в DOM.
+  const stillOpen = await p5b.locator('#srvCreateModal').count();
+  check('панель создания осталась открытой после ошибки', stillOpen === 1);
   await p5b.close();
 
   console.log('\n── Создать: ошибка provisioning (steps error, close-кнопка, без result) ──');
@@ -165,7 +166,7 @@ try {
   await p5c.fill('#srvCreateModal input[type="password"] >> nth=0', 'x');
   await p5c.fill('#srvCreateModal input[placeholder="proxyuser"]', 'u');
   await p5c.fill('#srvCreateModal input[type="password"] >> nth=1', 'x');
-  await p5c.locator('.modal-actions .btn-primary', { hasText: 'Создать' }).click();
+  await p5c.locator('#srvCreateModal .srv-drawer-actions .btn-primary').click();
   await p5c.waitForTimeout(2500);
   const errText = await p5c.locator('#srvProgressError').textContent();
   check('ошибочный provisioning показывает текст ошибки', errText.includes('SSH недоступен'), errText);
@@ -181,15 +182,16 @@ try {
   console.log('\n── Добавить (addServer): без пароля мгновенно, с паролем — provisioning ──');
   const p6 = await open(BASE);
   await p6.locator('.srv-add-btn', { hasText: 'Добавить' }).click();
-  await p6.locator('.modal-actions .btn-primary', { hasText: 'Добавить' }).click();
+  await p6.locator('#srvAddModal2 .srv-drawer-actions .btn-primary').click();
   toasts = await p6.evaluate(() => window.__toasts);
   check('пустая форма добавления -> toast "Заполните название и IP"', toasts.some((t) => t.msg === 'Заполните название и IP'));
   await p6.fill('#srvAddModal2 input[placeholder="Proxy-01"]', 'Quick-Add');
   await p6.fill('#srvAddModal2 input[placeholder="123.45.67.89"]', '8.8.4.4');
-  const vdsSelectAdd = p6.locator('#srvAddModal2 select:has(option[value="ruvds"])');
-  check('поле "Провайдер VDS" видно в форме добавления (раньше было display:none навсегда)', await vdsSelectAdd.isVisible());
-  await vdsSelectAdd.selectOption('ruvds');
-  await p6.locator('#srvAddModal2 .modal-actions .btn-primary').click();
+  const vdsSelectAdd = p6.locator('#srvAddModal2 .srv-sel').last();
+  check('поле "Провайдер VDS" видно в форме добавления (раньше было display:none навсегда)', await vdsSelectAdd.locator('.srv-sel-btn').isVisible());
+  await vdsSelectAdd.locator('.srv-sel-btn').click();
+  await vdsSelectAdd.locator('.srv-sel-item[data-value="ruvds"]').click();
+  await p6.locator('#srvAddModal2 .srv-drawer-actions .btn-primary').click();
   await p6.waitForTimeout(150);
   const progressAfterAdd = await p6.locator('#srvProgressModal').evaluate((el) => el.classList.contains('active'));
   check('добавление без пароля НЕ открывает progress-модалку', !progressAfterAdd);
@@ -206,7 +208,7 @@ try {
   await p6b.fill('#srvAddModal2 input[placeholder="Proxy-01"]', 'Add-WithKey');
   await p6b.fill('#srvAddModal2 input[placeholder="123.45.67.89"]', '3.3.3.3');
   await p6b.fill('#srvAddModal2 input[type="password"]', 'somepass');
-  await p6b.locator('#srvAddModal2 .modal-actions .btn-primary').click();
+  await p6b.locator('#srvAddModal2 .srv-drawer-actions .btn-primary').click();
   await p6b.waitForTimeout(150);
   const progressAfterAddPw = await p6b.locator('#srvProgressModal').evaluate((el) => el.classList.contains('active'));
   check('добавление С паролем открывает тот же progress-путь', progressAfterAddPw);
@@ -220,19 +222,21 @@ try {
   check('редактирование префилнуло имя', nameVal === 'Proxy-01', nameVal);
   const portsVisibleForProxy = await p7.locator('#srvAddModal input[type="number"]').count(); // ssh_port + http + socks = 3
   check('для роли proxy показаны порты (3 number-инпута)', portsVisibleForProxy === 3, portsVisibleForProxy);
-  const vdsSelectEdit = p7.locator('#srvAddModal select:has(option[value="ruvds"])');
-  check('поле "Провайдер VDS" видно в форме редактирования (раньше было display:none навсегда)', await vdsSelectEdit.isVisible());
-  await p7.selectOption('#srvAddModal select', 'client');
+  const vdsSelectEdit = p7.locator('#srvAddModal .srv-sel').last();
+  check('поле "Провайдер VDS" видно в форме редактирования (раньше было display:none навсегда)', await vdsSelectEdit.locator('.srv-sel-btn').isVisible());
+  const roleSelectEdit = p7.locator('#srvAddModal .srv-sel').first();
+  await roleSelectEdit.locator('.srv-sel-btn').click();
+  await roleSelectEdit.locator('.srv-sel-item[data-value="client"]').click();
   await p7.waitForTimeout(50);
   const portsAfterClient = await p7.locator('#srvAddModal input[type="number"]').count();
   check('смена роли на client скрывает группу портов (1 number — только ssh_port)', portsAfterClient === 1, portsAfterClient);
-  await p7.locator('#srvAddModal .modal-close').click();
+  await p7.locator('#srvAddModal .srv-x').click();
   await p7.close();
 
   const p7b = await open(BASE);
   await p7b.locator('.srv-row[data-srvip="7.7.7.7"] .btn-icon[title="Edit"]').click();
   await p7b.fill('#srvAddModal input[placeholder="123.45.67.89"]', '5.5.5.5'); // конфликт
-  await p7b.locator('.modal-actions .btn-primary', { hasText: 'Сохранить' }).click();
+  await p7b.locator('#srvAddModal .srv-drawer-actions .btn-primary').click();
   await p7b.waitForTimeout(150);
   toasts = await p7b.evaluate(() => window.__toasts);
   check('редактирование с IP-конфликтом -> toast "IP уже существует"', toasts.some((t) => t.msg === 'IP уже существует'));
@@ -311,6 +315,58 @@ try {
   const emptyText = await p11.locator('#srvList').textContent();
   check('через 5с safety-таймаут сам переключает на "Нет серверов" (React state, а не мёртвое поле)', emptyText.includes('Нет серверов'));
   await p11.close();
+
+  console.log('\n── Панель справа вместо модалки + свой выпадающий список ──');
+  const pd = await open(BASE);
+  await pd.locator('.srv-add-btn', { hasText: 'Добавить' }).click();
+  await pd.waitForTimeout(320);
+  const isDrawer = await pd.locator('#srvAddModal2 .srv-drawer').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return Math.abs(r.right - window.innerWidth) < 2 && r.top < 2 && Math.abs(r.height - window.innerHeight) < 2;
+  });
+  check('форма добавления открывается панелью у правого края во всю высоту', isDrawer);
+  const nativeSelects = await pd.locator('#srvAddModal2 select').count();
+  check('нативных <select> (системный список ОС) в форме не осталось', nativeSelects === 0);
+  const roleSel = pd.locator('#srvAddModal2 .srv-sel').first();
+  await roleSel.locator('.srv-sel-btn').click();
+  await pd.waitForTimeout(120);
+  check('клик открывает свой список', await roleSel.evaluate((el) => el.classList.contains('open')));
+  await roleSel.locator('.srv-sel-item[data-value="client"]').click();
+  await pd.waitForTimeout(80);
+  const roleLabel = (await roleSel.locator('.srv-sel-val').textContent()).trim();
+  check('выбор пункта проставляет значение', roleLabel === 'Client', roleLabel);
+  const portsAfterPick = await pd.locator('#srvAddModal2 input[type="number"]').count();
+  check('роль client по-прежнему скрывает порты (реактивность формы не сломана)', portsAfterPick === 1, portsAfterPick);
+  await roleSel.locator('.srv-sel-btn').click();
+  await pd.waitForTimeout(120);
+  await pd.keyboard.press('Escape');
+  await pd.waitForTimeout(150);
+  const listClosed = !(await roleSel.evaluate((el) => el.classList.contains('open')));
+  const drawerStillThere = await pd.locator('#srvAddModal2').count();
+  check('Esc закрывает список, но не панель', listClosed && drawerStillThere === 1);
+  await pd.keyboard.press('Escape');
+  await pd.waitForTimeout(320);
+  check('второй Esc закрывает панель', (await pd.locator('#srvAddModal2').count()) === 0);
+  await pd.close();
+
+  console.log('\n── Мобильная адаптация (390×780) ──');
+  const pm = await open(BASE, { width: 390, height: 780 });
+  check('строка показывает мобильную карточку', await pm.locator('.srv-row[data-srvip="5.5.5.5"] .mob-card').isVisible());
+  check('ячейки табличной сетки на мобильном скрыты', !(await pm.locator('.srv-row[data-srvip="5.5.5.5"] .row-ip').isVisible()));
+  check('заголовки колонок на мобильном скрыты', !(await pm.locator('.srv-table-head').first().isVisible()));
+  check('фильтр по ролям виден (раньше badge-tray был display:none, а парного srv-pills-mobile в разметке нет)',
+    await pm.locator('.srv-badge-tray .srv-pill').first().isVisible());
+  const statCount = await pm.locator('.srv-row[data-srvip="5.5.5.5"] .mob-stat').count();
+  check('в мобильной карточке три метрики', statCount === 3, statCount);
+  check('имя и IP сервера видны в карточке',
+    (await pm.locator('.srv-row[data-srvip="5.5.5.5"] .mob-name').textContent()) === 'Proxy-01');
+  const noOverflow = await pm.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  check('нет горизонтального переполнения на 390px', noOverflow);
+  await pm.locator('.srv-add-btn', { hasText: 'Добавить' }).click();
+  await pm.waitForTimeout(320);
+  const dw = await pm.locator('#srvAddModal2 .srv-drawer').evaluate((el) => el.getBoundingClientRect().width);
+  check('панель на телефоне занимает всю ширину экрана', Math.round(dw) === 390, dw);
+  await pm.close();
 
   console.log('\n── WS-путь: onServersUpdate/onSettingsUpdate доступны из оболочки ──');
   const p12 = await open(BASE);

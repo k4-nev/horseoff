@@ -118,85 +118,88 @@ export default function ServerRow({ s, hist, expanded, canManage, onToggleExpand
           <div />
         )}
 
-        {/* Mobile */}
-        <div className="mob-top" style={{ display: 'none' }}>
-          <div className="mob-top-left">
+        {/* Мобильная карточка. Живёт в том же .srv-row: на десктопе скрыта,
+            на узком экране прячутся ячейки таблицы и остаётся только она.
+            Раньше здесь было три отдельных блока (mob-top / пустой mob-ip /
+            mob-info на 4 колонки), из-за чего на телефоне восемь подписей
+            вида «HTTP UP» лезли в сетку 4×N и читались как каша. */}
+        <div className="mob-card">
+          <div className="mob-head">
             <span className={'status-dot ' + sc} />
-            <RoleTag role={s.role || ''} />
-            <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 11, color: '#6a6a80', marginLeft: 8 }}>{s.ip}</span>
-          </div>
-          {showActions && (
-            <div className="mob-actions" onClick={(e) => e.stopPropagation()}>
-              <button className="mob-btn" onClick={() => onEdit(s.ip)}>
-                <span className="ico ico-16 ico-pencil" />
-              </button>
-              <button className="mob-btn del" onClick={() => onDelete(s.ip, s.name)}>
-                <span className="ico ico-16 ico-trash" />
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="mob-ip" style={{ display: 'none' }} />
-        <div className="mob-info" style={{ display: 'none' }}>
-          <div className="mi">
-            <span className="mi-l">CPU</span>
-            <span className={'mi-v ' + (cpu !== '--' && cpu >= 85 ? 'metric-high' : cpu !== '--' && cpu >= 60 ? 'metric-mid' : '')}>
-              {cpu}
-              {cpu !== '--' ? '%' : ''}
-            </span>
-          </div>
-          <div className="mi">
-            <span className="mi-l">RAM</span>
-            <span className="mi-v">{rp != null ? rp + '%' : '--'}</span>
-          </div>
-          <div className="mi">
-            <span className="mi-l">Speed</span>
-            <span className="mi-v">
-              {sp}
-              {sp !== '--' ? ' Mb' : ''}
-            </span>
-          </div>
-          {isProxy ? (
-            <>
-              <div className="mi">
-                <span className="mi-l">HTTP</span>
-                <span className="mi-v">
-                  <span className={'proxy-tag ' + (hu ? 'up' : 'down')}>
-                    <span className="tag-dot" />
-                    {hu ? 'UP' : 'DOWN'}
-                  </span>
-                </span>
-              </div>
-              <div className="mi">
-                <span className="mi-l">SOCKS5</span>
-                <span className="mi-v">
-                  <span className={'proxy-tag ' + (su ? 'up' : 'down')}>
-                    <span className="tag-dot" />
-                    {su ? 'UP' : 'DOWN'}
-                  </span>
-                </span>
-              </div>
-              <div className="mi">
-                <span className="mi-l">3proxy</span>
-                <span className="mi-v">
-                  <span className={'service-tag ' + (pr ? 'running' : 'stopped')}>{pr ? 'RUN' : 'STOP'}</span>
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="mi">
-              <span className="mi-l">Диск</span>
-              <span className="mi-v">{du != null ? du + '/' + dt + ' GB' : '--'}</span>
-            </div>
-          )}
-          {isClient && dl != null && (
-            <div className="mi">
-              <span className="mi-l">Дней</span>
-              <span className="mi-v">
-                <span className={'days-tag ' + daysCls}>{dl}д</span>
+            <div className="mob-id">
+              <span className="mob-name">{s.name}</span>
+              <span className="mob-ip">
+                {s.ip}
+                {on && up !== '--' && <span className="mob-up"> · {up}</span>}
               </span>
             </div>
-          )}
+            <RoleTag role={s.role || ''} />
+            {showActions && (
+              <div className="mob-actions" onClick={(e) => e.stopPropagation()}>
+                <button className="mob-btn" title="Edit" onClick={() => onEdit(s.ip)}>
+                  <span className="ico ico-16 ico-pencil" />
+                </button>
+                <button className="mob-btn del" title="Delete" onClick={() => onDelete(s.ip, s.name)}>
+                  <span className="ico ico-16 ico-trash" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mob-stats">
+            <div className="mob-stat">
+              <span className="mob-stat-l">CPU</span>
+              <span className={'mob-stat-v ' + (cpu !== '--' && cpu >= 85 ? 'metric-high' : cpu !== '--' && cpu >= 60 ? 'metric-mid' : '')}>
+                {cpu}
+                {cpu !== '--' && <i className="unit">%</i>}
+              </span>
+              <span className="mob-bar">
+                <i className={'mob-bar-fill ' + (cpu === '--' ? 'none' : barLevel(cpu))} style={{ width: (cpu === '--' ? 0 : cpu) + '%' }} />
+              </span>
+            </div>
+            <div className="mob-stat">
+              <span className="mob-stat-l">RAM</span>
+              <span className={'mob-stat-v ' + (rp != null && rp >= 85 ? 'metric-high' : rp != null && rp >= 60 ? 'metric-mid' : '')}>
+                {rp != null ? rp : '--'}
+                {rp != null && <i className="unit">%</i>}
+              </span>
+              <span className="mob-bar">
+                <i className={'mob-bar-fill ' + (rp == null ? 'none' : barLevel(rp))} style={{ width: (rp == null ? 0 : rp) + '%' }} />
+              </span>
+            </div>
+            <div className="mob-stat">
+              <span className="mob-stat-l">{isProxy ? 'Скорость' : 'Диск'}</span>
+              {isProxy ? (
+                <span className="mob-stat-v">
+                  {sp}
+                  {sp !== '--' && <i className="unit">Mb</i>}
+                </span>
+              ) : (
+                <span className="mob-stat-v">
+                  {du != null && dt != null ? du : '--'}
+                  {du != null && dt != null && <i className="unit">/{dt} GB</i>}
+                </span>
+              )}
+              <span className="mob-bar">
+                <i className={'mob-bar-fill ' + (isProxy || dp == null ? 'none' : barLevel(dp))} style={{ width: (isProxy || dp == null ? 0 : dp) + '%' }} />
+              </span>
+            </div>
+          </div>
+
+          <div className="mob-foot">
+            {isProxy && (
+              <span className="prx-row">
+                <span className={'prx-chip ' + (hu ? 'up' : 'down')}>HTTP</span>
+                <span className={'prx-chip ' + (su ? 'up' : 'down')}>SOCKS</span>
+                <span className={'prx-chip ' + (pr ? 'up' : 'down')}>3PX</span>
+              </span>
+            )}
+            {!isProxy && sp !== '--' && <span className="mob-meta">{sp} Mb/s</span>}
+            {isClient && dl != null && (
+              <span className={'days-tag ' + daysCls + (dl < 4 ? ' days-blink' : '')} title="Дней оплачено">{dl}д</span>
+            )}
+            {isClient && <span className={'mob-chevron ico ico-14 ico-chevron-down' + (expanded ? ' open' : '')} />}
+          </div>
         </div>
       </div>
       {isClient && (
