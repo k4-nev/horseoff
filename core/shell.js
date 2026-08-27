@@ -4,12 +4,20 @@ const Shell = {
      Порядок загрузки скриптов неважен: подписчик получает текущее
      состояние сразу при подписке, а до его появления вызовы просто
      копятся в _uiState. */
-  _uiState: { authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null },
+  _uiState: { authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null, immersive: false },
   _uiSubs: [],
   _uiEmit(patch) {
     this._uiState = Object.assign({}, this._uiState, patch);
     var s = this._uiState;
     this._uiSubs.forEach(function (fn) { try { fn(s); } catch (e) {} });
+  },
+  /* Модуль сообщает, что ушёл в «погружение» — открыл чат или канал, где
+     низ экрана занят полем ввода. На телефоне кнопка «Приложения» на это
+     время убирается, чтобы не лезть под палец. Раньше ровно эту роль играло
+     прятание нижней панели через document.querySelector('.sidebar'). */
+  setImmersive(on) {
+    if (this._uiState.immersive === !!on) return;
+    this._uiEmit({ immersive: !!on });
   },
   subscribeUI(fn) {
     this._uiSubs.push(fn);
@@ -518,7 +526,7 @@ const Shell = {
     document.querySelectorAll('.modal-overlay.active').forEach(function(m){ m.classList.remove('active'); });
     var mc = document.getElementById('moduleContent');
     if (mc) mc.innerHTML = '';
-    this._uiEmit({ authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null });
+    this._uiEmit({ authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null, immersive: false });
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('auth-user').value = '';
     document.getElementById('auth-pass').value = '';
@@ -541,7 +549,7 @@ const Shell = {
     this.activeModule = id;
     if (id === 'messenger') { this.unreadTotal = 0; this.updateMsgBadge(); }
     if (id === 'valentine') this._uiEmit({ valentine: 0 });
-    this._uiEmit({ active: id });
+    this._uiEmit({ active: id, immersive: false });
     const mod = this.modules.find(m => m.id === id);
     if (!mod) return;
     const content = await this._waitContent();

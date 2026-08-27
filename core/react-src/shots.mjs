@@ -54,7 +54,7 @@ async function mk(viewport) {
 }
 
 async function ring(p) {
-  const h = await p.locator('.ho-handle').boundingBox();
+  const h = await p.locator('.ho-fab').boundingBox();
   await p.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
   await p.mouse.down();
   await p.mouse.up();
@@ -71,8 +71,8 @@ await lg.close();
 
 const d = await mk({ width: 1440, height: 900 });
 await d.screenshot({ path: OUT + '/s-desk-idle.png', animations: 'disabled' });
-const hb = await d.locator('.ho-handle').boundingBox();
-await d.mouse.move(hb.x - 70, hb.y + 420);
+const hb = await d.locator('.ho-fab').boundingBox();
+await d.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
 await d.waitForTimeout(600);
 await d.screenshot({ path: OUT + '/s-desk-near.png', animations: 'disabled' });
 await ring(d);

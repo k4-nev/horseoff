@@ -64,9 +64,6 @@ body.theme-dark{
 
 /* ─── Каркас ───────────────────────────────────────────────────────────── */
 .app-shell{background:var(--bg)}
-/* Полоса под ручку зарезервирована каркасом: скроллбар модуля до неё не
-   доходит, и ручка ничего собой не перекрывает. */
-.app-shell.active{padding-right:14px}
 .content{position:relative}
 
 /* Пространство под стеклом: широкие световые поля, которые кольцо и
@@ -80,46 +77,68 @@ body.theme-light .app-shell.active::before{
   opacity:.7}
 .app-shell.active > .content{position:relative;z-index:1}
 
-/* ─── Ручка на самой кромке ────────────────────────────────────────────── */
-.ho-nav{position:fixed;inset:0;z-index:80;pointer-events:none}
-.ho-handle{position:absolute;top:0;bottom:0;right:0;width:14px;border:none;background:none;padding:0;
-  cursor:pointer;pointer-events:auto;display:flex;align-items:center;justify-content:flex-end;
-  color:var(--ho-accent);-webkit-tap-highlight-color:transparent}
-.ho-nav[data-side="left"] .ho-handle{right:auto;left:0;transform:scaleX(-1)}
-.ho-nav.near .ho-handle{color:var(--ho-deep)}
-.ho-handle:focus-visible{outline:2px solid var(--ho-deep);outline-offset:-4px}
-.ho-mark{display:flex;align-items:center;justify-content:flex-end}
+/* ─── Кнопка «Приложения» ───────────────────────────────────────────────
+   Слой навигации ничего не занимает в потоке: он fixed поверх контента и
+   ниже модальных затемнений модулей (те начинаются со 100). Поэтому кнопка
+   лежит над интерфейсом, но ничего в нём не сдвигает. */
+.ho-nav{position:fixed;inset:0;z-index:60;pointer-events:none}
 
-/* Шов — перфорация вдоль кромки, как у отрывного края */
-.ho-seam{display:block;width:3px;height:150px;border-radius:2px;opacity:.8;
-  background-image:repeating-linear-gradient(180deg, currentColor 0 7px, transparent 7px 14px);
-  transition:height .24s var(--ho-e),width .24s var(--ho-e),opacity .24s var(--ho-e)}
-.ho-nav.near .ho-seam,.ho-handle:hover .ho-seam{width:4px;height:200px;opacity:1;
-  background-image:repeating-linear-gradient(180deg, currentColor 0 9px, transparent 9px 16px)}
-.ho-nav.open .ho-seam{height:96px;opacity:1}
+.ho-fab{position:fixed;left:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  width:56px;height:56px;border-radius:50%;border:none;padding:0;cursor:pointer;z-index:4;
+  pointer-events:auto;display:flex;align-items:center;justify-content:center;
+  color:var(--ho-deep);-webkit-tap-highlight-color:transparent;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255,255,255,.98), rgba(255,255,255,.34) 26%, rgba(255,255,255,0) 52%),
+    radial-gradient(circle at 66% 88%, color-mix(in oklab, #fff 62%, transparent), transparent 42%),
+    radial-gradient(circle at 50% 44%, color-mix(in oklab, var(--ho-orb) 40%, transparent), color-mix(in oklab, var(--ho-orb) 94%, transparent) 92%);
+  box-shadow:
+    inset 0 0 0 .5px rgba(255,255,255,.62),
+    inset 0 9px 14px -9px rgba(255,255,255,.95),
+    inset 0 -13px 18px -10px color-mix(in oklab, var(--ho-deep) 26%, transparent),
+    0 12px 24px -10px color-mix(in oklab, var(--ho-deep) 42%, transparent),
+    0 3px 7px -3px color-mix(in oklab, var(--ho-deep) 20%, transparent);
+  transition:transform .22s var(--ho-e),box-shadow .22s var(--ho-e),opacity .24s var(--ho-e)}
+.ho-fab:active{transform:scale(.93)}
+.ho-fab:focus-visible{outline:2px solid var(--ho-deep);outline-offset:3px}
+.ho-fab.open{box-shadow:
+    inset 0 0 0 .5px rgba(255,255,255,.72),
+    inset 0 -13px 18px -10px color-mix(in oklab, var(--ho-deep) 30%, transparent),
+    0 0 20px -2px color-mix(in oklab, var(--ho-accent) 62%, transparent),
+    0 10px 20px -10px color-mix(in oklab, var(--ho-deep) 38%, transparent)}
+/* На телефоне в открытом чате или канале кнопка уезжает вниз: низ занят
+   полем ввода. Возвращается вместе со списком. */
+.ho-nav.hidden .ho-fab{opacity:0;transform:translateY(18px) scale(.84);pointer-events:none}
 
-.ho-hcap{position:absolute;right:calc(100% + 10px);white-space:nowrap;
-  font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;color:var(--ho-deep);
-  background:color-mix(in oklab, var(--ho-surface) 80%, transparent);
+.ho-fab-gl{position:absolute;inset:0;border-radius:50%;overflow:hidden;pointer-events:none}
+.ho-fab-gl::before{content:'';position:absolute;left:15%;top:10%;width:50%;height:28%;border-radius:50%;
+  background:linear-gradient(170deg, rgba(255,255,255,.92), rgba(255,255,255,0) 78%)}
+.ho-fab-dots{position:relative;display:grid;grid-template-columns:repeat(2,5px);gap:5px;
+  transition:transform .28s var(--ho-e)}
+.ho-fab-dots i{display:block;width:5px;height:5px;border-radius:50%;background:currentColor}
+.ho-fab.open .ho-fab-dots{transform:rotate(45deg) scale(.8)}
+
+.ho-fab-cap{position:absolute;left:calc(100% + 12px);white-space:nowrap;
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--ho-deep);
+  background:color-mix(in oklab, var(--ho-surface) 82%, transparent);
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
-  padding:5px 11px;border-radius:9px;opacity:0;visibility:hidden;transform:translateX(6px);
+  padding:5px 11px;border-radius:9px;opacity:0;visibility:hidden;transform:translateX(-6px);
   box-shadow:0 4px 14px -6px color-mix(in oklab, var(--ho-deep) 40%, transparent);
   transition:opacity .2s var(--ho-e),transform .2s var(--ho-e);pointer-events:none}
-.ho-nav.near .ho-hcap,.ho-handle:hover .ho-hcap{opacity:1;visibility:visible;transform:none}
-.ho-nav[data-side="left"] .ho-hcap{transform:scaleX(-1) translateX(6px)}
-.ho-nav[data-side="left"].near .ho-hcap,.ho-nav[data-side="left"] .ho-handle:hover .ho-hcap{transform:scaleX(-1)}
-.ho-nav.open .ho-hcap{opacity:0;visibility:hidden}
+.ho-fab:hover .ho-fab-cap{opacity:1;visibility:visible;transform:none}
+.ho-nav.open .ho-fab-cap{opacity:0;visibility:hidden}
 
 /* ─── Вуаль: модуль целиком уходит в размытие ──────────────────────────── */
-.ho-veil{position:absolute;inset:0;opacity:0;visibility:hidden;pointer-events:none;
+.ho-veil{position:absolute;inset:0;z-index:1;opacity:0;visibility:hidden;pointer-events:none;
   background:color-mix(in oklab, var(--ho-ground) 12%, transparent)}
 .ho-nav.open .ho-veil,.ho-nav.closing .ho-veil{visibility:visible;
   -webkit-backdrop-filter:blur(11px) saturate(114%);backdrop-filter:blur(11px) saturate(114%)}
 .ho-nav.open .ho-veil{pointer-events:auto}
 
 /* ─── Шары ─────────────────────────────────────────────────────────────── */
-.ho-field{position:absolute;inset:0;pointer-events:none}
-.ho-nav.open .ho-field{pointer-events:auto}
+/* Поле шаров кликов не ловит: иначе оно накрывает вуаль целиком и тычок
+   мимо шара некому обработать. Кликабельны только сами шары. */
+.ho-field{position:absolute;inset:0;z-index:2;pointer-events:none}
+.ho-nav.open .ho-orb{pointer-events:auto}
 .ho-bub{position:absolute;width:82px;margin:-30px 0 0 -41px;opacity:0;visibility:hidden}
 .ho-nav.open .ho-bub,.ho-nav.closing .ho-bub{visibility:visible}
 .ho-drift{display:flex;flex-direction:column;align-items:center;gap:7px;will-change:transform}
@@ -171,15 +190,13 @@ body.theme-light .app-shell.active::before{
   box-shadow:0 2px 5px -1px color-mix(in oklab, var(--ho-signal) 60%, transparent)}
 
 /* ─── Голосовая плашка: у той же кромки, над ручкой ────────────────────── */
-.sb-voice-bar{position:fixed;right:22px;bottom:22px;z-index:81;
+.sb-voice-bar{position:fixed;right:22px;bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:3;
   flex-direction:row;align-items:center;gap:8px;width:auto;height:auto;
   padding:7px 10px;border-radius:16px;
   background:color-mix(in oklab, var(--ho-surface) 74%, transparent);
   -webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 10px 26px -12px color-mix(in oklab, var(--ho-deep) 55%, transparent);
   cursor:pointer;overflow:visible}
-.ho-nav[data-side="left"] ~ .sb-voice-bar,
-body.ho-left .sb-voice-bar{right:auto;left:22px}
 .sb-voice-bar-ico{width:30px;height:30px;margin:0;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .sb-vb-img{width:30px;height:30px;border-radius:50%;object-fit:cover}
 .sb-vb-icon-circle{width:30px;height:30px;border-radius:50%;
@@ -188,22 +205,21 @@ body.ho-left .sb-voice-bar{right:auto;left:22px}
 .sb-vb-btn{margin:0;padding:5px;border-radius:9px;color:var(--ho-dim)}
 .sb-vb-btn:hover{color:var(--ho-ink);background:color-mix(in oklab, var(--ho-sunk) 80%, transparent)}
 
-/* ─── Мобильный: ручка слева, шары мельче ──────────────────────────────── */
+/* ─── Мобильный: кнопка там же слева внизу, шары крупнее ───────────────── */
 @media (max-width:768px){
-  .app-shell.active{padding-right:0;padding-left:14px}
-  .content{padding-bottom:0}
-  .ho-bub{width:70px;margin:-23px 0 0 -35px}
-  .ho-drift{gap:5px}
-  .ho-orb{width:46px;height:46px}
-  .ho-orb .ico{width:18px;height:18px}
-  .ho-ava{font-size:13px}
-  .ho-ava-img{width:27px;height:27px}
-  .ho-cap{font-size:9.5px;line-height:1.15;max-width:70px}
-  .ho-tag{min-width:17px;height:17px;font-size:9px}
-  .ho-seam{height:120px}
-  .ho-nav.near .ho-seam,.ho-handle:hover .ho-seam{height:160px}
-  .sb-voice-bar{left:22px;right:auto;bottom:calc(22px + env(safe-area-inset-bottom,0px))}
-  .sb-voice-bar-controls{display:flex}
+  .ho-fab{width:60px;height:60px;left:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+  .ho-fab-dots{grid-template-columns:repeat(2,6px);gap:5px}
+  .ho-fab-dots i{width:6px;height:6px}
+  .ho-fab-cap{display:none}
+  .ho-bub{width:88px;margin:-28px 0 0 -44px}
+  .ho-drift{gap:4px}
+  .ho-orb{width:56px;height:56px}
+  .ho-orb .ico{width:21px;height:21px}
+  .ho-ava{font-size:15px}
+  .ho-ava-img{width:32px;height:32px}
+  .ho-cap{font-size:9.5px;line-height:1.12;max-width:88px}
+  .ho-tag{min-width:18px;height:18px;font-size:9.5px}
+  .sb-voice-bar{right:18px}
 }
 
 /* Уменьшенное движение — это более короткая анимация и отсутствие орбит,

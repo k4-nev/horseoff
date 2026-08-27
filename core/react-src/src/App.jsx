@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import SideNav from './SideNav.jsx';
 
 function useShellState() {
-  const [s, set] = useState(() => (window.Shell && window.Shell._uiState) || { authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null });
+  const [s, set] = useState(() => (window.Shell && window.Shell._uiState) || { authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, immersive: false });
   useEffect(() => {
     if (!window.Shell || !window.Shell.subscribeUI) return undefined;
     return window.Shell.subscribeUI(set);
@@ -26,6 +26,7 @@ export default function App() {
         valentine={st.valentine}
         avatar={st.avatar}
         user={st.user}
+        immersive={st.immersive}
       />
     </div>
   );

@@ -243,7 +243,8 @@ const Channels = {
     if (lbl) lbl.innerHTML = '# <span id="chChatName">' + this._esc(ch ? ch.name : '—') + '</span>';
     document.getElementById('chChatHead').style.display = 'flex';
     document.getElementById('chChat').classList.add('mobile-open');
-    if (window.innerWidth <= 768) { var sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none'; document.getElementById('chChat').style.bottom = '0'; }
+    Shell.setImmersive(true);
+    if (window.innerWidth <= 768) { document.getElementById('chChat').style.bottom = '0'; }
     await this.loadMessages();
     await this.loadMembers();
     await this.loadPins();
@@ -253,7 +254,8 @@ const Channels = {
 
   closeChat() {
     document.getElementById('chChat').classList.remove('mobile-open');
-    if (window.innerWidth <= 768) { var sb = document.querySelector('.sidebar'); if (sb) sb.style.display = ''; document.getElementById('chChat').style.bottom = ''; }
+    Shell.setImmersive(false);
+    if (window.innerWidth <= 768) { document.getElementById('chChat').style.bottom = ''; }
     this.currentChannel = null;
     this.renderSidebar();
     this.closeSearch();
@@ -1804,7 +1806,7 @@ const Channels = {
     if (lbl) lbl.innerHTML = '<span class="ico ico-16 ' + chIconCls + '" style="background-color:var(--accent);margin-right:6px"></span><span id="chChatName">' + this._esc(ch ? ch.name : '—') + '</span>';
     document.getElementById('chChatHead').style.display = 'flex';
     document.getElementById('chChat').classList.add('mobile-open');
-    if (window.innerWidth <= 768) { var sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none'; }
+    Shell.setImmersive(true);
 
     // Show voice area, hide text area
     document.getElementById('chMessages').style.display = 'none';

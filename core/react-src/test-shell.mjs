@@ -87,11 +87,28 @@ async function clickOrb(p, title) {
 }
 
 async function openRing(p) {
-  const h = await p.locator('.ho-handle').boundingBox();
+  const h = await p.locator('.ho-fab').boundingBox();
   await p.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
   await p.mouse.down();
   await p.mouse.up();
   await p.waitForTimeout(1300);
+}
+
+/* Кнопка обязана быть в левом нижнем углу и ничего не сдвигать: слой
+   навигации fixed, у каркаса нет резервных отступов. */
+async function fabCorner(p) {
+  return p.evaluate(() => {
+    const f = document.querySelector('.ho-fab');
+    const r = f.getBoundingClientRect();
+    const shell = getComputedStyle(document.getElementById('appShell'));
+    return {
+      left: Math.round(r.left),
+      fromBottom: Math.round(innerHeight - r.bottom),
+      padL: parseFloat(shell.paddingLeft),
+      padR: parseFloat(shell.paddingRight),
+      fixed: getComputedStyle(f).position === 'fixed',
+    };
+  });
 }
 
 try {
@@ -103,7 +120,9 @@ try {
   check('по умолчанию открыт мессенджер', await p.locator('#moduleContent .stub[data-stub="messenger"]').count() === 1);
   check('тема по умолчанию светлая', await p.evaluate(() => document.body.classList.contains('theme-light')));
   check('узел голосовой плашки существует (его пишет модуль «Каналы»)', await p.locator('#sidebarVoiceBar').count() === 1);
-  check('ручка у правой кромки на десктопе', await p.locator('.ho-nav[data-side="right"]').count() === 1);
+  const fc = await fabCorner(p);
+  check('кнопка «Приложения» в левом нижнем углу', fc.left < 40 && fc.fromBottom < 40 && fc.fixed, JSON.stringify(fc));
+  check('каркас ничего не резервирует под навигацию', fc.padL < 1 && fc.padR < 1, JSON.stringify(fc));
 
   console.log('\n── Кольцо: разлёт, выбор модуля, размытие ──');
   await openRing(p);
@@ -126,6 +145,35 @@ try {
   check('прежний контейнер модуля сохранён (кэш не потерян)',
     await p.locator('#moduleContent .stub[data-stub="messenger"]').count() === 1);
 
+  console.log('\n── Тычок мимо шара сворачивает кольцо ──');
+  await openRing(p);
+  await p.mouse.click(p.viewportSize().width - 80, 120);
+  await p.waitForTimeout(900);
+  check('клик в пустое место закрыл кольцо', await p.locator('.ho-nav.open').count() === 0);
+
+  console.log('\n── Позиции шаров не пляшут между открытиями ──');
+  const snap = async () => {
+    await openRing(p);
+    const s = await p.evaluate(() => {
+      const o = {};
+      document.querySelectorAll('.ho-bub').forEach((b) => {
+        const r = b.getBoundingClientRect();
+        o[b.querySelector('.ho-orb').title] = Math.round(r.left / 8) + ':' + Math.round(r.top / 8);
+      });
+      return o;
+    });
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(900);
+    return s;
+  };
+  const a1 = await snap();
+  await openRing(p);
+  await clickOrb(p, 'Каналы');
+  await p.waitForTimeout(1000);
+  const a2 = await snap();
+  check('после переключения модуля места шаров те же', JSON.stringify(a1) === JSON.stringify(a2),
+    JSON.stringify(a1) + ' vs ' + JSON.stringify(a2));
+
   console.log('\n── Счётчики приходят из ядра ──');
   await p.evaluate(() => { Shell.unreadTotal = 7; Shell.updateMsgBadge(); });
   await p.waitForTimeout(200);
@@ -134,7 +182,6 @@ try {
   await p.keyboard.press('Escape');
   await p.waitForTimeout(700);
   check('Esc закрывает кольцо', await p.locator('.ho-nav.open').count() === 0);
-  await p.close();
 
   console.log('\n── Живая выдача и снятие доступов (WS modules_update) ──');
   const p2 = await open();
@@ -161,9 +208,12 @@ try {
     await p2.evaluate(() => Shell.activeModule));
   await p2.close();
 
-  console.log('\n── Мобильная адаптация: ручка слева ──');
+  console.log('\n── Мобильная адаптация ──');
   const p3 = await open({ viewport: { width: 390, height: 780 } });
-  check('ручка у левой кромки', await p3.locator('.ho-nav[data-side="left"]').count() === 1);
+  const fc3 = await fabCorner(p3);
+  check('кнопка в том же левом нижнем углу', fc3.left < 40 && fc3.fromBottom < 46, JSON.stringify(fc3));
+  check('на телефоне каркас тоже ничего не резервирует', fc3.padL < 1 && fc3.padR < 1);
+  check('шары на телефоне крупнее', await p3.evaluate(() => Math.round(document.querySelector('.ho-orb').getBoundingClientRect().width)) >= 54);
   check('нижней панели не осталось', await p3.evaluate(() => {
     const c = getComputedStyle(document.querySelector('.content'));
     return parseFloat(c.paddingBottom) < 1;
@@ -182,7 +232,28 @@ try {
   check('шары не вылезают за экран телефона',
     box.left > -2 && box.right < box.w + 2 && box.top > -2 && box.bottom < box.h + 2,
     JSON.stringify(box));
+  console.log('\n── Погружение: в чате кнопка уходит ──');
+  await p3.keyboard.press('Escape');
+  await p3.waitForTimeout(800);
+  await p3.evaluate(() => Shell.setImmersive(true));
+  await p3.waitForTimeout(450);
+  check('в чате кнопка спрятана', await p3.evaluate(() => {
+    const f = document.querySelector('.ho-fab');
+    return getComputedStyle(f).opacity === '0' && getComputedStyle(f).pointerEvents === 'none';
+  }));
+  await p3.evaluate(() => Shell.setImmersive(false));
+  await p3.waitForTimeout(450);
+  check('вернулись в список — кнопка на месте',
+    await p3.evaluate(() => getComputedStyle(document.querySelector('.ho-fab')).opacity === '1'));
+  check('на десктопе погружение кнопку не прячет', await p.evaluate(async () => {
+    Shell.setImmersive(true);
+    await new Promise((r) => setTimeout(r, 300));
+    const vis = getComputedStyle(document.querySelector('.ho-fab')).opacity === '1';
+    Shell.setImmersive(false);
+    return vis;
+  }));
   await p3.close();
+  await p.close();
 
   console.log('\n── Выход и повторный вход ──');
   const p4 = await open();

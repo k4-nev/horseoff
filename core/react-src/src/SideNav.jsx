@@ -28,18 +28,10 @@ const ICON = {
 const MOBILE = '(max-width: 768px)';
 const REDUCED = '(prefers-reduced-motion: reduce)';
 
-/* Как часто открывают модуль — чем чаще, тем ближе его шар к ручке.
-   Порядок перестаёт быть порядком папок на диске. */
-function readUses() {
-  try { return JSON.parse(localStorage.getItem('ho_mod_uses') || '{}') || {}; } catch (e) { return {}; }
-}
-function bumpUse(id) {
-  try {
-    const u = readUses();
-    u[id] = (u[id] || 0) + 1;
-    localStorage.setItem('ho_mod_uses', JSON.stringify(u));
-  } catch (e) { /* приватный режим — просто останется алфавитный порядок */ }
-}
+/* Веер раскрывается из угла: ось — вверх-вправо под 45°, разлёт по 44°
+   в каждую сторону. Шире нельзя — шары уйдут за края экрана. */
+const AXIS = -45;
+const HALF = 44;
 
 function useMedia(query) {
   const [on, setOn] = useState(() => window.matchMedia(query).matches);
@@ -54,14 +46,15 @@ function useMedia(query) {
 
 /* Раскладка по концентрическим дугам с равным шагом по длине дуги.
    Число дуг и распределение по ним считаются от количества шаров и от
-   того, сколько места осталось вокруг точки захвата. Каждая дуга
-   симметрична относительно горизонтали ручки. */
+   свободного места вокруг кнопки. Каждая дуга симметрична относительно оси,
+   а сама ось и кнопка неподвижны — поэтому шар одного и того же модуля
+   всегда оказывается на одном и том же месте. */
 function layout(n, box) {
+  const lim = (HALF * Math.PI) / 180;
   const arcs = [];
   for (let i = 0; i < 4; i++) {
     const r = box.r0 + i * box.rStep;
     if (r > box.maxR) break;
-    const lim = Math.min(1.22, Math.asin(Math.min(1, box.maxY / r)));
     const dA = box.step / r;
     arcs.push({ r, dA, cap: Math.max(1, Math.floor((2 * lim) / dA) + 1) });
   }
@@ -83,11 +76,12 @@ function layout(n, box) {
     }
   }
 
+  const axis = (AXIS * Math.PI) / 180;
   const pts = [];
   use.forEach((a, ri) => {
     const m = counts[ri];
     const span = (m - 1) * a.dA;
-    const start = Math.PI - span / 2;
+    const start = axis - span / 2;
     for (let j = 0; j < m; j++) {
       const ang = start + j * a.dA;
       pts.push({
@@ -101,70 +95,77 @@ function layout(n, box) {
   return pts;
 }
 
-/* Голосовая плашка живёт вне React: её содержимое пишет модуль «Каналы»
-   через document.getElementById('sidebarVoiceBar').innerHTML. React создаёт
+/* Плашка голосовой комнаты живёт вне React: её содержимое пишет модуль
+   «Каналы» через getElementById('sidebarVoiceBar').innerHTML. React создаёт
    узел один раз и больше в него не заглядывает. */
 const VoiceSlot = memo(function VoiceSlot() {
   return <div id="sidebarVoiceBar" className="sb-voice-bar" style={{ display: 'none' }} />;
 });
 
-export default function SideNav({ modules, active, unread, valentine, avatar, user }) {
+export default function SideNav({ modules, active, unread, valentine, avatar, user, immersive }) {
   const isMobile = useMedia(MOBILE);
   const reduced = useMedia(REDUCED);
-  const side = isMobile ? 'left' : 'right';
 
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [near, setNear] = useState(false);
   const veilRef = useRef(null);
-  const fieldRef = useRef(null);
+  const fabRef = useRef(null);
   const bubRefs = useRef({});
   const closeTimer = useRef(null);
+  const fadeTimer = useRef(null);
   const guard = useRef(0);
 
-  const items = [];
-  const uses = readUses();
-  modules
-    .slice()
-    .sort((a, b) => (uses[b.id] || 0) - (uses[a.id] || 0))
-    .forEach((m) => items.push({ id: m.id, name: m.name, icon: ICON[m.icon] || 'servers', tint: TINT[m.id] || TINT_FALLBACK }));
-  items.push({ id: '__profile', name: (user && (user.display_name || user.username)) || 'Профиль', profile: true, tint: PROFILE_TINT });
+  /* Порядок строго тот, что пришёл с сервера, плюс профиль последним.
+     Никакой сортировки по частоте: место шара не должно меняться под
+     пользователем, иначе в кольце каждый раз приходится искать заново. */
+  const items = modules.map((m) => ({
+    id: m.id,
+    name: m.name,
+    icon: ICON[m.icon] || 'servers',
+    tint: TINT[m.id] || TINT_FALLBACK,
+  }));
+  items.push({
+    id: '__profile',
+    name: (user && (user.display_name || user.username)) || 'Профиль',
+    profile: true,
+    tint: PROFILE_TINT,
+  });
 
   const timing = reduced
     ? { out: 300, back: 200, step: 14, drift: false }
     : { out: 460, back: 260, step: 26, drift: true };
 
-  const geometry = useCallback((pressY) => {
+  /* Центр веера берём из реального положения кнопки — так он сам учитывает
+     безопасную зону снизу на телефоне, и подгонять руками нечего. */
+  const geometry = useCallback(() => {
+    const fab = fabRef.current;
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const left = side === 'left';
-    const cx = left ? 17 : w - 17;
+    const r = fab ? fab.getBoundingClientRect() : { left: 20, top: h - 76, width: 56, height: 56 };
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
     const cfg = isMobile
-      ? { r0: 88, rStep: 82, step: 86, pad: 46 }
-      : { r0: 132, rStep: 100, step: 106, pad: 62 };
-    const cy = Math.max(cfg.pad + 60, Math.min(h - cfg.pad - 60, pressY));
+      ? { r0: 112, rStep: 84, step: 100 }
+      : { r0: 152, rStep: 104, step: 112 };
     return {
       cx, cy,
-      dir: left ? -1 : 1,
-      maxY: Math.min(cy, h - cy) - cfg.pad,
-      maxR: (left ? w - cx : cx) - cfg.pad,
+      maxR: Math.min(w - cx - 60, cy - 76),
       r0: cfg.r0, rStep: cfg.rStep, step: cfg.step,
     };
-  }, [side, isMobile]);
+  }, [isMobile]);
 
-  const doOpen = useCallback((pressY) => {
-    const field = fieldRef.current;
+  const doOpen = useCallback(() => {
     const veil = veilRef.current;
-    if (!field || !veil) return;
+    if (!veil) return;
     const bubs = items.map((it) => bubRefs.current[it.id]).filter(Boolean);
-    const g = geometry(pressY);
+    const g = geometry();
     const pts = layout(bubs.length, g);
 
     clearTimeout(closeTimer.current);
+    clearTimeout(fadeTimer.current);
     setOpen(true);
     setClosing(false);
-    setNear(false);
-    guard.current = Date.now() + 300;
+    guard.current = Date.now() + 260;
 
     veil.getAnimations().forEach((a) => a.cancel());
     veil.animate([{ opacity: 0 }, { opacity: 1 }],
@@ -174,7 +175,7 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
       const p = pts[i] || { x: 0, y: 0, d: 0 };
       b.style.left = g.cx + 'px';
       b.style.top = g.cy + 'px';
-      b._to = { x: Math.round(p.x * g.dir), y: Math.round(p.y), d: p.d };
+      b._to = { x: Math.round(p.x), y: Math.round(p.y), d: p.d };
       b.getAnimations().forEach((a) => a.cancel());
       const drift = b.firstChild;
       if (drift) drift.getAnimations().forEach((a) => a.cancel());
@@ -188,8 +189,8 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
       );
 
       if (drift && timing.drift) {
-        /* Собственная орбита у каждого шара: свой период и своя фаза —
-           вместе это читается как облако частиц, а не как замерший список. */
+        /* Своя орбита у каждого шара: свой период и своя фаза — вместе это
+           читается как облако частиц, а не как замерший список. */
         const ax = i % 3 === 0 ? 5 : i % 3 === 1 ? -4 : 3;
         const ay = i % 2 === 0 ? -5 : 4;
         drift.animate(
@@ -240,49 +241,40 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
       );
     });
 
-    clearTimeout(closeTimer.current);
+    clearTimeout(fadeTimer.current);
     /* Класс closing держит шары и размытие видимыми, пока они летят домой:
-       без него CSS гасит их мгновенно, и возврата просто не видно. */
-    setTimeout(() => setClosing(false), span + 120);
+       без него CSS гасит их мгновенно и возврата просто не видно. */
+    fadeTimer.current = setTimeout(() => setClosing(false), span + 120);
+
+    clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => {
       if (!pick) return;
       if (pick === '__profile') { if (window.Shell) window.Shell.openProfile(); return; }
-      bumpUse(pick);
       if (window.Shell) window.Shell.switchModule(pick);
     }, span * 0.55);
   }, [items, timing]);
-
-  /* Зона подхода: подсказка выходит раньше, чем курсор дошёл до кромки. */
-  useEffect(() => {
-    const onMove = (e) => {
-      if (open) { setNear(false); return; }
-      const d = side === 'left' ? e.clientX : window.innerWidth - e.clientX;
-      setNear(d < 110);
-    };
-    window.addEventListener('pointermove', onMove);
-    return () => window.removeEventListener('pointermove', onMove);
-  }, [open, side]);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape' && open) doClose(null);
       else if (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        if (open) doClose(null); else doOpen(window.innerHeight / 2);
+        if (open) doClose(null); else doOpen();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, doOpen, doClose]);
 
-  useEffect(() => () => clearTimeout(closeTimer.current), []);
+  /* Кнопка уезжает, когда на телефоне открыт чат или канал: там низ занят
+     полем ввода, и она бы просто мешала. Возвращается вместе со списком. */
+  const hidden = isMobile && !!immersive;
+  useEffect(() => {
+    if (hidden && open) doClose(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hidden]);
 
-  function onGrip(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (open) doClose(null);
-    else doOpen(e.clientY || window.innerHeight / 2);
-  }
+  useEffect(() => () => { clearTimeout(closeTimer.current); clearTimeout(fadeTimer.current); }, []);
 
   function onTilt(e) {
     if (reduced) return;
@@ -296,17 +288,18 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
     e.currentTarget.style.setProperty('--ry', 0);
   }
 
-  const cls = 'ho-nav' + (open ? ' open' : '') + (closing ? ' closing' : '') + (near ? ' near' : '');
+  const cls = 'ho-nav' + (open ? ' open' : '') + (closing ? ' closing' : '') + (hidden ? ' hidden' : '');
 
   return (
-    <div className={cls} data-side={side}>
+    <div className={cls}>
+      {/* Тычок мимо шара — кольцо сворачивается обратно */}
       <div
         className="ho-veil"
         ref={veilRef}
         onPointerDown={() => { if (open && Date.now() > guard.current) doClose(null); }}
       />
 
-      <div className="ho-field" ref={fieldRef}>
+      <div className="ho-field">
         {items.map((it) => {
           const badge = it.id === 'messenger' ? unread : it.id === 'valentine' ? valentine : 0;
           return (
@@ -342,9 +335,17 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
 
       <VoiceSlot />
 
-      <button className="ho-handle" type="button" aria-label="Модули" aria-expanded={open} onPointerDown={onGrip}>
-        <span className="ho-hcap">Модули</span>
-        <span className="ho-mark"><u className="ho-seam" /></span>
+      <button
+        className={'ho-fab' + (open ? ' open' : '')}
+        type="button"
+        ref={fabRef}
+        aria-label="Приложения"
+        aria-expanded={open}
+        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); if (open) doClose(null); else doOpen(); }}
+      >
+        <span className="ho-fab-cap">Приложения</span>
+        <span className="ho-fab-gl" />
+        <span className="ho-fab-dots"><i /><i /><i /><i /></span>
       </button>
     </div>
   );

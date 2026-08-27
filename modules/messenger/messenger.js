@@ -413,7 +413,8 @@ const Messenger = {
     }, 500);
     document.getElementById('msgContacts').classList.add('mobile-hidden');
     document.getElementById('msgChat').classList.add('mobile-open');
-    if (window.innerWidth <= 768) { var _sb = document.querySelector('.sidebar'); if (_sb) _sb.style.display = 'none'; document.getElementById('msgChat').style.bottom = '0'; }
+    Shell.setImmersive(true);
+    if (window.innerWidth <= 768) { document.getElementById('msgChat').style.bottom = '0'; }
     this.loadHistory(userId);
     if(Shell.wsReady)Shell.wsSend({type:'read',chat:this.getChatKey(this.currentUserId,userId)});
     // Clear unread locally immediately
@@ -452,7 +453,8 @@ const Messenger = {
     document.getElementById('msgChatActive').style.display='none';
     document.getElementById('msgContacts').classList.remove('mobile-hidden');
     document.getElementById('msgChat').classList.remove('mobile-open');
-    if (window.innerWidth <= 768) { var _sb = document.querySelector('.sidebar'); if (_sb) _sb.style.display = ''; document.getElementById('msgChat').style.bottom = ''; }
+    Shell.setImmersive(false);
+    if (window.innerWidth <= 768) { document.getElementById('msgChat').style.bottom = ''; }
     document.getElementById('msgProfile').classList.remove('mobile-open');
     document.getElementById('msgProfileEmptyState').style.display='flex';
     document.getElementById('msgProfileContent').style.display='none';
@@ -683,7 +685,8 @@ const Messenger = {
     document.getElementById('msgChatActive').style.display='none';
     document.getElementById('msgContacts').classList.remove('mobile-hidden');
     document.getElementById('msgChat').classList.remove('mobile-open');
-    if (window.innerWidth <= 768) { var _sb = document.querySelector('.sidebar'); if (_sb) _sb.style.display = ''; document.getElementById('msgChat').style.bottom = ''; }
+    Shell.setImmersive(false);
+    if (window.innerWidth <= 768) { document.getElementById('msgChat').style.bottom = ''; }
     try { document.getElementById('msgProfile').classList.remove('mobile-open'); } catch(e){}
     this.renderContacts();
   },
