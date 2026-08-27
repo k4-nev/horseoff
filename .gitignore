@@ -22,3 +22,6 @@ modules/*/react-src/*.tmp
 .swarm/
 .agents/
 .mcp.json
+
+# Локальные снимки прогонов каркаса
+core/react-src/*.png

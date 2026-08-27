@@ -1,4 +1,35 @@
 const Shell = {
+  /* ─── Мост к React-каркасу ───────────────────────────────────────────
+     Состояние интерфейса живёт здесь, в ядре, а React на него подписан.
+     Порядок загрузки скриптов неважен: подписчик получает текущее
+     состояние сразу при подписке, а до его появления вызовы просто
+     копятся в _uiState. */
+  _uiState: { authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null },
+  _uiSubs: [],
+  _uiEmit(patch) {
+    this._uiState = Object.assign({}, this._uiState, patch);
+    var s = this._uiState;
+    this._uiSubs.forEach(function (fn) { try { fn(s); } catch (e) {} });
+  },
+  subscribeUI(fn) {
+    this._uiSubs.push(fn);
+    fn(this._uiState);
+    var subs = this._uiSubs;
+    return function () { var i = subs.indexOf(fn); if (i !== -1) subs.splice(i, 1); };
+  },
+  /* React монтируется асинхронно, а switchModule может быть вызван сразу
+     после showApp — ждём появления контейнера, а не падаем на null. */
+  _waitContent() {
+    return new Promise(function (resolve) {
+      var tries = 0;
+      (function step() {
+        var el = document.getElementById('moduleContent');
+        if (el || tries++ > 120) return resolve(el);
+        requestAnimationFrame(step);
+      })();
+    });
+  },
+
   token: null,
   user: null,
   locale: {},
@@ -71,8 +102,7 @@ const Shell = {
           if (window.WB && WB.onWS) WB.onWS(data);
           // Valentine badge (when module not active)
           if (data.type === 'valentine' && this.activeModule !== 'valentine') {
-            var sb = document.getElementById('valBadge');
-            if (sb) { var n = (parseInt(sb.textContent)||0)+1; sb.textContent=n; sb.style.display='flex'; }
+            this._uiEmit({ valentine: (this._uiState.valentine || 0) + 1 });
           }
         } catch(ex) {}
       };
@@ -174,14 +204,7 @@ const Shell = {
   },
 
   updateMsgBadge() {
-    var badge = document.getElementById('msgBadge');
-    if (!badge) return;
-    if (this.unreadTotal > 0) {
-      badge.textContent = this.unreadTotal > 99 ? '99+' : this.unreadTotal;
-      badge.style.display = 'flex';
-    } else {
-      badge.style.display = 'none';
-    }
+    this._uiEmit({ unread: this.unreadTotal });
   },
 
   _isWindowHidden() {
@@ -218,7 +241,7 @@ const Shell = {
     document.body.classList.toggle('theme-dark', theme !== 'light');
     localStorage.setItem('ho_theme', theme);
     var meta = document.getElementById('metaThemeColor');
-    if (meta) meta.content = theme === 'light' ? '#f2f4f8' : '#0a0a0f';
+    if (meta) meta.content = theme === 'light' ? '#f2f0ec' : '#0a0a0f';
     // Update toggle buttons if profile is open
     document.querySelectorAll('.theme-seg-btn').forEach(function(btn) {
       btn.classList.toggle('active', btn.dataset.theme === theme);
@@ -226,7 +249,7 @@ const Shell = {
   },
 
   _loadTheme() {
-    var theme = localStorage.getItem('ho_theme') || 'dark';
+    var theme = localStorage.getItem('ho_theme') || 'light';
     this.setTheme(theme);
   },
 
@@ -320,7 +343,7 @@ const Shell = {
 
   async showApp() {
     document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('appShell').classList.add('active');
+    this._uiEmit({ authed: true, user: this.user });
     await this.loadModules();
     // Load version
     var v = await this.api('/api/version');
@@ -493,57 +516,23 @@ const Shell = {
     if (this._contactsInterval) { clearInterval(this._contactsInterval); this._contactsInterval = null; }
     // Reset UI
     document.querySelectorAll('.modal-overlay.active').forEach(function(m){ m.classList.remove('active'); });
-    document.getElementById('appShell').classList.remove('active');
+    var mc = document.getElementById('moduleContent');
+    if (mc) mc.innerHTML = '';
+    this._uiEmit({ authed: false, modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null });
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('auth-user').value = '';
     document.getElementById('auth-pass').value = '';
-    document.getElementById('moduleContent').innerHTML = '';
-    document.getElementById('sidebarModules').innerHTML = '';
-    // Remove admin button if exists
-    var ab = document.getElementById('adminBtn');
-    if (ab) ab.remove();
   },
 
   async loadModules() {
     const mods = await this.api('/api/modules');
     if (!mods) return;
     this.modules = mods;
-    const icons = {
-      servers:'<span class="ico ico-18 ico-servers"></span>',
-      users:'<span class="ico ico-18 ico-users"></span>',
-      messenger:'<span class="ico ico-18 ico-messenger"></span>',
-      channels:'<span class="ico ico-18 ico-channels"></span>',
-      valentine:'<span class="ico ico-18 ico-valentine"></span>',
-      bots:'<span class="ico ico-18 ico-bots"></span>',
-      wb:'<span class="ico ico-18 ico-wb"></span>'
-    };
-    const el = document.getElementById('sidebarModules');
-    var visibleMods = mods.filter(m => {
-      if (m.min_role === 'arcana') return false;
-      return true;
-    });
-    el.innerHTML = visibleMods.map(m => {
-      var badge = m.id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
-      if (m.id === 'valentine') badge = '<span class="val-badge" id="valBadge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e8395e;color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;"></span>';
-      return '<button class="sidebar-module" data-id="'+m.id+'" onclick="Shell.switchModule(\''+m.id+'\')" title="'+m.name+'" style="position:relative">'+(icons[m.icon]||icons.servers)+badge+'</button>';
-    }).join('');
-    // Add admin module as bottom button for god
-    if (this.user && this.user.role === 'arcana') {
-      var adminMod = mods.find(m => m.id === 'admin');
-      if (adminMod) {
-        var profBtn = document.getElementById('profileBtn');
-        if (profBtn && !document.getElementById('adminBtn')) {
-          var ab = document.createElement('button');
-          ab.className = 'sidebar-btn';
-          ab.id = 'adminBtn';
-          ab.title = adminMod.name;
-          ab.onclick = function(){ Shell.switchModule('admin'); };
-          ab.innerHTML = '<span class="ico ico-18 ico-users"></span>';
-          profBtn.parentNode.insertBefore(ab, profBtn);
-        }
-      }
-    }
-
+    /* Раньше модуль «Пользователи» (min_role: arcana) выкидывался из списка
+       и вставлялся отдельной кнопкой над профилем. В кольце отдельного места
+       нет — он такой же шар, как остальные, и виден только тому, кому выдан
+       сервером. Никакой клиентской фильтрации по роли больше не нужно. */
+    this._uiEmit({ modules: mods.map(function (m) { return { id: m.id, name: m.name, icon: m.icon }; }) });
   },
 
   loadedModules: {},
@@ -551,10 +540,12 @@ const Shell = {
   async switchModule(id) {
     this.activeModule = id;
     if (id === 'messenger') { this.unreadTotal = 0; this.updateMsgBadge(); }
-    document.querySelectorAll('.sidebar-module').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+    if (id === 'valentine') this._uiEmit({ valentine: 0 });
+    this._uiEmit({ active: id });
     const mod = this.modules.find(m => m.id === id);
     if (!mod) return;
-    const content = document.getElementById('moduleContent');
+    const content = await this._waitContent();
+    if (!content) return;
 
     // If already loaded, just show the cached container
     if (this.loadedModules[id]) {
@@ -889,86 +880,35 @@ const Shell = {
   async updateSidebarAvatar() {
     var d = await this.api('/api/profile');
     if (!d) return;
-    var btn = document.getElementById('profileBtn');
-    if (d.avatar) {
-      btn.innerHTML = '<img class="sidebar-avatar" src="data:image/jpeg;base64,' + d.avatar + '"/>';
-    } else {
-      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-    }
+    this._uiEmit({ avatar: d.avatar || null, user: { username: d.username, display_name: d.display_name, role: d.role, id: d.id } });
   },
 
   closeModal(id) { document.getElementById(id).classList.remove('active'); },
 
   onModulesUpdate(newModuleIds) {
-    var el = document.getElementById('sidebarModules');
-    if (!el) return;
-    var currentBtns = el.querySelectorAll('.sidebar-module');
-    var currentIds = [];
-    currentBtns.forEach(function(b) { currentIds.push(b.dataset.id); });
-
-    // Fade out removed modules
-    var removed = [];
-    currentBtns.forEach(function(b) {
-      if (newModuleIds.indexOf(b.dataset.id) === -1) {
-        removed.push(b.dataset.id);
-        b.style.transition = 'opacity 0.3s, transform 0.3s';
-        b.style.opacity = '0';
-        b.style.transform = 'scale(0.5)';
-        setTimeout(function() { b.remove(); }, 300);
-      }
-    });
-
-    // Fade in new modules
     var self = this;
-    newModuleIds.forEach(function(id) {
-      if (currentIds.indexOf(id) === -1) {
-        var mod = self.modules.find(function(m) { return m.id === id; });
-        if (!mod) {
-          // Module not loaded yet — fetch all modules
-          self.api('/api/modules').then(function(mods) {
-            if (mods) { self.modules = mods; self._addSidebarBtn(id, el); }
-          });
-        } else {
-          self._addSidebarBtn(id, el);
-        }
+    var known = this.modules.map(function (m) { return m.id; });
+    var missing = newModuleIds.some(function (id) { return known.indexOf(id) === -1; });
+
+    var apply = function () {
+      var next = self.modules.filter(function (m) { return newModuleIds.indexOf(m.id) !== -1; });
+      self._uiEmit({ modules: next.map(function (m) { return { id: m.id, name: m.name, icon: m.icon }; }) });
+      /* Сняли открытый модуль — уводим пользователя туда, что осталось */
+      if (self.activeModule && newModuleIds.indexOf(self.activeModule) === -1) {
+        var target = newModuleIds.indexOf('messenger') !== -1 ? 'messenger' : (newModuleIds[0] || 'messenger');
+        setTimeout(function () { self.switchModule(target); }, 200);
       }
-    });
-
-    // If active module was removed — switch to messenger or first available
-    if (removed.indexOf(this.activeModule) !== -1) {
-      var target = newModuleIds.indexOf('messenger') !== -1 ? 'messenger' : (newModuleIds[0] || 'messenger');
-      setTimeout(function() { self.switchModule(target); }, 350);
-    }
-  },
-
-  _addSidebarBtn(id, container) {
-    var mod = this.modules.find(function(m) { return m.id === id; });
-    if (!mod) return;
-    var icons = {
-      servers:'<span class="ico ico-18 ico-servers"></span>',
-      users:'<span class="ico ico-18 ico-users"></span>',
-      messenger:'<span class="ico ico-18 ico-messenger"></span>',
-      channels:'<span class="ico ico-18 ico-channels"></span>',
-      valentine:'<span class="ico ico-18 ico-valentine"></span>',
-      bots:'<span class="ico ico-18 ico-bots"></span>',
-      wb:'<span class="ico ico-18 ico-wb"></span>'
     };
-    var badge = id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
-    var btn = document.createElement('button');
-    btn.className = 'sidebar-module';
-    btn.dataset.id = id;
-    btn.title = mod.name;
-    btn.style.position = 'relative';
-    btn.onclick = function() { Shell.switchModule(id); };
-    btn.innerHTML = (icons[mod.icon] || icons.servers) + badge;
-    btn.style.opacity = '0';
-    btn.style.transform = 'scale(0.5)';
-    container.appendChild(btn);
-    requestAnimationFrame(function() {
-      btn.style.transition = 'opacity 0.3s, transform 0.3s';
-      btn.style.opacity = '1';
-      btn.style.transform = 'scale(1)';
-    });
+
+    if (missing) {
+      /* Выдали модуль, которого клиент ещё не видел — забираем манифесты */
+      this.api('/api/modules').then(function (mods) {
+        if (mods) self.modules = mods;
+        apply();
+      });
+    } else {
+      apply();
+    }
   },
 
   toast(msg, type='success') {

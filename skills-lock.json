@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "color-theory-palette-harmony-expert": {
+      "source": "curiositech/some_claude_skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/color-theory-palette-harmony-expert/SKILL.md",
+      "computedHash": "bb3edfc0a4d6255ff182e64c98d5726137474ed47d7dabc0eb5240f25b0cce13"
+    }
+  }
+}
