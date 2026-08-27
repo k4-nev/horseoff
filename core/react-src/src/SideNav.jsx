@@ -1,24 +1,24 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
-/* Цвет шара на модуль: мишень узнаётся раньше, чем прочитана подпись.
-   Пастель разведена по кругу, ни один тон не наезжает на соседний, и все
-   они сняты с холодной базы приложения (--bg #f2f4f8), чтобы кольцо
-   читалось как часть интерфейса, а не как вставка из другой палитры. */
+/* Цвет модуля: мишень узнаётся раньше, чем прочитана подпись. Само стекло
+   у всех шаров светлое — цвет живёт в иконке внутри и лишь тенью подкрашивает
+   тело шара (5–15% примеси в CSS). Тона разведены по кругу и взяты достаточно
+   глубокими, чтобы иконка держала контраст на белом стекле. */
 const TINT = {
-  messenger: '#bfe4dc',
-  channels: '#bcdcee',
-  servers: '#c4d2ee',
-  bots: '#d3cbef',
-  wb: '#e3c9ea',
-  valentine: '#efc6d8',
-  admin: '#cdd6e4',
-  tasks: '#e6d9b6',
-  finance: '#c8e0c6',
-  logs: '#d8dce6',
-  stock: '#eddfc0',
+  messenger: '#0d8f76',
+  channels: '#2470c0',
+  servers: '#4453c4',
+  bots: '#6f47c0',
+  wb: '#b12a90',
+  valentine: '#cc3d64',
+  admin: '#4e5f79',
+  tasks: '#a86c0a',
+  finance: '#237f43',
+  logs: '#5c6470',
+  stock: '#8f6d12',
 };
-const TINT_FALLBACK = '#dde1ea';
-const PROFILE_TINT = '#dde1ea';
+const TINT_FALLBACK = '#4e5661';
+const PROFILE_TINT = '#4e5661';
 
 /* Иконки берём из общей системы масок shell.css (.ico ico-18 ico-<name>) —
    отдельного набора у навигации нет и быть не должно. */

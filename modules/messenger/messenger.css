@@ -421,9 +421,12 @@
 
 /* ===== MOBILE ===== */
 @media(max-width:768px){
-  .msg-wrap{height:calc(100vh - 48px);height:calc(100dvh - 48px)}
+  .msg-wrap{height:100vh;height:100dvh}
   .msg-contacts{width:100%}
-  .msg-chat{display:none;position:fixed;top:0;left:0;right:0;bottom:48px;z-index:40;background:var(--bg)}
+  /* Хвост под кнопку «Приложения»: она висит в левом нижнем углу, и без
+     запаса последний контакт из-под неё не доскроллить. */
+  .msg-contact-list{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .msg-chat{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:var(--bg)}
   .msg-chat.mobile-open{display:block}
   .msg-back-btn{display:flex}
   .msg-mob-dots{display:flex}
@@ -439,7 +442,8 @@
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   @media(max-width:768px){
     .msg-input-area{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
-    .msg-chat{bottom:calc(48px + env(safe-area-inset-bottom));top:env(safe-area-inset-top)}
+    .msg-wrap{height:calc(100dvh - env(safe-area-inset-top))}
+    .msg-chat{top:env(safe-area-inset-top)}
     .msg-profile{top:env(safe-area-inset-top)}
   }
 }

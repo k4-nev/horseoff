@@ -258,12 +258,14 @@
 
 /* ─── MOBILE ─── */
 @media(max-width:768px){
-  .ch-wrap{height:calc(100vh - 48px);height:calc(100dvh - 48px)}
+  .ch-wrap{height:100vh;height:100dvh}
   .ch-sidebar{width:100%}
-  .ch-chat{position:fixed;left:0;top:0;right:0;bottom:48px;z-index:35;display:none;background:var(--bg)}
+  /* Хвост под кнопку «Приложения» в левом нижнем углу */
+  .ch-sidebar-list{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .ch-chat{position:fixed;left:0;top:0;right:0;bottom:0;z-index:35;display:none;background:var(--bg)}
   .ch-chat.mobile-open{display:flex}
   .ch-back-btn{display:flex}
-  .ch-members{position:fixed;right:0;top:0;bottom:48px;width:280px;z-index:40;display:none !important}
+  .ch-members{position:fixed;right:0;top:0;bottom:0;width:280px;z-index:40;display:none !important}
   .ch-members.mobile-open{display:flex !important}
   .ch-msg-quick{display:none !important}
 }
@@ -271,7 +273,8 @@
 /* Safe area (iPhone notch / home indicator) */
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   @media(max-width:768px){
-    .ch-chat{bottom:calc(48px + env(safe-area-inset-bottom));top:env(safe-area-inset-top)}
+    .ch-wrap{height:calc(100dvh - env(safe-area-inset-top))}
+    .ch-chat{top:env(safe-area-inset-top)}
     .ch-members{top:env(safe-area-inset-top)}
     .ch-input-area{margin-bottom:calc(20px + env(safe-area-inset-bottom))}
   }
