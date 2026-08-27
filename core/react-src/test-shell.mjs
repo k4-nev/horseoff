@@ -183,6 +183,76 @@ try {
   await p.waitForTimeout(700);
   check('Esc закрывает кольцо', await p.locator('.ho-nav.open').count() === 0);
 
+  console.log('\n── Палитра: база штатная, кнопки Cloud Dancer ──');
+  const pal = await p.evaluate(() => {
+    const cs = getComputedStyle(document.body);
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'x';
+    document.body.appendChild(btn);
+    const b = getComputedStyle(btn);
+    const r = {
+      accent: cs.getPropertyValue('--accent').trim(),
+      success: cs.getPropertyValue('--success').trim(),
+      bg: cs.getPropertyValue('--bg').trim(),
+      btn: b.backgroundImage + ' | ' + b.backgroundColor,
+    };
+    btn.remove();
+    return r;
+  });
+  check('--accent вернулся к штатному бирюзовому', pal.accent === '#00d4aa', pal.accent);
+  check('зелёный --success на месте', pal.success === '#22c55e', pal.success);
+  check('базовый фон штатный', pal.bg === '#f2f4f8', pal.bg);
+  /* Кнопка не должна быть бирюзовой: в её заливке нет rgb(0,212,170), зато
+     есть уголь Cloud Dancer — #413c36 / #4a453f / #5d574f. */
+  check('кнопка в угле Cloud Dancer, а не в бирюзе',
+    !/\b0,\s*212,\s*170\b/.test(pal.btn) && /rgb\((65|74|93),\s*(60|69|87),\s*(54|63|79)\)/.test(pal.btn), pal.btn);
+
+  console.log('\n── Плашка голосовой ловит клики ──');
+  const vb = await p.evaluate(() => {
+    const bar = document.getElementById('sidebarVoiceBar');
+    bar.style.display = 'flex';
+    bar.innerHTML = '<div class="sb-voice-bar-ico">x</div>';
+    const r = bar.getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const res = { pe: getComputedStyle(bar).pointerEvents, hit: !!(top && bar.contains(top)) };
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return res;
+  });
+  check('плашка не сквозная для кликов', vb.pe === 'auto' && vb.hit, JSON.stringify(vb));
+
+  console.log('\n── Оверлеи модулей накрывают кнопку ──');
+  /* Кнопка обязана быть поверх интерфейса, но под затемнениями, панелями и
+     размытиями модулей. Все они живут на z-index:1000 внутри .content —
+     проверяем, что .content их больше не запирает под слоем навигации. */
+  const layers = await p.evaluate(() => {
+    const nav = document.querySelector('.ho-nav');
+    const fab = document.querySelector('.ho-fab');
+    const r = fab.getBoundingClientRect();
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    const before = document.elementFromPoint(x, y);
+
+    const host = document.getElementById('moduleContent');
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4)';
+    host.appendChild(ov);
+    const after = document.elementFromPoint(x, y);
+    ov.remove();
+
+    return {
+      navZ: parseInt(getComputedStyle(nav).zIndex, 10),
+      contentZ: getComputedStyle(host).zIndex,
+      fabOnTop: !!(before && fab.contains(before)),
+      coveredByOverlay: after === ov,
+    };
+  });
+  check('.content не создаёт контекст наложения', layers.contentZ === 'auto', layers.contentZ);
+  check('без оверлея кнопка кликабельна поверх модуля', layers.fabOnTop, JSON.stringify(layers));
+  check('затемнение модуля накрывает кнопку', layers.coveredByOverlay, JSON.stringify(layers));
+  check('слой навигации между обвязкой и оверлеями', layers.navZ === 60, String(layers.navZ));
+
   console.log('\n── Живая выдача и снятие доступов (WS modules_update) ──');
   const p2 = await open();
   await p2.evaluate(() => Shell.onModulesUpdate(['messenger', 'servers']));

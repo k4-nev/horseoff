@@ -325,6 +325,25 @@ body.theme-light .srv-wrap::-webkit-scrollbar-thumb:hover{background:var(--scrol
 .srv-drawer-actions{position:sticky;bottom:0;z-index:2;display:flex;gap:10px;margin:20px -20px 0;padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--border)}
 .srv-drawer-actions .btn{flex:1;padding:0 12px}
 
+/* Сегментированный переключатель — интервал обновления. Одна кнопка из
+   четырёх всегда нажата, поэтому переключатель, а не набор кнопок. */
+.srv-seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)}
+.srv-seg-btn{flex:1;padding:7px 0;border:none;border-radius:9px;background:transparent;cursor:pointer;
+  color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;
+  transition:background .15s,color .15s}
+.srv-seg-btn:hover{color:var(--text)}
+.srv-seg-btn.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.srv-seg-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* Ключ API: состояние слева, действие справа */
+.srv-key-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.srv-key-row .btn{height:34px;min-height:34px;padding:0 14px;font-size:12px}
+.srv-key-state{font-size:12px;color:var(--text-dim)}
+.srv-key-state.on{color:var(--success)}
+.srv-key-note{font-size:11px;color:var(--text-dim);margin-top:8px}
+.srv-about{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);font-size:13px;color:var(--text-dim);line-height:1.6}
+.srv-about-v{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:6px}
+
 /* ─── Свой выпадающий список вместо <select> ──────────────────────────
    Нативный <select> рисует список средствами ОС — поверх светлого
    интерфейса это выглядело системным меню из другой эпохи. Здесь список
@@ -354,6 +373,10 @@ body.theme-light .srv-drawer{background:#fbfcfe;border-left-color:#e4e8ef;box-sh
 body.theme-light .srv-drawer-title{color:#5a6373}
 body.theme-light .srv-drawer-sub{color:#9aa6b4}
 body.theme-light .srv-drawer-actions{background:#fbfcfe;border-top-color:#e9edf3}
+body.theme-light .srv-seg{background:#eef1f6;border-color:#e4e8ef}
+body.theme-light .srv-seg-btn.on{background:#fff;color:#3a4453;box-shadow:0 1px 2px rgba(23,33,54,.12)}
+body.theme-light .srv-key-state{color:#9aa6b4}
+body.theme-light .srv-about{border-top-color:#e9edf3;color:#7a8593}
 body.theme-light .srv-field>span{color:#9aa6b4}
 body.theme-light .srv-input,body.theme-light .srv-sel-btn{background:#fff;border-color:#e4e8ef;color:#5a6373;box-shadow:inset 0 1px 2px rgba(23,33,54,.05)}
 body.theme-light .srv-input:focus,body.theme-light .srv-sel-btn:focus-visible{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}

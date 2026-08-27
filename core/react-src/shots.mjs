@@ -79,6 +79,18 @@ await ring(d);
 await d.screenshot({ path: OUT + '/s-desk-open.png', animations: 'disabled' });
 await d.close();
 
+const cfg = await mk({ width: 1440, height: 900 });
+await cfg.locator('.srv-settings-btn').click();
+await cfg.waitForTimeout(700);
+await cfg.screenshot({ path: OUT + '/s-settings.png', animations: 'disabled' });
+await cfg.close();
+
+const cfgm = await mk({ width: 390, height: 800 });
+await cfgm.locator('.srv-settings-btn').click();
+await cfgm.waitForTimeout(700);
+await cfgm.screenshot({ path: OUT + '/s-settings-phone.png', animations: 'disabled' });
+await cfgm.close();
+
 const m = await mk({ width: 390, height: 800 });
 await m.screenshot({ path: OUT + '/s-phone-idle.png', animations: 'disabled' });
 await ring(m);

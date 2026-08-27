@@ -1,22 +1,24 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 /* Цвет шара на модуль: мишень узнаётся раньше, чем прочитана подпись.
-   Пастельные тона разведены по кругу, ни один не наезжает на соседний. */
+   Пастель разведена по кругу, ни один тон не наезжает на соседний, и все
+   они сняты с холодной базы приложения (--bg #f2f4f8), чтобы кольцо
+   читалось как часть интерфейса, а не как вставка из другой палитры. */
 const TINT = {
-  messenger: '#f0c9b3',
-  channels: '#bfdcdd',
-  servers: '#c3d3ea',
-  bots: '#dbc6ea',
-  wb: '#c2c9f0',
-  valentine: '#f2c5d1',
-  admin: '#e6cdc4',
-  tasks: '#eed9ae',
-  finance: '#cfdec6',
-  logs: '#d9d5cd',
-  stock: '#e9e0bb',
+  messenger: '#bfe4dc',
+  channels: '#bcdcee',
+  servers: '#c4d2ee',
+  bots: '#d3cbef',
+  wb: '#e3c9ea',
+  valentine: '#efc6d8',
+  admin: '#cdd6e4',
+  tasks: '#e6d9b6',
+  finance: '#c8e0c6',
+  logs: '#d8dce6',
+  stock: '#eddfc0',
 };
-const TINT_FALLBACK = '#ddd9d0';
-const PROFILE_TINT = '#ddd9d0';
+const TINT_FALLBACK = '#dde1ea';
+const PROFILE_TINT = '#dde1ea';
 
 /* Иконки берём из общей системы масок shell.css (.ico ico-18 ico-<name>) —
    отдельного набора у навигации нет и быть не должно. */
