@@ -724,11 +724,17 @@ def get_session_by_token(token):
     save_sessions()
     return s
 
+ROLE_RANK = {'arcana': 7, 'immortal': 6, 'legendary': 5, 'mythical': 4, 'rare': 3, 'uncommon': 2, 'common': 1}
+
+def role_at_least(role, min_role):
+    """Пустой min_role — ограничения нет."""
+    if not min_role: return True
+    return ROLE_RANK.get(role, 0) >= ROLE_RANK.get(min_role, 0)
+
 def require_role(handler, min_role):
     s = get_session(handler)
     if not s: return None
-    roles = {'arcana': 7, 'immortal': 6, 'legendary': 5, 'mythical': 4, 'rare': 3, 'uncommon': 2, 'common': 1}
-    if roles.get(s['role'], 0) >= roles.get(min_role, 0): return s
+    if role_at_least(s['role'], min_role): return s
     return None
 
 # ============================================================
@@ -1837,23 +1843,29 @@ class Handler(BaseHTTPRequestHandler):
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
             mods = discover_modules()
-            if s['role'] != 'arcana':
-                user = find_user(s['username'])
+            user = find_user(s['username'])
+            # Роль берём из записи, а не из сессии: сессия помнит её с момента
+            # входа, и после смены роли список не обновлялся до перелогина.
+            role = (user or {}).get('role', s['role'])
+            if role != 'arcana':
                 user_modules = user.get('modules', ['messenger']) if user else ['messenger']
-                # Модуль виден, если он выдан пользователю и не помечен как
-                # arcana-только. То же правило — в рассылке modules_update.
-                mods = [m for m in mods if m['id'] in user_modules and m.get('min_role') != 'arcana']
+                # Модуль виден, если он выдан пользователю И его роль тянет
+                # min_role. Без второй половины модуль появлялся у того, кто им
+                # пользоваться не может. То же правило — в рассылке modules_update.
+                mods = [m for m in mods if m['id'] in user_modules
+                        and m.get('min_role') != 'arcana'
+                        and role_at_least(role, m.get('min_role'))]
             return self._json(200, mods)
 
         # All modules (unfiltered, for admin)
         if path == '/api/modules/all':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             return self._json(200, discover_modules())
 
         if path == '/api/users':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             users = load_users()
             def _last_seen(uid):
                 vals = [sess.get('last_seen', 0) for sess in sessions.values() if sess.get('id') == uid]
@@ -1874,14 +1886,14 @@ class Handler(BaseHTTPRequestHandler):
         # Default modules setting (god only)
         if path == '/api/settings/default-modules':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             st = load_settings()
             return self._json(200, {'modules': st.get('default_modules', ['messenger'])})
 
         # Push: test (god only)
         if path == '/api/push/test':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             send_push(s['id'], 'Horseoff', 'Тестовое уведомление')
             return self._json(200, {'status': 'ok', 'subs': len(get_push_subs(s['id']))})
 
@@ -2290,7 +2302,7 @@ class Handler(BaseHTTPRequestHandler):
         # Default modules setting (god only)
         if path == '/api/settings/default-modules':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             mods = data.get('modules', [])
             st = load_settings()
             st['default_modules'] = mods
@@ -2397,7 +2409,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == '/api/users':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             u, p, r = data.get('username','').strip(), data.get('password',''), data.get('role','user')
             ok, msg = validate_username(u)
             if not ok: return self._json(400, {'error': msg})
@@ -2426,7 +2438,7 @@ class Handler(BaseHTTPRequestHandler):
         if data is None: return
         if path.startswith('/api/users/'):
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             uid = path.split('/api/users/')[1]
             ok, msg = update_user(uid, data)
             if ok: _ws_refresh_all_contacts()
@@ -2436,7 +2448,9 @@ class Handler(BaseHTTPRequestHandler):
                 if user:
                     user_mods = user.get('modules', ['messenger'])
                     all_mods = discover_modules()
-                    visible = [m for m in all_mods if m['id'] in user_mods and m.get('min_role') != 'arcana']
+                    visible = [m for m in all_mods if m['id'] in user_mods
+                               and m.get('min_role') != 'arcana'
+                               and role_at_least(user.get('role', 'common'), m.get('min_role'))]
                     _ws_broadcast_to_user(uid, {'type': 'modules_update', 'modules': [m['id'] for m in visible]})
             return self._json(200 if ok else 400, {'status':'ok'} if ok else {'error': msg})
         for prefix, handler_fn in module_apis.items():
@@ -2455,12 +2469,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'status': 'ok'})
         if path.startswith('/api/avatar/'):
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             delete_avatar(path.split('/api/avatar/')[1])
             return self._json(200, {'status': 'ok'})
         if path.startswith('/api/users/'):
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             uid = path.split('/api/users/')[1]
             if uid == s['id']: return self._json(400, {'error': 'Нельзя удалить себя'})
             ok = delete_user(uid)
@@ -2472,6 +2486,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not s: return self._json(401, {'error': 'Unauthorized'})
                 return handler_fn['DELETE'](self, s, path)
         self._json(404, {'error': 'Not found'})
+
+    def _role_denied(self):
+        """401 — не представился, 403 — представился, но роль не та.
+
+        Разделять обязательно: клиент на 401 считает токен мёртвым и выходит
+        из приложения. Пока роль отвечала 401, один модуль не по роли
+        выбрасывал пользователя из Horseoff насовсем."""
+        if get_session(self):
+            return self._json(403, {'error': 'Недостаточно прав'})
+        return self._json(401, {'error': 'Unauthorized'})
 
     def _json(self, code, data):
         self.send_response(code)

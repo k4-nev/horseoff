@@ -678,3 +678,8 @@
     gap: 0;
   }
 }
+
+/* Модуль, который роль пользователя не тянет: тумблер выключен и подписан,
+   иначе админ щёлкает, а модуль всё равно не появляется. */
+.adm-tog-row.locked > span{color:var(--adm-faint)}
+.adm-tog-why{display:block;font-style:normal;font-size:10.5px;color:var(--adm-faint);margin-top:1px}

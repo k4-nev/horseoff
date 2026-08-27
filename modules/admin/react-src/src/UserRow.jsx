@@ -1,6 +1,12 @@
 import Icon from './Icon.jsx';
 import { formatPresence } from './format.js';
 
+/* Та же лестница ролей, что на сервере (ROLE_RANK в core/server.py).
+   Модуль с min_role выше роли пользователя выдать нельзя: сервер его всё
+   равно не покажет, а тумблер бы врал. */
+const ROLE_RANK = { arcana: 7, immortal: 6, legendary: 5, mythical: 4, rare: 3, uncommon: 2, common: 1 };
+const roleAtLeast = (role, min) => !min || (ROLE_RANK[role] || 0) >= (ROLE_RANK[min] || 0);
+
 const initials = (s) => (s || '').split(' ').filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
 export default function UserRow({ user, allModules, expanded, onToggleExpand, onEdit, onDelete, onToggleModule }) {
@@ -64,15 +70,19 @@ export default function UserRow({ user, allModules, expanded, onToggleExpand, on
           <div className="adm-section-title">Доступ к модулям</div>
           <div className="adm-toggles">
             {allModules.map((m) => {
-              const on = isGod || mods.includes(m.id);
+              const allowed = isGod || roleAtLeast(u.role, m.min_role);
+              const on = allowed && (isGod || mods.includes(m.id));
               return (
-                <div className="adm-tog-row" key={m.id}>
-                  <span>{m.name}</span>
+                <div className={'adm-tog-row' + (allowed ? '' : ' locked')} key={m.id}>
+                  <span>
+                    {m.name}
+                    {!allowed && <em className="adm-tog-why">нужна роль {m.min_role}</em>}
+                  </span>
                   <button
-                    className={'adm-switch' + (on ? ' on' : '') + (isGod ? ' disabled' : '')}
+                    className={'adm-switch' + (on ? ' on' : '') + (isGod || !allowed ? ' disabled' : '')}
                     role="switch"
                     aria-checked={on}
-                    disabled={isGod}
+                    disabled={isGod || !allowed}
                     onClick={() => onToggleModule(u.id, m.id, !on)}
                   >
                     <span className="adm-switch-knob" />
