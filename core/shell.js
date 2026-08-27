@@ -14,8 +14,9 @@ const Shell = {
     profile: null, sessions: null, pinEnabled: false,
     /* PIN: {mode:'unlock'|'set', title, len, error} */
     pin: null,
-    /* Всплывающее: тост, облака у аватарки, уведомление о сообщении */
-    toast: null, clouds: [], note: null, pushBanner: false, version: '',
+    /* Очередь уведомлений у кнопки «Приложения»: один список на всё —
+       подтверждения, события с действием и новые сообщения. */
+    notes: [], pushBanner: false, version: '', build: '',
   },
   _uiSubs: [],
   _uiEmit(patch) {
@@ -56,6 +57,7 @@ const Shell = {
   modules: [],
   activeModule: null,
   appVersion: '?',
+  appBuild: '',
 
   ws: null,
   wsReady: false,
@@ -193,30 +195,22 @@ const Shell = {
   onWSTyping(data) {},
   onWSRead(data) {},
 
-  /* Всплывашка о новом сообщении. Раньше собиралась склейкой innerHTML,
-     куда текст сообщения и имя отправителя подставлялись без экранирования —
-     то есть чужое сообщение могло принести в разметку что угодно. React
-     выводит их как текст. */
   showNotification(msg) {
-    var id = (this._noteSeq = (this._noteSeq || 0) + 1);
-    this._uiEmit({ note: {
-      id: id,
-      from: msg.from,
-      name: String(msg.from_name == null ? '' : msg.from_name),
-      text: String(msg.text == null ? '' : msg.text).slice(0, 60),
-      avatar: this.contactsCache[msg.from] || null,
-    } });
-    clearTimeout(this._noteTimer);
     var self = this;
-    this._noteTimer = setTimeout(function () {
-      if (self._uiState.note && self._uiState.note.id === id) self._uiEmit({ note: null });
-    }, 5000);
+    this._push({
+      kind: 'msg',
+      title: String(msg.from_name == null ? '' : msg.from_name),
+      text: String(msg.text == null ? '' : msg.text).slice(0, 90),
+      avatar: this.contactsCache[msg.from] || null,
+      ttl: 6000,
+      fn: function () { self.goToChat(msg.from); },
+    });
   },
 
-  dismissNote() { clearTimeout(this._noteTimer); this._uiEmit({ note: null }); },
 
   goToChat(userId) {
-    this.dismissNote();
+    var self = this;
+    this._uiState.notes.forEach(function (n) { if (n.kind === 'msg') self.dismissNote(n.id); });
     this.switchModule('messenger');
     setTimeout(() => { if (window.Messenger) Messenger.openChat(userId); }, 200);
   },
@@ -298,6 +292,7 @@ const Shell = {
        обычный вход, экран входа показывать нечем — форма разная. */
     this._uiEmit({ booting: false, setup: !!(r && r.setup_required) });
     var v0 = await this.api('/api/version');
+    if (v0 && v0.build) this.appBuild = v0.build;
     if (v0 && v0.version) { this.appVersion = v0.version; this._uiEmit({ version: v0.version }); }
   },
 
@@ -361,6 +356,7 @@ const Shell = {
     await this.loadModules();
     // Load version
     var v = await this.api('/api/version');
+    if (v && v.build) this.appBuild = v.build;
     if (v && v.version) {
       this.appVersion = v.version;
       this._uiEmit({ version: v.version });
@@ -398,8 +394,12 @@ const Shell = {
       self._checkingVersion = true;
       try {
         var v = await self.api('/api/version');
-        if (v && v.version && v.version !== self.appVersion) {
-          self.appVersion = v.version;
+        /* Сравниваем сборку, а не номер версии: version.json правится
+           руками и на деплое его забывают, а build сервер считает сам по
+           файлам — он меняется от любой выкладки. */
+        if (v && v.build && self.appBuild && v.build !== self.appBuild) {
+          self.appBuild = v.build;
+          if (v.version) { self.appVersion = v.version; self._uiEmit({ version: v.version }); }
           self._showUpdateBanner();
         }
       } catch (e) {}
@@ -419,55 +419,35 @@ const Shell = {
   },
 
   _showUpdateBanner() {
-    // обновление теперь — облако у аватарки, закрыть нельзя, висит до обновления
-    this.notify({ id: 'app-update', persistent: true, text: 'Доступно обновление приложения', action: { label: 'Обновить', fn: function () { window.location.reload(); } } });
+    /* Карточка висит до нажатия: закрыть обновление нельзя. Версию пишем
+       прямо в ней — иначе непонятно, на что именно обновляешься. */
+    this.notify({
+      id: 'app-update',
+      kind: 'update',
+      persistent: true,
+      text: 'Доступно обновление',
+      sub: 'Версия ' + this.appVersion,
+      action: { label: 'Обновить', fn: function () { window.location.reload(); } },
+    });
   },
 
-  // ─── Облако-уведомление от аватарки профиля ───
-  /* Список облаков живёт в состоянии, разметку строит React. Обработчик
-     действия остаётся здесь: в состояние функции не кладём, чтобы оно
-     оставалось сериализуемым. */
+  /* Событие, на которое можно нажать. Имя оставлено прежним — его зовут
+     модули (wb.js), и оно же несёт обновление приложения. */
   notify(opts) {
     opts = opts || {};
-    this._cloudActions = this._cloudActions || {};
-    this._cloudTimers = this._cloudTimers || {};
-    var id = opts.id || ('n' + (this._cloudSeq = (this._cloudSeq || 0) + 1));
-    if (opts.action && opts.action.fn) this._cloudActions[id] = opts.action.fn;
-
-    var next = this._uiState.clouds.filter(function (c) { return c.id !== id; });
-    next.push({
-      id: id,
-      text: String(opts.text == null ? '' : opts.text),
-      label: opts.action ? String(opts.action.label || '') : null,
+    return this._push({
+      id: opts.id,
+      kind: opts.kind || 'info',
+      title: String(opts.text == null ? '' : opts.text),
+      text: opts.sub ? String(opts.sub) : '',
+      label: opts.action ? String(opts.action.label || '') : '',
+      fn: opts.action && opts.action.fn,
       persistent: !!opts.persistent,
+      ttl: opts.duration || 5000,
     });
-    this._uiEmit({ clouds: next });
-
-    clearTimeout(this._cloudTimers[id]);
-    var self = this;
-    if (!opts.persistent) {
-      this._cloudTimers[id] = setTimeout(function () { self.dismissCloud(id); }, opts.duration || 5000);
-    }
-    return id;
   },
-  /* Наведение курсора приостанавливает таймер — React зовёт это на hover. */
-  _cloudHold(id, hold) {
-    var c = this._uiState.clouds.find(function (x) { return x.id === id; });
-    if (!c || c.persistent) return;
-    this._cloudTimers = this._cloudTimers || {};
-    clearTimeout(this._cloudTimers[id]);
-    if (!hold) {
-      var self = this;
-      this._cloudTimers[id] = setTimeout(function () { self.dismissCloud(id); }, 5000);
-    }
-  },
-  dismissCloud(id) {
-    if (this._cloudTimers) clearTimeout(this._cloudTimers[id]);
-    var next = this._uiState.clouds.filter(function (c) { return c.id !== id; });
-    if (next.length !== this._uiState.clouds.length) this._uiEmit({ clouds: next });
-    if (this._cloudActions) delete this._cloudActions[id];
-  },
-  _cloudAction(id) { var fn = this._cloudActions && this._cloudActions[id]; if (fn) fn(); },
+  /* Старые имена: на них ещё могут ссылаться модули. */
+  dismissCloud(id) { this.dismissNote(id); },
 
   lockOrientation() {
     // Only lock on phones (< 768px), not tablets
@@ -543,7 +523,7 @@ const Shell = {
     this._uiEmit({
       authed: false, modules: [], active: null, unread: 0, valentine: 0,
       avatar: null, user: null, immersive: false,
-      profile: null, sessions: null, pin: null, clouds: [], note: null,
+      profile: null, sessions: null, pin: null, notes: [],
       authError: '', authBusy: false,
     });
   },
@@ -849,16 +829,71 @@ const Shell = {
     }
   },
 
-  /* Тост рисует React. Текст идёт как текст, а не как HTML: раньше сюда
-     склеивался innerHTML, и сообщение об ошибке с сервера попадало в разметку. */
-  toast(msg, type='success') {
-    var id = (this._toastSeq = (this._toastSeq || 0) + 1);
-    this._uiEmit({ toast: { id: id, msg: String(msg == null ? '' : msg), type: type } });
-    clearTimeout(this._toastTimer);
+  /* ── Очередь уведомлений ───────────────────────────────────────────
+     Одна стопка карточек над кнопкой «Приложения». Раньше на это было три
+     независимых механизма, которые не знали друг о друге и делили два
+     нижних угла с кнопкой и плашкой голосовой.
+
+     Текст везде идёт как текст, а не как HTML: и сообщение собеседника, и
+     ответ сервера в тосте — чужой ввод. */
+  _push(note) {
+    var id = note.id || ('n' + (this._noteSeq = (this._noteSeq || 0) + 1));
+    note.id = id;
+    if (note.fn) { this._noteFns = this._noteFns || {}; this._noteFns[id] = note.fn; delete note.fn; }
+
+    var next = this._uiState.notes.filter(function (n) { return n.id !== id; });
+    next.push(note);
+    /* В состоянии держим не больше десяти: показываем три, остальные
+       считаем, а совсем старое незачем возить в памяти. */
+    if (next.length > 10) next = next.slice(next.length - 10);
+    this._uiEmit({ notes: next });
+
+    this._noteTimers = this._noteTimers || {};
+    clearTimeout(this._noteTimers[id]);
+    if (!note.persistent) this._armNote(id, note.ttl || 5000);
+    return id;
+  },
+
+  _armNote(id, ttl) {
     var self = this;
-    this._toastTimer = setTimeout(function () {
-      if (self._uiState.toast && self._uiState.toast.id === id) self._uiEmit({ toast: null });
-    }, 3000);
+    this._noteTimers = this._noteTimers || {};
+    clearTimeout(this._noteTimers[id]);
+    this._noteTimers[id] = setTimeout(function () { self.dismissNote(id); }, ttl);
+  },
+
+  /* Курсор на карточке останавливает таймер: прочитать длинное сообщение
+     за отведённые секунды иначе не успеть. */
+  _noteHold(id, hold) {
+    var n = this._uiState.notes.find(function (x) { return x.id === id; });
+    if (!n || n.persistent) return;
+    if (hold) { clearTimeout((this._noteTimers || {})[id]); }
+    else this._armNote(id, n.ttl || 5000);
+  },
+
+  dismissNote(id) {
+    if (id == null) {
+      var self0 = this;
+      this._uiState.notes.slice().forEach(function (n) { self0.dismissNote(n.id); });
+      return;
+    }
+    if (this._noteTimers) clearTimeout(this._noteTimers[id]);
+    var next = this._uiState.notes.filter(function (n) { return n.id !== id; });
+    if (next.length !== this._uiState.notes.length) this._uiEmit({ notes: next });
+    if (this._noteFns) delete this._noteFns[id];
+  },
+
+  _noteAction(id) {
+    var fn = this._noteFns && this._noteFns[id];
+    if (fn) fn();
+  },
+
+  /* Подтверждение действия. Сигнатура прежняя: модули зовут его как есть. */
+  toast(msg, type = 'success') {
+    return this._push({
+      kind: type === 'success' ? 'ok' : 'error',
+      title: String(msg == null ? '' : msg),
+      ttl: 3200,
+    });
   }
 };
 

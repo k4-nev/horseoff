@@ -3,7 +3,8 @@ import SideNav from './SideNav.jsx';
 import Login from './Login.jsx';
 import PinScreen from './PinScreen.jsx';
 import ProfileModal from './ProfileModal.jsx';
-import { Toast, Clouds, MsgNote, PushBanner } from './Overlays.jsx';
+import Queue from './Queue.jsx';
+import { PushBanner } from './Overlays.jsx';
 
 /* Каркас целиком на React. Логика и сеть остались в ядре (core/shell.js):
    оно держит состояние в Shell._uiState, здесь мы на него подписаны.
@@ -15,8 +16,10 @@ const EMPTY = {
   modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null, immersive: false,
   setup: false, authError: '', authBusy: false,
   profile: null, sessions: null, pinEnabled: false,
-  pin: null, toast: null, clouds: [], note: null, pushBanner: false, version: '',
+  pin: null, notes: [], pushBanner: false, version: '',
 };
+
+const MOBILE = '(max-width: 768px)';
 
 function useShellState() {
   const [s, set] = useState(() => (window.Shell && window.Shell._uiState) || EMPTY);
@@ -27,19 +30,32 @@ function useShellState() {
   return s;
 }
 
+function useMedia(query) {
+  const [on, setOn] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const h = () => setOn(m.matches);
+    m.addEventListener('change', h);
+    return () => m.removeEventListener('change', h);
+  }, [query]);
+  return on;
+}
+
 export default function App() {
   const st = useShellState();
+  const isMobile = useMedia(MOBILE);
+  /* Раскрыто ли кольцо — забота каркаса, а не ядра: об этом должны знать
+     навигация и очередь уведомлений, и больше никто. */
+  const [ringOpen, setRingOpen] = useState(false);
 
-  /* Всплывающее живёт над любым экраном: тост об ошибке должен быть виден
-     и до авторизации. */
+  const notes = st.notes || [];
+
   const overlays = (
     <>
       <ProfileModal profile={st.profile} sessions={st.sessions} pinEnabled={st.pinEnabled} theme={st.theme} />
       <PinScreen pin={st.pin} />
-      <Clouds clouds={st.clouds || []} />
-      <MsgNote note={st.note} />
       <PushBanner show={st.pushBanner} />
-      <Toast toast={st.toast} />
+      <Queue notes={notes} ringOpen={ringOpen} immersive={st.immersive} isMobile={isMobile} />
     </>
   );
 
@@ -79,6 +95,8 @@ export default function App() {
           avatar={st.avatar}
           user={st.user}
           immersive={st.immersive}
+          notes={notes.length}
+          onRing={setRingOpen}
         />
       </div>
       {overlays}

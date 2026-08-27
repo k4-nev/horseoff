@@ -28,6 +28,9 @@ function waitForServer(url, tries = 40) {
   });
 }
 
+let VERSION = '2.240';
+let BUILD = 'build-a';
+
 const MODULES = [
   { id: 'messenger', name: 'Сообщения', icon: 'messenger', entry: 'messenger.html' },
   { id: 'channels', name: 'Каналы', icon: 'channels', entry: 'channels.html' },
@@ -61,7 +64,7 @@ async function open(opts = {}) {
     }
     if (url.includes('/api/profile')) return json({ username: 'k4nev', role: 'arcana', id: 'u1', display_name: 'Костя', avatar: null });
     if (url.includes('/api/modules')) return json(opts.modules || MODULES);
-    if (url.includes('/api/version')) return json({ version: '2.240' });
+    if (url.includes('/api/version')) return json({ version: VERSION, build: BUILD });
     if (url.includes('/api/auth/sessions')) return json([]);
     if (url.includes('/api/push/key')) return json({ available: false });
     return json({ status: 'ok' });
@@ -363,18 +366,72 @@ try {
   check('Esc закрыл профиль', await pp.locator('.prof-modal').count() === 0);
   check('состояние профиля очищено', await pp.evaluate(() => Shell._uiState.profile === null));
 
-  console.log('\n── Тост и облако рисует React ──');
-  await pp.evaluate(() => Shell.toast('Готово'));
-  await pp.waitForTimeout(150);
-  check('тост показан', (await pp.locator('.toast').textContent()).includes('Готово'));
-  await pp.evaluate(() => Shell.notify({ id: 'x1', text: 'Есть обновление', persistent: true, action: { label: 'Обновить', fn: () => { window.__acted = 1; } } }));
+  console.log('\n── Одна очередь вместо трёх механизмов ──');
+  await pp.evaluate(() => Shell.dismissNote());
+  await pp.evaluate(() => Shell.toast('Сервер удалён'));
+  await pp.waitForTimeout(250);
+  check('подтверждение — карточка очереди', await pp.locator('.hq .hq-card.hq-k-ok').count() === 1);
+  check('текст на месте', (await pp.locator('.hq-title').first().textContent()) === 'Сервер удалён');
+  check('старых механизмов не осталось',
+    (await pp.locator('.toast').count()) === 0
+    && (await pp.locator('.cloud').count()) === 0
+    && (await pp.locator('.msg-notify').count()) === 0);
+
+  await pp.evaluate(() => Shell.showNotification({ from: 'u9', from_name: 'Мысика', text: 'прокси лёг' }));
+  await pp.evaluate(() => Shell.notify({ id: 'x1', text: 'Есть событие', action: { label: 'Открыть', fn: () => { window.__acted = 1; } } }));
+  await pp.waitForTimeout(300);
+  check('три вида в одной стопке', await pp.locator('.hq .hq-card').count() === 3);
+  check('стопка одна', await pp.locator('.hq').count() === 1);
+  check('сообщение со своим видом', await pp.locator('.hq-card.hq-k-msg').count() === 1);
+  check('у сообщения кликается вся карточка, отдельной кнопки нет',
+    (await pp.locator('.hq-card.hq-k-msg .hq-open').count()) === 1
+    && (await pp.locator('.hq-card.hq-k-msg .hq-do').count()) === 0);
+
+  await pp.locator('.hq-card.hq-k-info .hq-do').click();
+  check('кнопка карточки вызвала обработчик', await pp.evaluate(() => window.__acted === 1));
+  await pp.waitForTimeout(250);
+  check('карточка ушла после действия', await pp.locator('.hq-card.hq-k-info').count() === 0);
+
+  console.log('\n── Больше трёх — счётчик, а не простыня ──');
+  await pp.evaluate(() => { Shell.dismissNote(); for (let i = 0; i < 6; i++) Shell.toast('Событие ' + i); });
+  await pp.waitForTimeout(350);
+  check('видно только три', await pp.locator('.hq .hq-card').count() === 3);
+  check('остальные посчитаны', (await pp.locator('.hq-more').textContent()).includes('3'));
+  check('внизу стопки — самое свежее',
+    (await pp.locator('.hq-card .hq-title').last().textContent()) === 'Событие 5');
+  await pp.locator('.hq-more').click();
+  await pp.waitForTimeout(250);
+  check('счётчик раскрывает всю очередь', await pp.locator('.hq .hq-card').count() === 6);
+  await pp.evaluate(() => Shell.dismissNote());
   await pp.waitForTimeout(200);
-  check('облако показано', (await pp.locator('.cloud-text').textContent()) === 'Есть обновление');
-  await pp.locator('.cloud-btn').click();
-  check('кнопка облака вызвала обработчик', await pp.evaluate(() => window.__acted === 1));
-  await pp.evaluate(() => Shell.dismissCloud('x1'));
-  await pp.waitForTimeout(200);
-  check('облако убрано', await pp.locator('.cloud').count() === 0);
+
+  console.log('\n── Обновление приложения ──');
+  /* Сравниваем сборку, а не номер версии: version.json правят руками и на
+     деплое забывают — из-за этого уведомление не приходило вообще. */
+  await pp.evaluate(() => { Shell.appBuild = 'old-build'; });
+  BUILD = 'new-build';
+  VERSION = '2.341';
+  await pp.evaluate(() => Shell._checkVersion());
+  await pp.waitForTimeout(400);
+  check('обновление пришло', await pp.locator('.hq-card.hq-k-update').count() === 1);
+  check('версия написана прямо в карточке',
+    (await pp.locator('.hq-card.hq-k-update .hq-text').textContent()) === 'Версия 2.341');
+  check('закрыть обновление нельзя', await pp.locator('.hq-card.hq-k-update .hq-x').count() === 0);
+  check('версия обновилась и в состоянии', await pp.evaluate(() => Shell._uiState.version) === '2.341');
+
+  await pp.evaluate(() => Shell._checkVersion());
+  await pp.waitForTimeout(300);
+  check('повторная проверка не плодит карточки', await pp.locator('.hq-card.hq-k-update').count() === 1);
+
+  console.log('\n── Раскрытое кольцо и очередь не спорят за место ──');
+  await openRing(pp);
+  check('пока кольцо открыто, стопки нет', await pp.locator('.hq').count() === 0);
+  check('счёт переехал на кнопку', (await pp.locator('.ho-fab-tag').textContent()) === '1');
+  await pp.keyboard.press('Escape');
+  await pp.waitForTimeout(800);
+  check('кольцо закрылось — карточка вернулась', await pp.locator('.hq-card.hq-k-update').count() === 1);
+  check('счёт с кнопки убран', await pp.locator('.ho-fab-tag').count() === 0);
+  await pp.evaluate(() => Shell.dismissNote());
 
   console.log('\n── Чужой текст приходит как текст, а не как разметка ──');
   /* Уведомление о новом сообщении раньше собиралось склейкой innerHTML:
@@ -382,12 +439,13 @@ try {
   const PAYLOAD = '<img src=x onerror="window.__pwned=1">';
   await pp.evaluate((s) => Shell.showNotification({ from: 'u9', from_name: s, text: s + ' привет' }), PAYLOAD);
   await pp.waitForTimeout(300);
-  check('уведомление показано', await pp.locator('.msg-notify').count() === 1);
-  check('имя выведено буквально', (await pp.locator('.msg-notify-name').textContent()) === PAYLOAD);
-  check('в уведомлении нет внедрённого тега', await pp.evaluate(() => !document.querySelector('.msg-notify').querySelector('img')));
+  check('уведомление показано', await pp.locator('.hq-card.hq-k-msg').count() === 1);
+  check('имя выведено буквально', (await pp.locator('.hq-card.hq-k-msg .hq-title').textContent()) === PAYLOAD);
+  check('внедрённого тега нет', await pp.evaluate(() => !document.querySelector('.hq-card').querySelector('img')));
   await pp.evaluate(() => Shell.toast('<b>жирный</b>'));
-  await pp.waitForTimeout(150);
-  check('тост тоже выводит текстом', await pp.evaluate(() => !document.querySelector('.toast').querySelector('b')));
+  await pp.waitForTimeout(200);
+  check('подтверждение тоже выводит текстом',
+    await pp.evaluate(() => ![...document.querySelectorAll('.hq-card')].some((c) => c.querySelector('b'))));
   await pp.waitForTimeout(400);
   check('ничего не выполнилось', await pp.evaluate(() => window.__pwned === undefined));
   await pp.evaluate(() => Shell.dismissNote());

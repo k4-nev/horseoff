@@ -104,7 +104,7 @@ const VoiceSlot = memo(function VoiceSlot() {
   return <div id="sidebarVoiceBar" className="sb-voice-bar" style={{ display: 'none' }} />;
 });
 
-export default function SideNav({ modules, active, unread, valentine, avatar, user, immersive }) {
+export default function SideNav({ modules, active, unread, valentine, avatar, user, immersive, notes, onRing }) {
   const isMobile = useMedia(MOBILE);
   const reduced = useMedia(REDUCED);
 
@@ -278,6 +278,10 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
 
   useEffect(() => () => { clearTimeout(closeTimer.current); clearTimeout(fadeTimer.current); }, []);
 
+  /* Очередь уведомлений стоит ровно там, куда вылетают шары, поэтому пока
+     кольцо раскрыто, она прячется, а счёт висит на кнопке. */
+  useEffect(() => { if (onRing) onRing(open); }, [open, onRing]);
+
   function onTilt(e) {
     if (reduced) return;
     const el = e.currentTarget;
@@ -348,6 +352,7 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
         <span className="ho-fab-cap">Приложения</span>
         <span className="ho-fab-gl" />
         <span className="ho-fab-dots"><i /><i /><i /><i /></span>
+        {open && notes > 0 && <span className="ho-fab-tag">{notes > 9 ? '9+' : notes}</span>}
       </button>
     </div>
   );

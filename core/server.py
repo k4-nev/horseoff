@@ -37,6 +37,41 @@ DATA_DIR = ROOT_DIR / "data"
 LOCALE_DIR = ROOT_DIR / "locale"
 MODULES_DIR = ROOT_DIR / "modules"
 CORE_DIR = SCRIPT_DIR
+
+# ─── Отпечаток выложенной статики ────────────────────────────────────────
+# Клиент сравнивает его, чтобы понять, что вышло обновление. Раньше на этом
+# месте был номер из version.json, который правят руками и на деплое забывают.
+_BUILD_CACHE = {'at': 0.0, 'id': ''}
+
+def _build_id():
+    """Короткий хеш от mtime и размеров статики. Пересчитываем не чаще
+    раза в 10 секунд: клиенты опрашивают версию каждую минуту, а на диск
+    за этим ходить на каждый запрос незачем."""
+    now = time.time()
+    if _BUILD_CACHE['id'] and now - _BUILD_CACHE['at'] < 10:
+        return _BUILD_CACHE['id']
+    h = hashlib.sha1()
+    for base in (CORE_DIR, MODULES_DIR):
+        if not base.exists():
+            continue
+        for p in sorted(base.rglob('*')):
+            if not p.is_file():
+                continue
+            if p.suffix.lower() not in ('.js', '.css', '.html', '.json', '.py'):
+                continue
+            # Исходники React-модулей в браузер не едут — на сборку не влияют
+            if 'react-src' in p.parts or 'node_modules' in p.parts:
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            h.update(str(p.relative_to(ROOT_DIR)).encode())
+            h.update(str(int(st.st_mtime)).encode())
+            h.update(str(st.st_size).encode())
+    _BUILD_CACHE['at'] = now
+    _BUILD_CACHE['id'] = h.hexdigest()[:12]
+    return _BUILD_CACHE['id']
 USERS_FILE = DATA_DIR / "users.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 SESSIONS_FILE = DATA_DIR / "sessions.json"
@@ -1783,11 +1818,13 @@ class Handler(BaseHTTPRequestHandler):
 
         # Version
         if path == '/api/version':
+            out = {'version': '?'}
             vf = CORE_DIR / 'version.json'
             if vf.exists():
-                try: return self._json(200, json.loads(vf.read_text()))
+                try: out.update(json.loads(vf.read_text()))
                 except: pass
-            return self._json(200, {'version': '?'})
+            out['build'] = _build_id()
+            return self._json(200, out)
 
         if path.startswith('/locale/'):
             return self._serve_file(LOCALE_DIR / path.split('/locale/')[1], base_dir=LOCALE_DIR)
