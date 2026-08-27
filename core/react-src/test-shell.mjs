@@ -54,7 +54,11 @@ async function open(opts = {}) {
   await p.route('**/api/**', async (route) => {
     const url = route.request().url();
     const json = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
-    if (url.includes('/api/auth/status')) return json({ username: 'k4nev', role: 'arcana' });
+    if (url.includes('/api/auth/status')) {
+      if (opts.setup) return json({ setup_required: true });
+      if (opts.noToken) return json({});
+      return json({ username: 'k4nev', role: 'arcana' });
+    }
     if (url.includes('/api/profile')) return json({ username: 'k4nev', role: 'arcana', id: 'u1', display_name: 'Костя', avatar: null });
     if (url.includes('/api/modules')) return json(opts.modules || MODULES);
     if (url.includes('/api/version')) return json({ version: '2.240' });
@@ -72,9 +76,19 @@ async function open(opts = {}) {
     return route.fulfill({ status: 200, contentType: 'text/html', body: `<div class="stub" data-stub="${id}">${id}</div>` });
   });
 
-  await p.addInitScript(() => { localStorage.setItem('ho_token', 'test-token'); localStorage.removeItem('ho_pin'); localStorage.removeItem('ho_mod_uses'); });
+  await p.addInitScript(([tok, pin]) => {
+    if (tok) localStorage.setItem('ho_token', tok); else localStorage.removeItem('ho_token');
+    if (pin) localStorage.setItem('ho_pin', pin); else localStorage.removeItem('ho_pin');
+    localStorage.removeItem('ho_mod_uses');
+  }, [opts.noToken ? null : 'test-token', opts.pin || null]);
   await p.goto(BASE);
-  await p.waitForSelector('#appShell.active', { timeout: 8000 });
+  if (opts.pin) {
+    await p.waitForSelector('.ho-pin-screen', { timeout: 8000 });
+  } else if (opts.noToken) {
+    await p.waitForSelector('.login-screen', { timeout: 8000 });
+  } else {
+    await p.waitForSelector('#appShell.active', { timeout: 8000 });
+  }
   await p.waitForTimeout(500);
   return p;
 }
@@ -325,12 +339,103 @@ try {
   await p3.close();
   await p.close();
 
+  console.log('\n── Модалка профиля на React ──');
+  const pp = await open();
+  await pp.evaluate(() => Shell.openProfile());
+  await pp.waitForTimeout(500);
+  check('профиль открылся', await pp.locator('.prof-modal').count() === 1);
+  check('имя и логин подставлены', await pp.evaluate(() => {
+    const n = document.querySelector('.prof-identity-display').textContent;
+    const u = document.querySelector('.prof-identity-username').textContent;
+    return n === 'Костя' && u === '@k4nev';
+  }));
+  check('по умолчанию вкладка «Аккаунт»',
+    (await pp.locator('.prof-tab.active').textContent()) === 'Аккаунт');
+  await pp.locator('.prof-tab', { hasText: 'Сессии' }).click();
+  await pp.waitForTimeout(200);
+  check('вкладка переключилась', (await pp.locator('.prof-tab.active').textContent()) === 'Сессии');
+  check('счётчик сессий из ядра', (await pp.locator('.prof-session-count').textContent()) === 'Сессий активно: 0');
+  await pp.locator('.prof-tab', { hasText: 'Безопасность' }).click();
+  await pp.waitForTimeout(200);
+  check('PIN не настроен', (await pp.locator('.prof-pin-sub').textContent()) === 'Не настроен');
+  await pp.keyboard.press('Escape');
+  await pp.waitForTimeout(300);
+  check('Esc закрыл профиль', await pp.locator('.prof-modal').count() === 0);
+  check('состояние профиля очищено', await pp.evaluate(() => Shell._uiState.profile === null));
+
+  console.log('\n── Тост и облако рисует React ──');
+  await pp.evaluate(() => Shell.toast('Готово'));
+  await pp.waitForTimeout(150);
+  check('тост показан', (await pp.locator('.toast').textContent()).includes('Готово'));
+  await pp.evaluate(() => Shell.notify({ id: 'x1', text: 'Есть обновление', persistent: true, action: { label: 'Обновить', fn: () => { window.__acted = 1; } } }));
+  await pp.waitForTimeout(200);
+  check('облако показано', (await pp.locator('.cloud-text').textContent()) === 'Есть обновление');
+  await pp.locator('.cloud-btn').click();
+  check('кнопка облака вызвала обработчик', await pp.evaluate(() => window.__acted === 1));
+  await pp.evaluate(() => Shell.dismissCloud('x1'));
+  await pp.waitForTimeout(200);
+  check('облако убрано', await pp.locator('.cloud').count() === 0);
+
+  console.log('\n── Чужой текст приходит как текст, а не как разметка ──');
+  /* Уведомление о новом сообщении раньше собиралось склейкой innerHTML:
+     текст чужого сообщения попадал в разметку как есть. */
+  const PAYLOAD = '<img src=x onerror="window.__pwned=1">';
+  await pp.evaluate((s) => Shell.showNotification({ from: 'u9', from_name: s, text: s + ' привет' }), PAYLOAD);
+  await pp.waitForTimeout(300);
+  check('уведомление показано', await pp.locator('.msg-notify').count() === 1);
+  check('имя выведено буквально', (await pp.locator('.msg-notify-name').textContent()) === PAYLOAD);
+  check('в уведомлении нет внедрённого тега', await pp.evaluate(() => !document.querySelector('.msg-notify').querySelector('img')));
+  await pp.evaluate(() => Shell.toast('<b>жирный</b>'));
+  await pp.waitForTimeout(150);
+  check('тост тоже выводит текстом', await pp.evaluate(() => !document.querySelector('.toast').querySelector('b')));
+  await pp.waitForTimeout(400);
+  check('ничего не выполнилось', await pp.evaluate(() => window.__pwned === undefined));
+  await pp.evaluate(() => Shell.dismissNote());
+  await pp.close();
+
+  console.log('\n── Экран входа и первый запуск ──');
+  const pl = await open({ noToken: true });
+  check('показан экран входа', await pl.locator('.login-screen').count() === 1);
+  check('каркаса нет', await pl.locator('#appShell').count() === 0);
+  check('в обычном входе одно поле пароля', await pl.locator('.input-eye').count() === 1);
+  await pl.locator('.login-btn').click();
+  await pl.waitForTimeout(200);
+  check('пустая форма ругается', await pl.locator('.login-error').count() === 1);
+  await pl.locator('.eye-btn').click();
+  check('глазок открывает пароль',
+    (await pl.locator('.input-eye input').getAttribute('type')) === 'text');
+  await pl.close();
+
+  const ps = await open({ noToken: true, setup: true });
+  check('первый запуск: два поля пароля', await ps.locator('.input-eye').count() === 2);
+  check('первый запуск: своя подпись',
+    (await ps.locator('.login-subtitle').textContent()).includes('администратора'));
+  check('первый запуск: своя кнопка', (await ps.locator('.login-btn').textContent()) === 'Создать аккаунт');
+  await ps.close();
+
+  console.log('\n── PIN-экран ──');
+  const pn = await open({ pin: '1234' });
+  check('PIN-экран показан', await pn.locator('.ho-pin-screen').count() === 1);
+  check('формы входа под ним нет', await pn.locator('.login-screen').count() === 0);
+  check('четыре точки', await pn.locator('.ho-pin-screen .pin-dot').count() === 4);
+  await pn.locator('.ho-pin-key', { hasText: '9' }).click();
+  await pn.waitForTimeout(120);
+  check('точка заполнилась', await pn.locator('.pin-dot.on').count() === 1);
+  for (const d of ['9', '9', '9']) await pn.locator('.ho-pin-key', { hasText: d }).first().click();
+  await pn.waitForTimeout(250);
+  check('неверный PIN — ошибка', (await pn.locator('.ho-pin-error').textContent()).includes('Неверный'));
+  check('точки сброшены', await pn.locator('.pin-dot.on').count() === 0);
+  for (const d of ['1', '2', '3', '4']) await pn.locator('.ho-pin-key', { hasText: d }).first().click();
+  await pn.waitForSelector('#appShell.active', { timeout: 8000 });
+  check('верный PIN пустил в приложение', await pn.locator('.ho-pin-screen').count() === 0);
+  await pn.close();
+
   console.log('\n── Выход и повторный вход ──');
   const p4 = await open();
   await p4.evaluate(() => Shell.logout());
   await p4.waitForTimeout(400);
   check('каркас скрыт после выхода', await p4.locator('#appShell').count() === 0);
-  check('экран входа показан', await p4.evaluate(() => !document.getElementById('loginScreen').classList.contains('hidden')));
+  check('экран входа показан', await p4.locator('.login-screen').count() === 1);
   await p4.evaluate(() => { Shell.token = 'test-token'; return Shell.verifyToken().then(() => Shell.showApp()); });
   await p4.waitForSelector('#appShell.active', { timeout: 5000 });
   await p4.waitForTimeout(600);

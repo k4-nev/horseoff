@@ -40,6 +40,10 @@ async function mk(viewport) {
     if (u.includes('/api/profile')) return j({ username: 'k4nev', role: 'arcana', id: 'u1', display_name: 'Костя', avatar: null });
     if (u.includes('/api/modules')) return j(MODULES);
     if (u.includes('/api/version')) return j({ version: '2.240' });
+    if (u.includes('/api/auth/sessions')) return j([
+      { hint: 'a1', is_current: true, pin_enabled: false, last_seen: Date.now() / 1000 - 30, device_info: { user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } },
+      { hint: 'b2', is_current: false, pin_enabled: true, last_seen: Date.now() / 1000 - 7200, device_info: { user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X)' } },
+    ]);
     if (u.includes('/api/mod/servers/status')) return j(SERVERS);
     if (u.includes('/api/mod/servers')) return j({ status: 'ok' });
     return j({ status: 'ok' });
@@ -61,13 +65,40 @@ async function ring(p) {
   await p.waitForTimeout(1400);
 }
 
-// экран входа с новой палитрой
+// экран входа
 const lg = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 await lg.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ setup_required: false }) }));
 await lg.goto(BASE);
-await lg.waitForTimeout(900);
+await lg.waitForSelector('.login-screen');
+await lg.waitForTimeout(600);
 await lg.screenshot({ path: OUT + '/s-login.png', animations: 'disabled' });
 await lg.close();
+
+// PIN-экран
+const pn = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+await pn.route('**/api/**', (route) => {
+  const u = route.request().url();
+  const j = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
+  if (u.includes('/api/auth/status')) return j({ username: 'k4nev', role: 'arcana' });
+  if (u.includes('/api/profile')) return j({ username: 'k4nev', role: 'arcana', id: 'u1', display_name: 'Костя' });
+  return j({ status: 'ok' });
+});
+await pn.addInitScript(() => { localStorage.setItem('ho_token', 't'); localStorage.setItem('ho_pin', '1234'); });
+await pn.goto(BASE);
+await pn.waitForSelector('.ho-pin-screen');
+await pn.waitForTimeout(500);
+await pn.screenshot({ path: OUT + '/s-pin.png', animations: 'disabled' });
+await pn.close();
+
+// модалка профиля
+const pf = await mk({ width: 1440, height: 900 });
+await pf.evaluate(() => Shell.openProfile());
+await pf.waitForTimeout(700);
+await pf.screenshot({ path: OUT + '/s-profile.png', animations: 'disabled' });
+await pf.evaluate(() => document.querySelectorAll('.prof-tab')[1].click());
+await pf.waitForTimeout(400);
+await pf.screenshot({ path: OUT + '/s-profile-sec.png', animations: 'disabled' });
+await pf.close();
 
 const d = await mk({ width: 1440, height: 900 });
 await d.screenshot({ path: OUT + '/s-desk-idle.png', animations: 'disabled' });
