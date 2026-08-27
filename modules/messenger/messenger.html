@@ -27,11 +27,13 @@
         <button class="msg-back-btn" onclick="Messenger.closeChat()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div class="msg-chat-header-ava" id="msgChatAva"></div>
-        <div class="msg-chat-header-info">
-          <div class="msg-chat-name" id="msgChatName">—</div>
-          <div class="msg-chat-typing" id="msgChatTyping"></div>
-        </div>
+        <button class="msg-chat-peer" onclick="Messenger.openProfile()" title="Информация о собеседнике">
+          <div class="msg-chat-header-ava" id="msgChatAva"></div>
+          <div class="msg-chat-header-info">
+            <div class="msg-chat-name" id="msgChatName">—</div>
+            <div class="msg-chat-typing" id="msgChatTyping"></div>
+          </div>
+        </button>
         <div class="msg-search-group">
           <div class="msg-chat-search-wrap" id="msgSearchWrap">
             <div class="msg-search-inner">
@@ -45,7 +47,7 @@
             <span class="ico ico-16 ico-search"></span>
           </button>
         </div>
-        <button class="msg-mob-dots" onclick="Messenger.toggleProfileMobile()">
+        <button class="msg-mob-dots" onclick="Messenger.openProfile()">
           <span class="ico ico-18 ico-dots"></span>
         </button>
       </div>
@@ -94,16 +96,15 @@
     </div>
   </div>
 
-  <!-- PROFILE PANEL (dark, right) -->
+  <!-- PROFILE PANEL — выезжает справа поверх чата -->
   <div class="msg-profile" id="msgProfile">
-    <div class="msg-profile-inner" id="msgProfileInner">
-      <div class="msg-profile-empty-state" id="msgProfileEmptyState">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1" style="opacity:0.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </div>
-      <div class="msg-profile-content" id="msgProfileContent" style="display:none">
-        <div class="msg-profile-close-btn" onclick="Messenger.toggleProfileMobile()">
+    <div class="msg-profile-scrim" onclick="Messenger.closeProfile()"></div>
+    <div class="msg-profile-panel" role="dialog" aria-modal="true" aria-label="Информация о собеседнике">
+      <div class="msg-profile-inner" id="msgProfileInner">
+        <button class="msg-profile-close-btn" onclick="Messenger.closeProfile()" aria-label="Закрыть">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </div>
+        </button>
+        <div class="msg-profile-content" id="msgProfileContent">
         <div class="msg-profile-ava-frame">
           <div class="msg-profile-ava" id="msgProfileAva"></div>
         </div>
@@ -127,6 +128,9 @@
           </div>
           <div class="msg-profile-attach-grid" id="msgProfileAttachGrid"></div>
         </div>
+        </div>
+      </div>
+      <div class="msg-profile-foot">
         <button class="msg-clear-chat-btn" onclick="Messenger.clearChat()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
           Очистить чат

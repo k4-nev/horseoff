@@ -41,12 +41,27 @@
 
 /* ===== CHAT ===== */
 .msg-chat{flex:1;position:relative;background:var(--bg);min-width:0;overflow:hidden;display:flex;flex-direction:column}
+/* Объём фона: мягкий свет сверху, лёгкая тень по нижним углам и виньетка
+   по краям. Пузыри сообщений от этого перестают лежать на плоской заливке
+   и читаются как приподнятые над полотном. */
+.msg-chat::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.72) 0%, rgba(255,255,255,0) 34%),
+    radial-gradient(120% 58% at 50% -10%, rgba(255,255,255,.6), transparent 60%),
+    radial-gradient(86% 56% at 6% 110%, rgba(23,33,54,.10), transparent 64%),
+    radial-gradient(86% 56% at 96% 106%, rgba(23,33,54,.08), transparent 64%),
+    radial-gradient(138% 94% at 50% 48%, transparent 48%, rgba(23,33,54,.075) 100%);
+  box-shadow:inset 0 14px 20px -18px rgba(23,33,54,.5)}
+.msg-chat-empty,.msg-chat-header-wrap,.msg-chat-active{z-index:1}
 .msg-chat-empty{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
 .msg-chat-active{position:absolute;top:0;left:0;right:0;bottom:0}
 
 .msg-chat-header{height:60px;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);z-index:10;box-shadow:0 1px 6px rgba(0,0,0,0.08)}
 .msg-back-btn{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:8px;min-width:44px;min-height:44px;border-radius:8px}
 /* Avatar in header */
+.msg-chat-peer{display:flex;align-items:center;gap:12px;min-width:0;flex:1;padding:5px 9px 5px 5px;margin-left:-5px;border:none;border-radius:12px;background:none;cursor:pointer;text-align:left;font:inherit;color:inherit;transition:background .15s}
+.msg-chat-peer:hover{background:var(--surface2)}
+.msg-chat-peer:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .msg-chat-header-ava{width:36px;height:36px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-weight:700;font-size:13px;overflow:hidden;flex-shrink:0;border:2px solid var(--border)}
 .msg-chat-header-ava img{width:100%;height:100%;object-fit:cover}
 .msg-chat-header-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
@@ -398,11 +413,24 @@
 .msg-reaction-picker-item:hover{background:var(--surface)}
 
 /* ===== PROFILE ===== */
-.msg-profile{width:260px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.msg-profile-inner{display:flex;flex-direction:column;align-items:center;padding:24px 20px;min-height:100%}
-.msg-profile-empty-state{flex:1;display:flex;align-items:center;justify-content:center}
-.msg-profile-content{display:flex;flex-direction:column;align-items:center;width:100%;flex:1}
-.msg-profile-close-btn{display:none;align-self:flex-end;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:4px;border-radius:6px}
+/* ─── Панель профиля: выезжает справа поверх чата ──────────────────────
+   Раньше это была колонка в 260px, которая постоянно отъедала ширину у
+   переписки. Теперь тот же приём, что у «Создать сервер» в модуле
+   «Серверы»: оверлей со скримом, панель 400px справа, 240мс — ровно
+   столько же ждёт таймер в openProfile/closeProfile. */
+.msg-profile{display:none;position:fixed;inset:0;z-index:1000;pointer-events:none}
+.msg-profile-scrim{position:absolute;inset:0;background:rgba(12,16,26,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;transition:opacity 240ms cubic-bezier(.4,.12,.2,1);pointer-events:none}
+.msg-profile.open .msg-profile-scrim{opacity:1;pointer-events:auto}
+.msg-profile-panel{position:absolute;top:0;right:0;bottom:0;width:min(400px,100vw);box-sizing:border-box;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--border);box-shadow:-18px 0 44px -22px rgba(12,16,26,.5);transform:translateX(100%);transition:transform 240ms cubic-bezier(.55,.03,.22,1);pointer-events:none}
+.msg-profile.open .msg-profile-panel{transform:none;pointer-events:auto}
+@media(prefers-reduced-motion:reduce){
+.msg-profile-panel{transform:none;opacity:0;transition:opacity 240ms linear}
+.msg-profile.open .msg-profile-panel{opacity:1}
+}
+.msg-profile-inner{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:18px 20px 0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.msg-profile-content{display:flex;flex-direction:column;align-items:center;width:100%;flex:1;min-height:0}
+.msg-profile-close-btn{display:flex;align-items:center;justify-content:center;align-self:flex-end;width:28px;height:28px;flex-shrink:0;padding:0;background:var(--surface2);border:none;border-radius:8px;color:var(--text-dim);cursor:pointer;transition:background .15s,color .15s}
+.msg-profile-close-btn:hover{background:var(--border);color:var(--text)}
 /* Volumetric avatar frame */
 .msg-profile-ava-frame{margin-top:12px;padding:6px;border-radius:50%;background:linear-gradient(150deg,var(--surface),var(--surface2));box-shadow:0 12px 26px rgba(0,0,0,0.28),0 4px 8px rgba(0,0,0,0.18),inset 0 2px 0 rgba(255,255,255,0.08)}
 .msg-profile-ava{width:100px;height:100px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-weight:700;font-size:36px;overflow:hidden}
@@ -415,9 +443,16 @@
 .msg-profile-row svg{flex-shrink:0;color:var(--text-dim)}
 .msg-profile-row b{color:var(--text);font-weight:600}
 /* Tactile danger clear button */
-.msg-clear-chat-btn{margin-top:12px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:14px;font-weight:600;color:var(--danger);border-radius:14px;cursor:pointer;background:linear-gradient(180deg,rgba(224,57,90,0.1),rgba(224,57,90,0.18));border:1px solid rgba(224,57,90,0.35);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 1px 2px rgba(224,57,90,.1),0 4px 11px rgba(224,57,90,.1);transition:transform 0.16s,box-shadow 0.16s;width:100%;font-family:'Inter',sans-serif}
-.msg-clear-chat-btn:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(224,57,90,.16),0 7px 16px rgba(224,57,90,.16)}
-.msg-clear-chat-btn:active{transform:translateY(0);box-shadow:inset 0 2px 5px rgba(224,57,90,.18)}
+/* Полка с «Очистить чат» стоит на месте: раньше кнопка жила в конце
+   прокручиваемого содержимого и уезжала вниз вместе с вложениями. И она
+   не должна кричать — это редкое разрушительное действие, а не главное
+   на панели: тихая по умолчанию, красная только под курсором. */
+.msg-profile-foot{flex-shrink:0;padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border);background:var(--surface)}
+.msg-clear-chat-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;border-radius:11px;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text-dim);background:transparent;border:1px solid var(--border);transition:color .15s,background .15s,border-color .15s}
+.msg-clear-chat-btn svg{opacity:.8}
+.msg-clear-chat-btn:hover{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,transparent);background:var(--danger-glow)}
+.msg-clear-chat-btn:active{background:color-mix(in srgb,var(--danger) 16%,transparent)}
+.msg-clear-chat-btn:focus-visible{outline:2px solid var(--danger);outline-offset:2px}
 
 /* ===== MOBILE ===== */
 @media(max-width:768px){
@@ -431,9 +466,9 @@
   .msg-back-btn{display:flex}
   .msg-mob-dots{display:flex}
   .msg-contacts.mobile-hidden{display:none}
-  .msg-profile{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;width:100%}
-  .msg-profile.mobile-open{display:block}
-  .msg-profile-close-btn{display:flex}
+  .msg-profile-panel{width:100vw;border-left:none}
+  .msg-profile-inner{padding:16px 14px 0}
+  .msg-profile-foot{padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px))}
   .msg-bubble{max-width:75vw}
   .msg-reaction-picker{max-width:90vw}
 }
@@ -444,7 +479,7 @@
     .msg-input-area{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
     .msg-wrap{height:calc(100dvh - env(safe-area-inset-top))}
     .msg-chat{top:env(safe-area-inset-top)}
-    .msg-profile{top:env(safe-area-inset-top)}
+    .msg-profile-panel{top:env(safe-area-inset-top)}
   }
 }
 
@@ -618,8 +653,9 @@ body.theme-light .msg-attach-fsize{color:#aab2bf}
 body.theme-light .msg-profile-ava-frame{background:linear-gradient(150deg,#ffffff,#e4e9f1);box-shadow:0 12px 26px rgba(23,33,54,.26),0 4px 8px rgba(23,33,54,.16),inset 0 2px 0 #fff}
 body.theme-light .msg-profile-row{background:linear-gradient(180deg,#ffffff,#f5f7fb);border:1px solid #ebeff4;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(23,33,54,.05)}
 body.theme-light .msg-profile-attach-item{background:linear-gradient(145deg,#f6f8fb,#dce2eb);border:1px solid #e6ebf2;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 1px 2px rgba(23,33,54,.05),0 2px 5px rgba(23,33,54,.05)}
-body.theme-light .msg-clear-chat-btn{background:linear-gradient(180deg,#fff6f7,#ffe6ea);border:1px solid #fbccd4;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgba(224,57,90,.1),0 4px 11px rgba(224,57,90,.13);color:#e0395a}
-body.theme-light .msg-clear-chat-btn:hover{box-shadow:0 2px 4px rgba(224,57,90,.16),0 7px 16px rgba(224,57,90,.16)}
+body.theme-light .msg-clear-chat-btn{border-color:#e4e8ef;color:#7a8593}
+body.theme-light .msg-clear-chat-btn:hover{border-color:#f5b8c3;color:var(--danger)}
+body.theme-light .msg-profile-foot{background:#fff;border-top-color:#eef1f6}
 body.theme-light .msg-online-dot-header{background:#2bc685;box-shadow:0 0 0 3px rgba(43,198,133,.18)}
 body.theme-light .msg-edited{color:#bbb}
 body.theme-light .msg-emoji-picker{background:rgba(255,255,255,0.96);border-color:rgba(220,220,220,0.6);box-shadow:0 8px 32px rgba(0,0,0,0.12)}

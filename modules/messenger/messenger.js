@@ -178,7 +178,7 @@ const Messenger = {
       if (open && !wasKB) {
         wasKB = true;
         if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform='translateY(100%)'; sidebar.style.opacity='0'; sidebar.style.pointerEvents='none'; }
-        var pr=document.getElementById('msgProfile'); if(pr)pr.classList.remove('mobile-open');
+        Messenger.closeProfile();
       } else if (!open && wasKB) {
         wasKB = false;
         if (sidebar) { sidebar.style.transition='transform 0.2s,opacity 0.2s'; sidebar.style.transform=''; sidebar.style.opacity=''; sidebar.style.pointerEvents=''; }
@@ -427,8 +427,6 @@ const Messenger = {
 
   updateProfilePanel(c){
     var dn=this.getDisplayName(c);
-    document.getElementById('msgProfileEmptyState').style.display='none';
-    document.getElementById('msgProfileContent').style.display='flex';
     var a=document.getElementById('msgProfileAva');a.innerHTML=c.avatar?'<img src="data:image/jpeg;base64,'+c.avatar+'"/>':dn.charAt(0).toUpperCase();
     document.getElementById('msgProfileName').textContent=dn;
     document.getElementById('msgProfileUsername').textContent='@'+c.username;
@@ -444,7 +442,24 @@ const Messenger = {
     }
     this.loadProfileAttachments();
   },
-  toggleProfileMobile(){var p=document.getElementById('msgProfile');if(p)p.classList.toggle('mobile-open')},
+  /* Панель профиля — выезжающая справа, поверх чата. Длительность 240мс
+     совпадает с transition в messenger.css: display снимаем только после
+     того, как панель уехала, иначе она исчезает рывком. */
+  openProfile(){
+    if(!this.currentChat)return;
+    var p=document.getElementById('msgProfile');if(!p)return;
+    clearTimeout(this._profileTimer);
+    p.style.display='block';
+    requestAnimationFrame(function(){requestAnimationFrame(function(){p.classList.add('open')})});
+    document.addEventListener('keydown',this._onProfileKey);
+  },
+  closeProfile(){
+    var p=document.getElementById('msgProfile');if(!p)return;
+    p.classList.remove('open');
+    document.removeEventListener('keydown',this._onProfileKey);
+    this._profileTimer=setTimeout(function(){p.style.display=''},240);
+  },
+  _onProfileKey(e){if(e.key==='Escape')Messenger.closeProfile()},
 
   closeChat(){
     this.currentChat=null;Shell.activeChat=null;this.cancelEdit();this.clearPreview();this.cancelReply();this.closeSearch();
@@ -455,9 +470,7 @@ const Messenger = {
     document.getElementById('msgChat').classList.remove('mobile-open');
     Shell.setImmersive(false);
     if (window.innerWidth <= 768) { document.getElementById('msgChat').style.bottom = ''; }
-    document.getElementById('msgProfile').classList.remove('mobile-open');
-    document.getElementById('msgProfileEmptyState').style.display='flex';
-    document.getElementById('msgProfileContent').style.display='none';
+    this.closeProfile();
     this.renderContacts();
   },
 
@@ -687,7 +700,7 @@ const Messenger = {
     document.getElementById('msgChat').classList.remove('mobile-open');
     Shell.setImmersive(false);
     if (window.innerWidth <= 768) { document.getElementById('msgChat').style.bottom = ''; }
-    try { document.getElementById('msgProfile').classList.remove('mobile-open'); } catch(e){}
+    this.closeProfile();
     this.renderContacts();
   },
 
@@ -1155,8 +1168,7 @@ const Messenger = {
   },
 
   goToAttachMsg(msgId) {
-    var p = document.getElementById('msgProfile');
-    if (p) p.classList.remove('mobile-open');
+    this.closeProfile();
     setTimeout(function() { Messenger.scrollToMsg(msgId); }, 200);
   },
 
