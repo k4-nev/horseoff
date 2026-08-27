@@ -1840,7 +1840,9 @@ class Handler(BaseHTTPRequestHandler):
             if s['role'] != 'arcana':
                 user = find_user(s['username'])
                 user_modules = user.get('modules', ['messenger']) if user else ['messenger']
-                mods = [m for m in mods if m['id'] in user_modules or m.get('min_role') == 'arcana']
+                # Модуль виден, если он выдан пользователю и не помечен как
+                # arcana-только. То же правило — в рассылке modules_update.
+                mods = [m for m in mods if m['id'] in user_modules and m.get('min_role') != 'arcana']
             return self._json(200, mods)
 
         # All modules (unfiltered, for admin)
