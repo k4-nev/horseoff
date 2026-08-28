@@ -475,8 +475,17 @@ const Shell = {
       var reg = await navigator.serviceWorker.ready;
       var existing = await reg.pushManager.getSubscription();
       if (existing) {
-        await this.api('/api/push/subscribe', {method:'POST', body:JSON.stringify({subscription: existing.toJSON()})});
-        return;
+        // Подписка привязана к ключу сервера. Если ключ сменился (переезд,
+        // перегенерация), старая подписка остаётся живой на вид, но сервер
+        // ею отправить уже не может — и уведомления тихо пропадают, потому
+        // что подписка «есть» и мы её не обновляем. Сверяем и пересоздаём.
+        var srvKey = await this.api('/api/push/key');
+        if (srvKey && srvKey.key && !this._subKeyMatches(existing, srvKey.key)) {
+          try { await existing.unsubscribe(); } catch(e) {}
+        } else {
+          await this.api('/api/push/subscribe', {method:'POST', body:JSON.stringify({subscription: existing.toJSON()})});
+          return;
+        }
       }
       if (isIOS) {
         // iOS requires user gesture — show button
@@ -488,6 +497,18 @@ const Shell = {
       if (result !== 'granted') return;
       await this._subscribePush(reg);
     } catch(e) { console.log('Push init:', e); }
+  },
+
+  /** Тот ли ключ сервера, на который выписана подписка. */
+  _subKeyMatches(sub, key) {
+    try {
+      var raw = sub.options && sub.options.applicationServerKey;
+      if (!raw) return true;   // сравнить нечем — не трогаем рабочую подписку
+      var bytes = new Uint8Array(raw), str = '';
+      for (var i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+      var mine = btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      return mine === String(key).replace(/=+$/, '');
+    } catch (e) { return true; }
   },
 
   _showPushBanner() { this._uiEmit({ pushBanner: true }); },

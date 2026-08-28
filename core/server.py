@@ -153,6 +153,49 @@ except ImportError:
     HAS_PUSH = False
     print("  [WARN] pywebpush not installed. Run: pip install pywebpush --break-system-packages")
 
+def migrate_vapid_keys():
+    """Ключи VAPID переехали из публично раздаваемого pwa/ в data/ (a6e9a74).
+
+    Правка была верной — приватный ключ лежал под раздачей статики и качался
+    по HTTP, — но на уже работающих установках файлы остались на старом
+    месте. После выкладки send_push молча выходил в первой же строке (нет
+    приватного ключа — нет отправки), а /api/push/key отдавал available:false,
+    так что и подписаться заново было нельзя. Уведомления просто перестали
+    приходить, без единой ошибки в логе.
+
+    Переносим сами, один раз. Именно переносим, а не копируем: копия в pwa/
+    вернула бы ровно ту дыру, из-за которой всё и затевалось.
+    """
+    legacy = ROOT_DIR / 'pwa'
+    if legacy.resolve() == VAPID_DIR.resolve():
+        return
+    for name in ('vapid_private.pem', 'vapid_public.txt'):
+        new = VAPID_DIR / name
+        old = legacy / name
+        if new.exists() or not old.is_file():
+            continue
+        try:
+            new.write_bytes(old.read_bytes())
+            try: os.chmod(new, 0o600)
+            except Exception: pass
+            old.unlink()
+            print(f"  [PUSH] {name}: перенесён из pwa/ в data/")
+        except Exception as e:
+            print(f"  [PUSH] {name}: перенести не удалось — {e}")
+
+
+def push_status():
+    """Одна строка при старте: работают ли пуши и почему нет."""
+    if not HAS_PUSH:
+        return 'выключены (нет pywebpush)'
+    if not VAPID_PRIVATE_KEY.exists():
+        return f'выключены (нет ключа {VAPID_PRIVATE_KEY})'
+    if not VAPID_PUBLIC_KEY_FILE.exists():
+        return f'выключены (нет ключа {VAPID_PUBLIC_KEY_FILE})'
+    subs = sum(1 for f in PUSH_DIR.glob('*.json'))
+    return f'работают, подписок у {subs} польз.'
+
+
 def get_vapid_public_key():
     if VAPID_PUBLIC_KEY_FILE.exists():
         return VAPID_PUBLIC_KEY_FILE.read_text().strip()
@@ -2651,12 +2694,14 @@ def main():
     print("=" * 50)
     migrate_user_roles()
     migrate_module_ids()
+    migrate_vapid_keys()
     users = load_users()
     modules = discover_modules()
     print(f"  Users:   {len(users)} ({'SETUP REQUIRED' if not users else ', '.join(u['username'] for u in users)})")
     print(f"  Modules: {', '.join(m['id'] for m in modules) or 'none'}")
     print(f"  Web UI:  http://0.0.0.0:{WEB_PORT}")
     print(f"  Session: {SESSION_TTL // 86400} days")
+    print(f"  Push:    {push_status()}")
     print("=" * 50)
 
     load_module_apis()
