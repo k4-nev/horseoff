@@ -258,6 +258,120 @@ check('текст выведен буквально', (await p.locator('.msg-row
 check('внедрённого тега нет', await p.evaluate(() => !document.querySelector('.msg-row[data-msgid="xss1"]').querySelector('img')));
 check('ничего не выполнилось', await p.evaluate(() => window.__pwned === undefined));
 
+console.log('\n── Новый вид элементов ──');
+check('акцент приложения — индиго',
+  await p.evaluate(() => getComputedStyle(document.body).getPropertyValue('--accent').trim()),
+  await p.evaluate(() => getComputedStyle(document.body).getPropertyValue('--accent').trim()));
+check('облако держится на тени, а не на рамке',
+  await p.evaluate(() => {
+    const b = document.querySelector('.msg-bubble.mine');
+    const st = getComputedStyle(b);
+    return st.borderTopWidth === '0px' && st.boxShadow !== 'none';
+  }));
+check('своё облако — бледная заливка акцентом, а не сплошной цвет',
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.msg-bubble.mine'));
+    const m = st.backgroundColor.match(/\d+/g).map(Number);
+    return m[0] > 200 && m[1] > 200 && m[2] > 230 && m[2] > m[0];
+  }),
+  await p.evaluate(() => getComputedStyle(document.querySelector('.msg-bubble.mine')).backgroundColor));
+check('текст своего облака остался тёмным',
+  await p.evaluate(() => {
+    const m = getComputedStyle(document.querySelector('.msg-bubble.mine')).color.match(/\d+/g).map(Number);
+    return m[0] < 120 && m[1] < 120;
+  }));
+check('нажатие на контакт больше не вдавливает строку',
+  await p.evaluate(() => {
+    const rules = [...document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } });
+    const flat = (r) => (r.cssRules ? [...r.cssRules].flatMap(flat) : [r]);
+    return !flat({ cssRules: rules }).some((r) => (r.selectorText || '') === '.msg-contact:active'
+      && /scale/.test(r.style.transform || ''));
+  }));
+
+/* Вложения: у каждого типа теперь своя карточка. */
+const T2 = Math.floor(Date.now() / 1000);
+await p.evaluate((t) => window.__recv({
+  type: 'message', chat: 'me_u1',
+  msg: { id: 'att1', from: 'u1', from_name: 'Мысика', text: '', time: t, attachments: [
+    { id: 'v1', type: 'audio', name: 'voice_1755.webm', duration: 7, size: 24000 },
+  ] },
+}), T2);
+await p.evaluate((t) => window.__recv({
+  type: 'message', chat: 'me_u1',
+  msg: { id: 'att2', from: 'u1', from_name: 'Мысика', text: '', time: t + 1, attachments: [
+    { id: 'tr1', type: 'audio', name: 'Хвост кометы.mp3', duration: 252, size: 5400000 },
+  ] },
+}), T2);
+await p.evaluate((t) => window.__recv({
+  type: 'message', chat: 'me_u1',
+  msg: { id: 'att3', from: 'u1', from_name: 'Мысика', text: '', time: t + 2, attachments: [
+    { id: 'f1', type: 'file', name: 'Отчёт по прокси.pdf', size: 2400000 },
+  ] },
+}), T2);
+await p.evaluate((t) => window.__recv({
+  type: 'message', chat: 'me_u1',
+  msg: { id: 'att4', from: 'u1', from_name: 'Мысика', text: '', time: t + 3, attachments:
+    Array.from({ length: 7 }, (_, k) => ({ id: 'p' + k, type: k === 6 ? 'video' : 'image', name: 'ph' + k + '.jpg', size: 1000 })) },
+}), T2);
+await p.waitForTimeout(600);
+
+check('голосовое: прогресс на кольце вокруг кнопки',
+  await p.locator('.msg-row[data-msgid="att1"] .msg-audio-ring').count() === 1);
+check('голосовое: волна ровная, прогрессом не красится',
+  await p.locator('.msg-row[data-msgid="att1"] .msg-audio-wave-bar.on').count() === 0
+  && await p.locator('.msg-row[data-msgid="att1"] .msg-audio-wave-bar').count() > 20);
+check('аудиофайл: карточка трека с обложкой и дорожкой',
+  await p.locator('.msg-row[data-msgid="att2"] .msg-track-cover').count() === 1
+  && await p.locator('.msg-row[data-msgid="att2"] .msg-track-line').count() === 1);
+check('аудиофайл не путается с голосовым',
+  await p.locator('.msg-row[data-msgid="att2"] .msg-audio-ring').count() === 0
+  && (await p.locator('.msg-row[data-msgid="att2"] .msg-track-meta').textContent()).includes('MP3'));
+check('документ: строка каталога с расширением в иконке',
+  (await p.locator('.msg-row[data-msgid="att3"] .msg-att-file-icon').textContent()) === 'PDF');
+check('фото и видео: не больше четырёх плиток',
+  await p.locator('.msg-row[data-msgid="att4"] .msg-att-thumb').count() === 4);
+check('остаток ушёл под счётчик',
+  (await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').textContent()) === '+3');
+check('плитки одного размера',
+  await p.evaluate(() => {
+    const t = [...document.querySelectorAll('.msg-row[data-msgid="att4"] .msg-att-thumb')];
+    const ws = t.map((e) => Math.round(e.getBoundingClientRect().width));
+    return new Set(ws).size === 1 && ws[0] > 20;
+  }));
+check('счётчик открывает просмотрщик на своём месте в пачке', await (async () => {
+  await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').click();
+  await p.waitForTimeout(350);
+  const txt = (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '');
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(250);
+  return txt === '4/7';
+})());
+
+await p.screenshot({ path: 'shot-attach.png' });
+
+console.log('\n── Живой фон ленты ──');
+check('слой фона есть и лежит под сообщениями',
+  await p.evaluate(() => {
+    const c = document.querySelector('.msg-chat .msg-backdrop');
+    if (!c) return false;
+    const st = getComputedStyle(c);
+    const r = c.getBoundingClientRect();
+    return st.pointerEvents === 'none' && Number(st.zIndex) === 0 && r.width > 100 && r.height > 100;
+  }));
+check('фон рисуется, а не остаётся пустым холстом',
+  await p.evaluate(() => {
+    const c = document.querySelector('.msg-chat .msg-backdrop');
+    const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    for (let i = 3; i < px.length; i += 4) if (px[i] > 0) return true;
+    return false;
+  }));
+check('фон не перехватывает клики по ленте',
+  await p.evaluate(() => {
+    const r = document.querySelector('.msg-messages').getBoundingClientRect();
+    const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !el.classList.contains('msg-backdrop');
+  }));
+
 console.log('\n── Панель профиля ──');
 await p.locator('.msg-chat-peer').click();
 await p.waitForTimeout(400);

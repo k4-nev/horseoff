@@ -16,8 +16,8 @@ const LoadIco = () => (
   </svg>
 );
 
-function Wave({ id, count, pct, mine, voice }) {
-  const played = Math.round((pct / 100) * count);
+function Wave({ id, count, pct, mine, voice, flat }) {
+  const played = flat ? 0 : Math.round((pct / 100) * count);
   const cPlayed = mine && voice ? '#fff' : 'var(--accent)';
   const cRest = mine && voice ? 'rgba(255,255,255,0.4)' : (voice ? '#d2dae3' : 'var(--border)');
   return (
@@ -54,33 +54,47 @@ function AudioPlayer({ a, mine }) {
   let name = voice ? 'Голосовое сообщение' : (a.name ? a.name.replace(/\.[^.]+$/, '') : '');
   if (name.length > 30) name = name.slice(0, 28) + '...';
 
-  const btn = (
+  const btn = (ring) => (
     <button className="msg-audio-btn" onClick={(e) => { e.stopPropagation(); toggleAudio(a.id); }}>
+      {ring && <span className="msg-audio-ring" style={{ '--pct': (pct / 100).toFixed(3) + 'turn' }} />}
       <span className="msg-audio-icon">
         {!st ? <PlayIco /> : st.state === 'load' ? <LoadIco /> : playing ? <PauseIco /> : <PlayIco />}
       </span>
     </button>
   );
 
+  /* Голосовое: прогресс живёт на кольце вокруг кнопки, волна остаётся ровной
+     и работает только как полоса перемотки. */
   if (voice) {
     return (
       <div className={'msg-audio-player msg-voice' + (playing ? ' playing' : '')}>
-        {btn}
-        <Wave id={a.id} count={36} pct={pct} mine={mine} voice />
+        {btn(true)}
+        <Wave id={a.id} count={36} pct={pct} mine={mine} voice flat />
         <span className="msg-audio-time">{label}</span>
       </div>
     );
   }
+
+  /* Файл с музыкой — карточка трека: обложка, название, формат с
+     длительностью и тонкая дорожка. Волна тут врала бы: содержимое трека
+     мы не знаем, а рисовать одинаковую гребёнку у всех — обман. */
+  const ext = (a.name || '').split('.').pop().toUpperCase().slice(0, 4);
   return (
-    <div className={'msg-audio-player' + (playing ? ' playing' : '')}>
-      {btn}
+    <div className={'msg-audio-player msg-track' + (playing ? ' playing' : '')}>
+      <div className="msg-track-cover">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20 4.5v10.2a3.1 3.1 0 1 1-1.7-2.76V7.2l-7.6 1.5v8.3a3.1 3.1 0 1 1-1.7-2.76V6.3z" />
+        </svg>
+      </div>
       <div className="msg-audio-info">
         <div className="msg-audio-name-row">
           <span className="msg-audio-name">{name}</span>
           <span className="msg-audio-time">{label}</span>
         </div>
-        <Wave id={a.id} count={44} pct={pct} mine={mine} />
+        <div className="msg-track-meta">{ext}{a.size ? ' · ' + fmtSize(a.size) : ''}</div>
+        <div className="msg-track-line"><i style={{ width: pct + '%' }} /></div>
       </div>
+      {btn(false)}
     </div>
   );
 }
@@ -93,23 +107,30 @@ export default function Attachments({ items, mine, onOpenMedia }) {
   const files = items.filter((a) => a.type === 'file');
   /* Просмотрщик листает всю пачку сообщения в том же порядке, что и сетка */
   const media = images.concat(videos);
+  /* Показываем не больше четырёх плиток: остальное уходит под счётчик, иначе
+     пачка из двадцати фото растягивает ленту на несколько экранов. */
+  const SHOWN = 4;
+  const shown = media.slice(0, SHOWN);
+  const rest = media.length - shown.length;
 
   return (
     <>
       {media.length > 0 && (
-        <div className="msg-att-grid">
-          {images.map((a, k) => (
-            <div className="msg-att-thumb" key={a.id} onClick={() => onOpenMedia(media, k)}>
+        <div className={'msg-att-grid' + (shown.length === 1 ? ' single' : '')}>
+          {shown.map((a, k) => (
+            <div
+              className={'msg-att-thumb' + (a.type === 'video' ? ' msg-att-video' : '')}
+              key={a.id}
+              onClick={() => onOpenMedia(media, k)}
+            >
               <img src={a._localUrl || attUrl(a.id, '/thumb')} loading="lazy" alt="" />
-            </div>
-          ))}
-          {videos.map((a, k) => (
-            <div className="msg-att-thumb msg-att-video" key={a.id} onClick={() => onOpenMedia(media, images.length + k)}>
-              <img src={attUrl(a.id, '/thumb')} loading="lazy" alt="" />
-              <div className="msg-video-overlay">
-                <div className="msg-video-play">▶</div>
-                {a.duration ? <span className="msg-video-dur">{fmtDuration(a.duration)}</span> : null}
-              </div>
+              {a.type === 'video' && (
+                <div className="msg-video-overlay">
+                  <div className="msg-video-play">▶</div>
+                  {a.duration ? <span className="msg-video-dur">{fmtDuration(a.duration)}</span> : null}
+                </div>
+              )}
+              {rest > 0 && k === shown.length - 1 && <div className="msg-att-more">+{rest}</div>}
             </div>
           ))}
         </div>
@@ -125,7 +146,7 @@ export default function Attachments({ items, mine, onOpenMedia }) {
           download={a.name}
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="msg-att-file-icon"><span className="ico ico-18 ico-file" /></span>
+          <span className="msg-att-file-icon">{(a.name || '').split('.').pop().toUpperCase().slice(0, 4)}</span>
           <div className="msg-att-file-info">
             <div className="msg-att-file-name">{a.name}</div>
             <div className="msg-att-file-size">{fmtSize(a.size)}</div>

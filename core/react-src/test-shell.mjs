@@ -212,12 +212,18 @@ try {
       accent: cs.getPropertyValue('--accent').trim(),
       success: cs.getPropertyValue('--success').trim(),
       bg: cs.getPropertyValue('--bg').trim(),
+      soft: cs.getPropertyValue('--accent-soft').trim(),
+      line: cs.getPropertyValue('--accent-line').trim(),
       btn: b.backgroundImage + ' | ' + b.backgroundColor,
     };
     btn.remove();
     return r;
   });
-  check('--accent вернулся к штатному бирюзовому', pal.accent === '#00d4aa', pal.accent);
+  /* Акцент выбран из стенда — индиго. Бирюза выведена, и вместе с ней ушли
+     прибитые гвоздями rgba(0,212,170,…): все оттенки считаются от токена. */
+  check('--accent — индиго', pal.accent === '#4c4fd8', pal.accent);
+  check('оттенки акцента заданы вместе с ним',
+    pal.soft === '#e8e8fb' && pal.line === '#cdcef6', pal.soft + ' / ' + pal.line);
   check('зелёный --success на месте', pal.success === '#22c55e', pal.success);
   check('базовый фон штатный', pal.bg === '#f2f4f8', pal.bg);
   /* Кнопка не должна быть бирюзовой: в её заливке нет rgb(0,212,170), зато

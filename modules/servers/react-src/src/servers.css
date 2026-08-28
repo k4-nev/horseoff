@@ -70,7 +70,7 @@
 .status-dot.online{background:var(--accent);box-shadow:0 0 6px var(--accent)}
 .status-dot.offline{background:var(--danger);box-shadow:0 0 6px var(--danger)}
 .role-tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:2px 5px;border-radius:4px;text-align:center}
-.role-tag.host{background:rgba(0,212,170,0.12);color:var(--accent);border:1px solid rgba(0,212,170,0.3)}
+.role-tag.host{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
 .role-tag.proxy{background:rgba(155,89,255,0.12);color:#9b59ff;border:1px solid rgba(155,89,255,0.3)}
 .role-tag.client{background:rgba(255,170,34,0.12);color:var(--warning);border:1px solid rgba(255,170,34,0.3)}
 .role-tag.none{background:rgba(106,106,128,0.12);color:var(--text-dim);border:1px solid rgba(106,106,128,0.3)}
@@ -83,7 +83,7 @@
 .inline-bar-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
 .inline-bar-fill.low{background:var(--accent)}.inline-bar-fill.mid{background:var(--warning)}.inline-bar-fill.high{background:var(--danger)}
 .days-tag{display:inline-flex;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px}
-.days-tag.green{background:rgba(0,212,170,0.08);color:var(--accent)}.days-tag.yellow{background:rgba(255,170,34,0.12);color:var(--warning)}.days-tag.red{background:rgba(255,68,102,0.08);color:var(--danger)}
+.days-tag.green{background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent)}.days-tag.yellow{background:rgba(255,170,34,0.12);color:var(--warning)}.days-tag.red{background:rgba(255,68,102,0.08);color:var(--danger)}
 
 /* Row actions */
 .row-actions{display:flex;gap:3px}
@@ -149,7 +149,7 @@
 .days-critical{color:var(--critical) !important}
 .days-warning{color:var(--warning) !important}
 .days-ok{color:var(--success) !important}
-@keyframes data-flash{0%{background:rgba(0,212,170,0.08)}100%{background:transparent}}
+@keyframes data-flash{0%{background:color-mix(in srgb,var(--accent) 8%,transparent)}100%{background:transparent}}
 .srv-data-updated{animation:data-flash 0.6s ease-out}
 
 /* Metric color coding */
@@ -171,7 +171,7 @@
 /* Merged proxy column — labeled chips */
 .prx-row{display:flex;align-items:center;justify-content:flex-start;gap:3px}
 .prx-chip{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.2px;padding:2px 4px;border-radius:4px;border:1px solid transparent}
-.prx-chip.up{background:rgba(0,212,170,0.1);color:var(--accent);border-color:rgba(0,212,170,0.25)}
+.prx-chip.up{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
 .prx-chip.down{background:rgba(255,68,102,0.1);color:var(--danger);border-color:rgba(255,68,102,0.25)}
 
 /* Days blink on critical */

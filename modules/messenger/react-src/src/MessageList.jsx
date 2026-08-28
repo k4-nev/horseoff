@@ -151,22 +151,22 @@ export default function MessageList({
           <div className="msg-row mine group-end msg-anim">
             <div className="msg-content">
               <div className="msg-upload-card">
+                {/* Кольцо процентов вместо иконки: состояние отправки одинаково
+                    для фото, документа и голосового, поэтому карточка одна. */}
                 <div className="msg-upload-icon">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" />
-                  </svg>
+                  <span className="msg-upload-ring" style={{ '--pct': (upload.pct / 100).toFixed(3) + 'turn' }} />
+                  <span className="msg-upload-num">{upload.pct}</span>
                 </div>
                 <div className="msg-upload-body">
                   <div className="msg-upload-name-row">
                     <span className="msg-upload-name">{upload.name}</span>
-                    <span className="msg-upload-pct">{upload.pct}%</span>
                   </div>
+                  <div className="msg-upload-meta">отправляется…</div>
                   <div className="msg-upload-track"><div className="msg-upload-fill" style={{ width: upload.pct + '%' }} /></div>
-                  <div className="msg-upload-meta">загрузка…</div>
                 </div>
-                <button className="msg-upload-action">
-                  <svg className="msg-loading-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                <button className="msg-upload-action" aria-label="Отменить">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
                   </svg>
                 </button>
               </div>

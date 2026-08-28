@@ -3,6 +3,7 @@ import ContactList from './ContactList.jsx';
 import MessageList from './MessageList.jsx';
 import Composer from './Composer.jsx';
 import ProfilePanel from './ProfilePanel.jsx';
+import Backdrop from './Backdrop.jsx';
 import { Confirm, ContactMenu, Gallery, MsgMenu, ReactionPicker } from './Overlays.jsx';
 import { stopAudio } from './audio.js';
 import { S, chatKey, displayName, toast, wsSend, buzz } from './lib.js';
@@ -501,6 +502,7 @@ export default function App({ registerBridge }) {
       />
 
       <div className={'msg-chat' + (chat ? ' mobile-open' : '')} ref={chatColRef}>
+        <Backdrop scrollRef={scrollRef} />
         {!chat && (
           <div className="msg-chat-empty" style={{ display: 'flex' }}>
             <svg width="56" height="56" viewBox="0 0 32 32" fill="none" stroke="#ccc" strokeWidth="1">
