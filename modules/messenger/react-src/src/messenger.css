@@ -487,7 +487,11 @@
 /* Safe area */
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   @media(max-width:768px){
-    .msg-input-area{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+    /* Полосу под home indicator обходим отступом СНАРУЖИ. Раньше она уходила
+       в padding-bottom самого поля: сверху 8px, снизу 8+34 — «таблетка» вдвое
+       выше и с пустотой под текстом. Поле и так висит в 20px над низом, ему
+       нужно просто подняться выше индикатора, а не раздуться. */
+    .msg-input-area{margin-bottom:max(20px, calc(6px + env(safe-area-inset-bottom)))}
     .msg-wrap{height:calc(100dvh - env(safe-area-inset-top))}
     .msg-chat{top:env(safe-area-inset-top)}
     .msg-profile-panel{top:env(safe-area-inset-top)}

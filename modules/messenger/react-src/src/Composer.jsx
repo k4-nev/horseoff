@@ -141,12 +141,35 @@ export default function Composer({
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return undefined;
-    const report = () => onHeight && onHeight(el.offsetHeight);
+    /* Меряем не высоту «таблетки», а сколько она занимает снизу: у неё есть
+       собственный внешний отступ, который на iOS ещё и растёт на home
+       indicator. По offsetHeight лента недобирала бы ровно этот отступ. */
+    const report = () => {
+      if (!onHeight) return;
+      const host = el.offsetParent;
+      const taken = host
+        ? host.getBoundingClientRect().bottom - el.getBoundingClientRect().top
+        : el.offsetHeight;
+      onHeight(Math.round(taken));
+    };
     report();
-    if (!window.ResizeObserver) return undefined;
+    /* Поворот экрана меняет сами вставки безопасной зоны: размеры коробок при
+       этом могут не поменяться, а занимаемое место — да. */
+    window.addEventListener('resize', report);
+    window.addEventListener('orientationchange', report);
+    if (!window.ResizeObserver) return () => {
+      window.removeEventListener('resize', report);
+      window.removeEventListener('orientationchange', report);
+    };
     const ro = new ResizeObserver(report);
     ro.observe(el);
-    return () => ro.disconnect();
+    // Клавиатура двигает низ самого чата — «таблетка» при этом не меняется
+    if (el.offsetParent) ro.observe(el.offsetParent);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', report);
+      window.removeEventListener('orientationchange', report);
+    };
   }, [onHeight]);
 
   return (

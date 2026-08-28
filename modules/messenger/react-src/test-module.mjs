@@ -405,12 +405,44 @@ check('лента всё равно кончается выше поля', (awai
 await p.locator('.msg-input').fill('');
 await p.waitForTimeout(400);
 
-check('отступ ленты считается от высоты поля ввода',
+check('отступ ленты считается от занимаемого поля, вместе с его отступом',
   await p.evaluate(() => {
     const chat = document.querySelector('.msg-chat');
+    const inp = document.querySelector('.msg-input-area');
     const h = parseInt(getComputedStyle(chat).getPropertyValue('--msg-composer-h'), 10);
-    return h > 0 && Math.abs(h - document.querySelector('.msg-input-area').offsetHeight) <= 1;
+    const taken = chat.getBoundingClientRect().bottom - inp.getBoundingClientRect().top;
+    return h > 0 && Math.abs(h - taken) <= 1;
   }));
+
+/* Вырез и home indicator Chromium не эмулирует, поэтому проверяем инвариант,
+   который баг ломал: внутренние отступы «таблетки» симметричны, а полосу
+   безопасной зоны она обходит внешним отступом. */
+check('поле ввода не раздуто снизу — отступы внутри симметричны',
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.msg-input-area'));
+    return parseFloat(st.paddingBottom) === parseFloat(st.paddingTop);
+  }),
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.msg-input-area'));
+    return st.paddingTop + ' / ' + st.paddingBottom;
+  }));
+check('безопасную зону поле обходит внешним отступом, а не внутренним',
+  await p.evaluate(() => {
+    const rules = [...document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } });
+    const flat = (r) => (r.cssRules ? [...r.cssRules].flatMap(flat) : [r]);
+    return !rules.flatMap(flat).some((r) => r.selectorText === '.msg-input-area'
+      && /safe-area-inset-bottom/.test(r.style.paddingBottom || ''));
+  }));
+
+/* Подставляем вырез руками: поле поднимается выше, лента обязана добрать
+   отступ — иначе последнее сообщение снова уедет под него. */
+const beforeH = await p.evaluate(() => parseInt(getComputedStyle(document.querySelector('.msg-chat')).getPropertyValue('--msg-composer-h'), 10));
+await p.addStyleTag({ content: '.msg-input-area{margin-bottom:54px !important}' });
+await p.setViewportSize({ width: 390, height: 801 }); // как поворот: вставки пересчитываются
+await p.waitForTimeout(500);
+const afterH = await p.evaluate(() => parseInt(getComputedStyle(document.querySelector('.msg-chat')).getPropertyValue('--msg-composer-h'), 10));
+check('поднятое поле лента учитывает целиком', afterH - beforeH === 34, beforeH + ' -> ' + afterH);
+check('последнее сообщение и с вырезом остаётся над полем', (await gap()) >= 0, 'зазор ' + (await gap()));
 await p.locator('.msg-action-bar-close').click();
 await p.waitForTimeout(300);
 await p.locator('.msg-back-btn').click();
