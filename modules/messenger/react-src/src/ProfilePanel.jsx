@@ -54,7 +54,7 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
   const listMode = tab === 'file' || tab === 'audio';
 
   return (
-    <div className={'msg-profile' + (open ? ' open' : '')} style={{ display: open ? 'block' : 'none' }}>
+    <div className={'msg-profile' + (open ? ' open' : '')}>
       <div className="msg-profile-scrim" onClick={onClose} />
       <div className="msg-profile-panel" role="dialog" aria-modal="true" aria-label="Информация о собеседнике">
         <div className="msg-profile-inner">

@@ -76,7 +76,6 @@
 .msg-chat-header-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .msg-chat-name{font-weight:700;font-size:15px;color:var(--text);display:flex;align-items:center;gap:0}
 .msg-chat-typing{font-size:11px;color:var(--accent);margin-left:8px;white-space:nowrap}
-.msg-mob-dots{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:6px;margin-left:auto}
 
 .msg-messages{flex:1;min-height:0;position:relative;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 20px 0 20px;padding-bottom:calc(var(--msg-composer-h,70px) + 14px)}
 .msg-messages::-webkit-scrollbar{width:3px}
@@ -312,7 +311,14 @@
 .msg-search-nav-btn:active,.msg-search-close-btn:active{transform:scale(0.85)}
 .msg-search-group{display:flex;align-items:center;gap:0;flex-shrink:0}
 .msg-row.search-hidden{display:none!important}
-@media(max-width:768px){.msg-chat-search-wrap.open{width:calc(100vw - 140px);max-width:none}}
+@media(max-width:768px){
+  /* Пока открыт поиск, собеседник уступает ему строку: сворачивается в
+     ноль ширины и гаснет, а не остаётся под наехавшим полем. */
+  .msg-chat-peer{transition:opacity .18s ease,max-width .26s cubic-bezier(.4,0,.2,1),transform .22s cubic-bezier(.4,0,.2,1),padding .26s cubic-bezier(.4,0,.2,1);max-width:100%;overflow:hidden}
+  .msg-chat-header.searching .msg-chat-peer{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:0;transform:translateX(-12px);pointer-events:none;flex:0 0 0}
+  .msg-chat-header.searching .msg-search-group{flex:1;min-width:0}
+  .msg-chat-search-wrap.open{width:calc(100vw - 104px);max-width:none}
+}
 
 /* Pin bar - white, same style as header, blue accent */
 .msg-pin-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s}
@@ -453,7 +459,8 @@
    переписки. Теперь тот же приём, что у «Создать сервер» в модуле
    «Серверы»: оверлей со скримом, панель 400px справа, 240мс — ровно
    столько же ждёт таймер в openProfile/closeProfile. */
-.msg-profile{display:none;position:fixed;inset:0;z-index:1000;pointer-events:none}
+.msg-profile{position:fixed;inset:0;z-index:1000;pointer-events:none;overflow:hidden;visibility:hidden;transition:visibility 0s linear 260ms}
+.msg-profile.open{visibility:visible;transition-delay:0s}
 .msg-profile-scrim{position:absolute;inset:0;background:rgba(12,16,26,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;transition:opacity 240ms cubic-bezier(.4,.12,.2,1);pointer-events:none}
 .msg-profile.open .msg-profile-scrim{opacity:1;pointer-events:auto}
 .msg-profile-panel{position:absolute;top:0;right:0;bottom:0;width:min(400px,100vw);box-sizing:border-box;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--border);box-shadow:-18px 0 44px -22px rgba(12,16,26,.5);transform:translateX(100%);transition:transform 240ms cubic-bezier(.55,.03,.22,1);pointer-events:none}
@@ -499,7 +506,6 @@
   .msg-chat{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:var(--bg)}
   .msg-chat.mobile-open{display:flex}
   .msg-back-btn{display:flex}
-  .msg-mob-dots{display:flex}
   .msg-contacts.mobile-hidden{display:none}
   .msg-profile-panel{width:100vw;border-left:none}
   .msg-profile-inner{padding:16px 14px 0}

@@ -664,6 +664,39 @@ check('Esc закрыл просмотрщик', await p.locator('.msg-gallery-o
 await p.keyboard.press('Escape');
 await p.waitForTimeout(400);
 check('Esc закрыл панель', await p.locator('.msg-profile.open').count() === 0);
+/* Панель раньше переключалась через display:none — переход не успевал
+   начаться, и она появлялась рывком. Держится в потоке, прячется
+   видимостью: значит между «закрыто» и «открыто» есть промежуточные кадры. */
+check('панель не выкидывается из потока, а прячется видимостью',
+  await p.evaluate(() => {
+    const el = document.querySelector('.msg-profile');
+    const st = getComputedStyle(el);
+    return st.display !== 'none' && st.visibility === 'hidden';
+  }));
+check('выезд действительно анимируется, а не появляется сразу',
+  await p.evaluate(async () => {
+    const panel = document.querySelector('.msg-profile-panel');
+    const start = panel.getBoundingClientRect().left;
+    document.querySelector('.msg-chat-peer').click();
+    await new Promise((r) => setTimeout(r, 90));
+    const mid = panel.getBoundingClientRect().left;
+    await new Promise((r) => setTimeout(r, 400));
+    const end = panel.getBoundingClientRect().left;
+    // на середине пути панель уже выехала, но ещё не встала на место
+    return mid < start - 5 && mid > end + 5;
+  }),
+  'закрыто→середина→открыто');
+check('закрытие тоже проигрывается', await (async () => {
+  const moved = await p.evaluate(async () => {
+    const panel = document.querySelector('.msg-profile-panel');
+    document.querySelector('.msg-profile-scrim').click();
+    await new Promise((r) => setTimeout(r, 90));
+    const mid = panel.getBoundingClientRect().left;
+    await new Promise((r) => setTimeout(r, 400));
+    return { mid, end: panel.getBoundingClientRect().left };
+  });
+  return moved.mid < moved.end - 5;
+})());
 
 console.log('\n── Оболочка открывает чат по уведомлению ──');
 await p.evaluate(() => window.Messenger.openChat('u2'));
@@ -801,6 +834,41 @@ check('поднятое поле лента учитывает целиком', 
 check('последнее сообщение и с вырезом остаётся над полем', (await gap()) >= 0, 'зазор ' + (await gap()));
 await p.locator('.msg-action-bar-close').click();
 await p.waitForTimeout(300);
+await p.locator('.msg-back-btn').click();
+await p.waitForTimeout(400);
+
+console.log('\n── Шапка чата на телефоне ──');
+await p.locator('.msg-contact').first().click();
+await p.waitForTimeout(400);
+check('трёх точек в шапке больше нет', await p.locator('.msg-mob-dots').count() === 0);
+check('собеседник виден, пока поиск закрыт',
+  await p.locator('.msg-chat-peer').isVisible()
+  && await p.evaluate(() => document.querySelector('.msg-chat-peer').getBoundingClientRect().width > 100));
+
+const peerBox = () => p.evaluate(() => {
+  const r = document.querySelector('.msg-chat-peer').getBoundingClientRect();
+  const s2 = document.querySelector('.msg-chat-search-wrap').getBoundingClientRect();
+  return { pw: Math.round(r.width), po: Number(getComputedStyle(document.querySelector('.msg-chat-peer')).opacity),
+    overlap: Math.round(Math.min(r.right, s2.right) - Math.max(r.left, s2.left)) };
+});
+await p.locator('.msg-header-btn').click();
+await p.waitForTimeout(120);
+const mid = await peerBox();
+check('собеседник уходит постепенно, а не мигает', mid.po > 0 && mid.po < 1, 'прозрачность ' + mid.po);
+await p.waitForTimeout(500);
+const done = await peerBox();
+check('на открытом поиске собеседника не видно', done.po === 0 && done.pw <= 1, JSON.stringify(done));
+check('поле поиска ни на что не наезжает', done.overlap <= 0, 'перекрытие ' + done.overlap + 'px');
+check('поиск занял освободившуюся строку',
+  await p.evaluate(() => {
+    const w = document.querySelector('.msg-chat-search-wrap').getBoundingClientRect().width;
+    return w > window.innerWidth * 0.6;
+  }));
+
+await p.locator('.msg-header-btn').click();
+await p.waitForTimeout(600);
+const back = await peerBox();
+check('после закрытия поиска собеседник возвращается', back.po === 1 && back.pw > 100, JSON.stringify(back));
 await p.locator('.msg-back-btn').click();
 await p.waitForTimeout(400);
 
