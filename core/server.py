@@ -98,23 +98,33 @@ def ensure_version():
     поэтому выкладка без рестарта тоже замечается."""
     build = _build_id()
     with get_file_lock(VERSION_FILE):
-        data = {}
+        data = None
         if VERSION_FILE.exists():
             try:
                 data = json.loads(VERSION_FILE.read_text(encoding='utf-8'))
             except Exception:
-                data = {}
-        if data.get('build') == build:
+                data = None
+        if isinstance(data, dict) and data.get('build') == build:
             return {'version': data.get('version', '?'), 'build': build}
-        # Первый запуск на этом файле: фиксируем отпечаток, не поднимая номер,
-        # иначе одно только добавление поля build дало бы лишний бамп.
-        version = data.get('version', '2.0') if 'build' not in data else _bump(data.get('version'))
+
+        if data is None:
+            # Файла нет или он испорчен — сверять не с чем и незачем: это
+            # установка с нуля, начинаем с базового номера.
+            version = '2.0'
+        elif 'build' not in data:
+            # Номер есть, отпечатка нет. Сверить не с чем, значит считаем, что
+            # файлы изменились. Ровно в этом состоянии находится выкладка,
+            # которая ставит саму авто-версию: не поднять здесь — значит
+            # прислать уведомление с той же версией, что уже стоит.
+            version = _bump(data.get('version'))
+        else:
+            version = _bump(data.get('version'))
         out = {'version': version, 'build': build}
         try:
             VERSION_FILE.write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
         except OSError:
             return out
-        if 'build' in data:
+        if data is not None:
             print(f"  [VERSION] {data.get('version')} -> {version} (файлы изменились)")
         return out
 
