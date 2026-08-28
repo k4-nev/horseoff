@@ -52,7 +52,7 @@ function Text({ value }) {
 
 function MessageRow({
   row, meId, avaOf, timeLabel, hidden, highlighted,
-  onCtx, onToggleReaction, onOpenImage, onPlayVideo, onJumpTo, rowRef,
+  onCtx, onToggleReaction, onOpenMedia, onJumpTo, rowRef,
 }) {
   const { m, isNew, isEnd, mine } = row;
   const side = mine ? 'mine' : 'theirs';
@@ -90,7 +90,7 @@ function MessageRow({
           </div>
         )}
 
-        <Attachments items={m.attachments} mine={mine} onOpenImage={onOpenImage} onPlayVideo={onPlayVideo} />
+        <Attachments items={m.attachments} mine={mine} onOpenMedia={onOpenMedia} />
 
         {m.text ? (
           <div className={'msg-bubble ' + side}>

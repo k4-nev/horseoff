@@ -30,7 +30,7 @@ const Skeleton = () => {
 
 export default function MessageList({
   messages, loading, meId, avaOf, search, highlightId,
-  onLoadMore, onCtx, onToggleReaction, onOpenImage, onPlayVideo, onJumpTo,
+  onLoadMore, onCtx, onToggleReaction, onOpenMedia, onJumpTo,
   scrollRef, upload,
 }) {
   const [unreadBelow, setUnreadBelow] = useState(0);
@@ -140,8 +140,7 @@ export default function MessageList({
                 highlighted={highlightId === row.m.id}
                 onCtx={onCtx}
                 onToggleReaction={onToggleReaction}
-                onOpenImage={onOpenImage}
-                onPlayVideo={onPlayVideo}
+                onOpenMedia={onOpenMedia}
                 onJumpTo={onJumpTo}
               />
             </div>

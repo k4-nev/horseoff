@@ -46,6 +46,16 @@ export default function App({ registerBridge }) {
   const [jumpTo, setJumpTo] = useState(null);
 
   const scrollRef = useRef(null);
+  const chatColRef = useRef(null);
+
+  /* Высоту поля ввода отдаём в CSS-переменную: от неё считается нижний отступ
+     ленты и место кнопки «вниз». Если человек стоял внизу — доезжаем снова,
+     иначе выросшее поле накрывает последнее сообщение. */
+  const onComposerHeight = useCallback((h) => {
+    if (chatColRef.current) chatColRef.current.style.setProperty('--msg-composer-h', h + 'px');
+    const el = scrollRef.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
+  }, []);
   const inputRef = useRef(null);
   const offset = useRef(0);
   const loadingMore = useRef(false);
@@ -490,7 +500,7 @@ export default function App({ registerBridge }) {
         onMenu={(e, c) => setContactMenu({ x: e.clientX, y: e.clientY, contact: c })}
       />
 
-      <div className={'msg-chat' + (chat ? ' mobile-open' : '')}>
+      <div className={'msg-chat' + (chat ? ' mobile-open' : '')} ref={chatColRef}>
         {!chat && (
           <div className="msg-chat-empty" style={{ display: 'flex' }}>
             <svg width="56" height="56" viewBox="0 0 32 32" fill="none" stroke="#ccc" strokeWidth="1">
@@ -601,8 +611,7 @@ export default function App({ registerBridge }) {
               onLoadMore={loadMore}
               onCtx={(e, m) => setMsgMenu({ x: e.clientX, y: e.clientY, msg: m })}
               onToggleReaction={(id, em) => wsSend({ type: 'react', chat: ck, msg_id: id, emoji: em })}
-              onOpenImage={(url) => setGallery({ url })}
-              onPlayVideo={(id) => setGallery({ video: id })}
+              onOpenMedia={(list, i) => setGallery({ items: list, index: i })}
               onJumpTo={(id) => setJumpTo(id)}
             />
 
@@ -615,6 +624,7 @@ export default function App({ registerBridge }) {
               onSend={doSend}
               onTyping={onTyping}
               inputRef={inputRef}
+              onHeight={onComposerHeight}
             />
           </div>
         )}
@@ -626,8 +636,7 @@ export default function App({ registerBridge }) {
         meId={me.id}
         reloadKey={attachKey}
         onClose={() => setProfileOpen(false)}
-        onOpenImage={(url) => setGallery({ url })}
-        onPlayVideo={(id) => setGallery({ video: id })}
+        onOpenMedia={(list, i) => setGallery({ items: list, index: i })}
         onJumpTo={(id) => { setProfileOpen(false); setTimeout(() => setJumpTo(id), 200); }}
         onClear={() => contact && setConfirm({ id: contact.id, name: displayName(contact) })}
       />

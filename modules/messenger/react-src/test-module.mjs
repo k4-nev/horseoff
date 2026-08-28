@@ -51,7 +51,18 @@ await p.route('**/api/**', (route) => {
   if (u.includes('/api/profile')) return j({ username: 'k4nev', role: 'arcana', id: 'me', display_name: 'Костя', avatar: null });
   if (u.includes('/api/modules')) return j(MODULES);
   if (u.includes('/api/version')) return j({ version: '2.334', build: 'b1' });
-  if (u.includes('/api/msg/attachments')) return j([]);
+  if (u.includes('/api/msg/attachments')) {
+    const t = new URL(u).searchParams.get('type');
+    const T0 = Math.floor(Date.now() / 1000);
+    if (t === 'image') return j([
+      { id: 'a1', type: 'image', name: 'один.jpg', size: 1000, time: T0, msg_id: 'm1' },
+      { id: 'a2', type: 'image', name: 'два.jpg', size: 2000, time: T0 - 90000, msg_id: 'm2' },
+    ]);
+    if (t === 'video') return j([{ id: 'a3', type: 'video', name: 'клип.mp4', size: 9000, duration: 12, time: T0 - 60, msg_id: 'm3' }]);
+    if (t === 'audio') return j([{ id: 'a4', type: 'audio', name: 'voice_1.webm', duration: 7, time: T0, msg_id: 'm4' }]);
+    if (t === 'file') return j([{ id: 'a5', type: 'file', name: 'отчёт.pdf', size: 51200, time: T0, msg_id: 'm4' }]);
+    return j([]);
+  }
   if (u.includes('/api/msg/contacts')) return j({ contacts: [] });
   return j({ status: 'ok' });
 });
@@ -255,7 +266,45 @@ check('имя и логин на месте',
   (await p.locator('.msg-profile-name').textContent()) === 'Мысика'
   && (await p.locator('.msg-profile-username').textContent()) === '@mysika');
 check('вкладок вложений три', await p.locator('.msg-profile-tab').count() === 3);
-check('пустые вложения подписаны', (await p.locator('.msg-profile-attach-empty').textContent()).includes('Пусто'));
+check('медиа загрузились, а не «Пусто»', await p.locator('.msg-profile-attach-empty').count() === 0);
+check('фото и видео вместе, с разбивкой по датам',
+  (await p.locator('.msg-profile-attach-item').count()) === 3
+  && (await p.locator('.msg-profile-date-header').count()) === 2);
+await p.locator('.msg-profile-tab', { hasText: 'Аудио' }).click();
+await p.waitForTimeout(400);
+check('аудио загрузилось', await p.locator('.msg-profile-audio-item').count() === 1);
+check('голосовое подписано как голосовое', (await p.locator('.msg-profile-audio-name').textContent()) === 'Голосовое');
+await p.locator('.msg-profile-tab', { hasText: 'Файлы' }).click();
+await p.waitForTimeout(400);
+check('файлы загрузились', await p.locator('.msg-profile-attach-file').count() === 1);
+check('у файла имя и размер',
+  (await p.locator('.msg-profile-file-name').textContent()).includes('отчёт')
+  && (await p.locator('.msg-profile-file-meta').textContent()).includes('50'));
+await p.locator('.msg-profile-tab', { hasText: 'Медиа' }).click();
+await p.waitForTimeout(400);
+
+console.log('\n── Просмотрщик листает ──');
+await p.locator('.msg-profile-attach-item').first().click();
+await p.waitForTimeout(400);
+check('просмотрщик открылся', await p.locator('.msg-gallery-overlay.active').count() === 1);
+check('счётчик показывает место в пачке', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '1/3');
+check('стрелки обе на месте', await p.locator('.msg-gallery-nav').count() === 2);
+await p.locator('.msg-gallery-nav.next').click();
+await p.waitForTimeout(250);
+check('вперёд листает', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '2/3');
+check('видео в пачке открывается видео, а не картинкой', await p.locator('.msg-gallery-overlay video').count() === 1);
+await p.keyboard.press('ArrowRight');
+await p.waitForTimeout(250);
+check('стрелка на клавиатуре тоже листает', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '3/3');
+await p.keyboard.press('ArrowRight');
+await p.waitForTimeout(250);
+check('с конца уходит в начало', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '1/3');
+await p.locator('.msg-gallery-nav.prev').click();
+await p.waitForTimeout(250);
+check('назад с начала уходит в конец', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '3/3');
+await p.keyboard.press('Escape');
+await p.waitForTimeout(300);
+check('Esc закрыл просмотрщик', await p.locator('.msg-gallery-overlay.active').count() === 0);
 await p.keyboard.press('Escape');
 await p.waitForTimeout(400);
 check('Esc закрыл панель', await p.locator('.msg-profile.open').count() === 0);
@@ -303,6 +352,69 @@ check('список тянется до самого низа',
     const r = document.querySelector('.msg-contacts').getBoundingClientRect();
     return r.bottom >= window.innerHeight - 1;
   }));
+
+/* Лента отступает под реальную высоту поля ввода: полоска ответа и превью
+   вложений раздвигают его, и на телефоне последнее сообщение уезжало под низ. */
+const gap = () => p.evaluate(() => {
+  const rows = document.querySelectorAll('.msg-row');
+  const last = rows[rows.length - 1];
+  if (!last) return null;
+  return Math.round(document.querySelector('.msg-input-area').getBoundingClientRect().top
+    - last.getBoundingClientRect().bottom);
+});
+
+console.log('\n── Последнее сообщение не уходит под ввод ──');
+await p.locator('.msg-contact').first().click();
+await p.waitForTimeout(300);
+/* Ленту надо переполнить: на пустом экране сообщения и так висят сверху,
+   и баг с накрытием не воспроизводится. */
+const LONG = Array.from({ length: 40 }, (_, k) => ({
+  id: 'L' + k, from: k % 3 === 0 ? 'me' : 'u1', from_name: k % 3 === 0 ? 'Костя' : 'Мысика',
+  text: 'Строка истории номер ' + k, time: T - 4000 + k * 60, read: true,
+}));
+await p.evaluate((h) => window.__recv({ type: 'history', offset: 0, messages: h }), LONG);
+await p.waitForTimeout(600);
+check('лента переполнена — есть что скрывать под вводом',
+  await p.evaluate(() => { const el = document.querySelector('.msg-messages'); return el.scrollHeight > el.clientHeight + 100; }));
+const g1 = await gap();
+check('последнее сообщение выше поля ввода', g1 !== null && g1 >= 0, 'зазор ' + g1);
+check('лента доехала до низа',
+  await p.evaluate(() => { const el = document.querySelector('.msg-messages'); return el.scrollHeight - el.scrollTop - el.clientHeight < 4; }));
+
+await p.evaluate(() => window.__recv({
+  type: 'message', chat: 'me_u1',
+  msg: { id: 'tail1', from: 'u1', from_name: 'Мысика', text: 'Свежее сообщение', time: Math.floor(Date.now() / 1000) },
+}));
+await p.waitForTimeout(500);
+const g2 = await gap();
+check('пришедшее сообщение тоже видно целиком', g2 !== null && g2 >= 0, 'зазор ' + g2);
+
+await p.locator('.msg-row[data-msgid="tail1"]').click({ button: 'right' });
+await p.waitForTimeout(300);
+await p.locator('.msg-ctx-action', { hasText: 'Ответить' }).click();
+await p.waitForTimeout(500);
+check('полоска ответа раздвинула поле, но не накрыла сообщение',
+  (await p.locator('.msg-action-bar.reply').count()) === 1 && (await gap()) >= 0, 'зазор ' + (await gap()));
+/* Самый злой случай: полоска ответа плюс многострочный текст — поле ввода
+   вырастает в разы, и фиксированный отступ ленту уже не спасает. */
+await p.locator('.msg-input').fill(Array.from({ length: 8 }, (_, k) => 'строка ответа номер ' + k).join('\n'));
+await p.waitForTimeout(600);
+const tall = await p.evaluate(() => document.querySelector('.msg-input-area').offsetHeight);
+check('поле ввода действительно выросло', tall > 110, 'высота ' + tall);
+check('лента всё равно кончается выше поля', (await gap()) >= 0, 'зазор ' + (await gap()));
+await p.locator('.msg-input').fill('');
+await p.waitForTimeout(400);
+
+check('отступ ленты считается от высоты поля ввода',
+  await p.evaluate(() => {
+    const chat = document.querySelector('.msg-chat');
+    const h = parseInt(getComputedStyle(chat).getPropertyValue('--msg-composer-h'), 10);
+    return h > 0 && Math.abs(h - document.querySelector('.msg-input-area').offsetHeight) <= 1;
+  }));
+await p.locator('.msg-action-bar-close').click();
+await p.waitForTimeout(300);
+await p.locator('.msg-back-btn').click();
+await p.waitForTimeout(400);
 
 await p.screenshot({ path: 'shot-mobile.png' });
 await p.setViewportSize({ width: 1440, height: 900 });

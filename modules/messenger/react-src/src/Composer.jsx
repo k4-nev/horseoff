@@ -80,7 +80,7 @@ const TrashIco = () => (
 export default function Composer({
   files, setFiles, reply, edit, forward,
   onCancelReply, onCancelEdit, onCancelForward,
-  onSend, onTyping, inputRef,
+  onSend, onTyping, inputRef, onHeight,
 }) {
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -134,8 +134,23 @@ export default function Composer({
 
   const bar = edit ? null : (reply || forward);
 
+  /* Лента отступает снизу ровно на высоту поля ввода: оно растёт от полоски
+     ответа, превью вложений и многострочного текста, а на iOS ещё и от
+     safe-area — с фиксированным отступом последнее сообщение уходило под него. */
+  const rootRef = useRef(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return undefined;
+    const report = () => onHeight && onHeight(el.offsetHeight);
+    report();
+    if (!window.ResizeObserver) return undefined;
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onHeight]);
+
   return (
-    <div className="msg-input-area">
+    <div className="msg-input-area" ref={rootRef}>
       {emojiOpen && (
         <div className="msg-emoji-picker" style={{ display: 'grid' }} ref={emojiRef}>
           {EMOJIS.map((e) => (

@@ -5,6 +5,23 @@ import { EMOJIS, TOP_REACTIONS, TWO_DAYS, attUrl } from './lib.js';
    просмотрщик. Раньше каждое создавалось через createElement + innerHTML и
    вешало свой одноразовый слушатель на document. */
 
+/* Слушатели на document вешаем один раз на открытие, а обработчик держим в
+   ref. Иначе так: onClose приходит новой стрелкой на каждый рендер, попадает в
+   зависимости эффекта, и когда соседний оверлей закрывается по тому же Escape,
+   React успевает переподписать нас прямо посреди dispatch — снятый listener
+   браузер уже пропускает, и второй оверлей Escape не видит. Ровно так
+   просмотрщик не закрывался, пока открыта панель профиля. */
+function useDocEvent(active, type, handler, opts) {
+  const ref = useRef(handler);
+  ref.current = handler;
+  useEffect(() => {
+    if (!active) return undefined;
+    const fn = (e) => ref.current(e);
+    document.addEventListener(type, fn, opts);
+    return () => document.removeEventListener(type, fn, opts);
+  }, [active, type]);
+}
+
 /** Меню держим в границах экрана: у длинного списка иначе уезжает низ. */
 function useFit(open) {
   const ref = useRef(null);
@@ -23,15 +40,15 @@ function useFit(open) {
 
 export function MsgMenu({ open, meId, onClose, onAction, onMore }) {
   const [ref, pos] = useFit(open);
+  /* Клик слушаем не сразу: тот, что открыл меню, ещё всплывает */
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
-    if (!open) return undefined;
-    const close = () => onClose();
-    const key = (e) => { if (e.key === 'Escape') onClose(); };
-    // Слушателя вешаем на следующий тик: клик, открывший меню, ещё всплывает
-    const t = setTimeout(() => document.addEventListener('click', close), 0);
-    document.addEventListener('keydown', key);
-    return () => { clearTimeout(t); document.removeEventListener('click', close); document.removeEventListener('keydown', key); };
-  }, [open, onClose]);
+    if (!open) { setArmed(false); return undefined; }
+    const t = setTimeout(() => setArmed(true), 0);
+    return () => clearTimeout(t);
+  }, [open]);
+  useDocEvent(armed, 'click', () => onClose());
+  useDocEvent(!!open, 'keydown', (e) => { if (e.key === 'Escape') onClose(); });
 
   if (!open) return null;
   const m = open.msg;
@@ -79,14 +96,15 @@ export function ReactionPicker({ msg, onPick, onClose }) {
 
 export function ContactMenu({ open, onClose, onAction }) {
   const [ref, pos] = useFit(open);
+  /* Клик слушаем не сразу: тот, что открыл меню, ещё всплывает */
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
-    if (!open) return undefined;
-    const close = () => onClose();
-    const key = (e) => { if (e.key === 'Escape') onClose(); };
-    const t = setTimeout(() => document.addEventListener('click', close), 0);
-    document.addEventListener('keydown', key);
-    return () => { clearTimeout(t); document.removeEventListener('click', close); document.removeEventListener('keydown', key); };
-  }, [open, onClose]);
+    if (!open) { setArmed(false); return undefined; }
+    const t = setTimeout(() => setArmed(true), 0);
+    return () => clearTimeout(t);
+  }, [open]);
+  useDocEvent(armed, 'click', () => onClose());
+  useDocEvent(!!open, 'keydown', (e) => { if (e.key === 'Escape') onClose(); });
 
   if (!open) return null;
   const c = open.contact;
@@ -108,12 +126,7 @@ export function ContactMenu({ open, onClose, onAction }) {
 }
 
 export function Confirm({ open, onClose, onOk }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const key = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [open, onClose]);
+  useDocEvent(!!open, 'keydown', (e) => { if (e.key === 'Escape') onClose(); });
   if (!open) return null;
   return (
     <div className="msg-confirm-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -131,21 +144,63 @@ export function Confirm({ open, onClose, onOk }) {
   );
 }
 
-/** Просмотрщик: одно и то же окно для картинки и видео. */
+/** Просмотрщик: одно окно на картинку и видео, с листанием по всей пачке —
+    вложениям сообщения или всей вкладке «Медиа». */
 export function Gallery({ open, onClose }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const key = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [open, onClose]);
-  if (!open) return null;
+  const items = open ? open.items : null;
+  const [i, setI] = useState(0);
+  const touch = useRef(null);
+
+  useEffect(() => { if (open) setI(open.index || 0); }, [open]);
+
+  const n = items ? items.length : 0;
+  const step = (d) => setI((k) => (n ? (k + d + n) % n : 0));
+
+  useDocEvent(!!open, 'keydown', (e) => {
+    if (e.key === 'Escape') onClose();
+    else if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowRight') step(1);
+  });
+
+  if (!open || !n) return null;
+  const cur = items[Math.min(i, n - 1)];
+  const video = cur.type === 'video';
+
+  /* Свайп: на телефоне стрелки жать некуда, а пальцем листать привычно. */
+  const onStart = (e) => { touch.current = e.touches[0].clientX; };
+  const onEnd = (e) => {
+    if (touch.current == null) return;
+    const dx = e.changedTouches[0].clientX - touch.current;
+    touch.current = null;
+    if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+  };
+
+  const arrow = (dir) => (
+    <button
+      className={'msg-gallery-nav ' + (dir < 0 ? 'prev' : 'next')}
+      onClick={(e) => { e.stopPropagation(); step(dir); }}
+      aria-label={dir < 0 ? 'Предыдущее' : 'Следующее'}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points={dir < 0 ? '15 18 9 12 15 6' : '9 18 15 12 9 6'} />
+      </svg>
+    </button>
+  );
+
   return (
-    <div className="msg-gallery-overlay active" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="msg-gallery-overlay active"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onTouchStart={onStart}
+      onTouchEnd={onEnd}
+    >
       <button className="msg-gallery-close" onClick={onClose}>×</button>
-      {open.video
-        ? <video src={attUrl(open.video)} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
-        : <img className="msg-gallery-img" src={open.url} alt="" />}
+      {n > 1 && arrow(-1)}
+      {video
+        ? <video key={cur.id} src={attUrl(cur.id)} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+        : <img className="msg-gallery-img" key={cur.id} src={attUrl(cur.id)} alt="" />}
+      {n > 1 && arrow(1)}
+      {n > 1 && <div className="msg-gallery-count">{(i % n) + 1} / {n}</div>}
     </div>
   );
 }

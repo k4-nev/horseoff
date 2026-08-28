@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toggleAudio } from './audio.js';
-import { S, attUrl, chatKey, displayName, fmtDuration, fmtSize, groupByDate } from './lib.js';
+import { api, attUrl, chatKey, displayName, fmtDuration, fmtSize, groupByDate } from './lib.js';
 
 /* Панель профиля собеседника — выезжает справа поверх чата, тем же приёмом,
    что «Создать сервер» в модуле «Серверы». */
@@ -17,7 +17,7 @@ const EmptyIco = () => (
   </svg>
 );
 
-export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, onOpenImage, onPlayVideo, onJumpTo, onClear }) {
+export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, onOpenMedia, onJumpTo, onClear }) {
   const [tab, setTab] = useState('image');
   const [items, setItems] = useState(null);
 
@@ -29,7 +29,6 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
     let alive = true;
     if (!contact || !meId) { setItems(null); return undefined; }
     const ck = chatKey(meId, contact.id);
-    const api = S().api;
     setItems(null);
     (async () => {
       let d = (await api('/api/msg/attachments/' + ck + '?type=' + tab)) || [];
@@ -44,7 +43,7 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
 
   useEffect(() => {
     if (!open) return undefined;
-    const key = (e) => { if (e.key === 'Escape') onClose(); };
+    const key = (e) => { console.log('PANEL key', e.key); if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
   }, [open, onClose]);
@@ -113,7 +112,7 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
                           <div
                             className="msg-profile-attach-item"
                             key={a.id}
-                            onClick={() => (a.type === 'video' ? onPlayVideo(a.id) : onOpenImage(attUrl(a.id)))}
+                            onClick={() => onOpenMedia(items, items.indexOf(a))}
                             onContextMenu={(e) => { e.preventDefault(); onJumpTo(a.msg_id); }}
                           >
                             <img src={attUrl(a.id, '/thumb')} loading="lazy" alt="" />

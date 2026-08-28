@@ -85,24 +85,26 @@ function AudioPlayer({ a, mine }) {
   );
 }
 
-export default function Attachments({ items, mine, onOpenImage, onPlayVideo }) {
+export default function Attachments({ items, mine, onOpenMedia }) {
   if (!items || !items.length) return null;
   const images = items.filter((a) => a.type === 'image');
   const videos = items.filter((a) => a.type === 'video');
   const audios = items.filter((a) => a.type === 'audio');
   const files = items.filter((a) => a.type === 'file');
+  /* Просмотрщик листает всю пачку сообщения в том же порядке, что и сетка */
+  const media = images.concat(videos);
 
   return (
     <>
-      {(images.length > 0 || videos.length > 0) && (
+      {media.length > 0 && (
         <div className="msg-att-grid">
-          {images.map((a) => (
-            <div className="msg-att-thumb" key={a.id} onClick={() => onOpenImage(attUrl(a.id))}>
+          {images.map((a, k) => (
+            <div className="msg-att-thumb" key={a.id} onClick={() => onOpenMedia(media, k)}>
               <img src={a._localUrl || attUrl(a.id, '/thumb')} loading="lazy" alt="" />
             </div>
           ))}
-          {videos.map((a) => (
-            <div className="msg-att-thumb msg-att-video" key={a.id} onClick={() => onPlayVideo(a.id)}>
+          {videos.map((a, k) => (
+            <div className="msg-att-thumb msg-att-video" key={a.id} onClick={() => onOpenMedia(media, images.length + k)}>
               <img src={attUrl(a.id, '/thumb')} loading="lazy" alt="" />
               <div className="msg-video-overlay">
                 <div className="msg-video-play">▶</div>

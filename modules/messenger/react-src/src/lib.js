@@ -8,6 +8,10 @@ export const S = () => window.Shell;
 
 export const chatKey = (a, b) => [a, b].sort().join('_');
 
+/* Только через обёртки: Shell.api внутри читает this.headers(), и оторванная
+   от объекта ссылка (const api = Shell.api) молча падает в catch и возвращает
+   null — так пропали вложения в панели профиля. */
+export const api = (url, opts) => { const s = S(); return s && s.api ? s.api(url, opts) : Promise.resolve(null); };
 export const wsSend = (m) => { const s = S(); if (s && s.wsSend) s.wsSend(m); };
 export const toast = (t, type) => { const s = S(); if (s && s.toast) s.toast(t, type); };
 export const buzz = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
