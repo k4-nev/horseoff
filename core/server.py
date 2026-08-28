@@ -370,6 +370,37 @@ def migrate_user_roles():
         save_users(users)
         print(f"  [MIGRATE] Roles updated for {len(users)} users")
 
+def migrate_module_ids():
+    """Переименования модулей: id в выданных доступах едет следом.
+
+    Иначе выдача просто перестаёт совпадать с существующими модулями и
+    пользователь тихо теряет доступ. Идемпотентна: если старого id уже нет,
+    файл не переписывается."""
+    renames = {'wb': 'mp'}
+    users = load_users()
+    changed = 0
+    for u in users:
+        mods = u.get('modules')
+        if not isinstance(mods, list):
+            continue
+        new = []
+        for m in mods:
+            new.append(renames.get(m, m))
+        # дубли, если новый id уже был выдан отдельно
+        seen, dedup = set(), []
+        for m in new:
+            if m not in seen:
+                seen.add(m)
+                dedup.append(m)
+        if dedup != mods:
+            u['modules'] = dedup
+            changed += 1
+    if changed:
+        save_users(users)
+        print(f"  [MIGRATE] Module ids updated for {changed} user(s): " +
+              ', '.join(f'{a}->{b}' for a, b in renames.items()))
+
+
 def find_user_by_id(uid):
     users = load_users()
     return next((u for u in users if u['id'] == uid), None)
@@ -2567,6 +2598,7 @@ def main():
     print("  HORSEOFF v2.187")
     print("=" * 50)
     migrate_user_roles()
+    migrate_module_ids()
     users = load_users()
     modules = discover_modules()
     print(f"  Users:   {len(users)} ({'SETUP REQUIRED' if not users else ', '.join(u['username'] for u in users)})")

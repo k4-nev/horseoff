@@ -92,7 +92,7 @@
   color: var(--adm-faint);
 }
 
-/* Объёмный дропдаун — референс wb-dd-btn */
+/* Объёмный дропдаун — референс mp-dd-btn */
 .adm-dd {
   position: relative;
 }
@@ -170,7 +170,7 @@
   font-weight: 700;
 }
 
-/* Вдавленный лоток — референс wb-btn-tray */
+/* Вдавленный лоток — референс mp-btn-tray */
 .adm-tray {
   display: inline-flex;
   align-items: center;

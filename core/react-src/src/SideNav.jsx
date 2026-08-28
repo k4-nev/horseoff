@@ -9,7 +9,7 @@ const TINT = {
   channels: '#2470c0',
   servers: '#4453c4',
   bots: '#6f47c0',
-  wb: '#b12a90',
+  mp: '#b12a90',
   valentine: '#cc3d64',
   admin: '#4e5f79',
   tasks: '#a86c0a',
@@ -24,7 +24,7 @@ const PROFILE_TINT = '#4e5661';
    отдельного набора у навигации нет и быть не должно. */
 const ICON = {
   servers: 'servers', users: 'users', messenger: 'messenger', channels: 'channels',
-  valentine: 'valentine', bots: 'bots', wb: 'wb',
+  valentine: 'valentine', bots: 'bots', mp: 'mp',
 };
 
 const MOBILE = '(max-width: 768px)';

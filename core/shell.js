@@ -121,7 +121,7 @@ const Shell = {
           if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
           // Forward to bots
           if (window.Bots && Bots.onWS) Bots.onWS(data);
-          if (window.WB && WB.onWS) WB.onWS(data);
+          if (window.MP && MP.onWS) MP.onWS(data);
           // Valentine badge (when module not active)
           if (data.type === 'valentine' && this.activeModule !== 'valentine') {
             this._uiEmit({ valentine: (this._uiState.valentine || 0) + 1 });
@@ -432,7 +432,7 @@ const Shell = {
   },
 
   /* Событие, на которое можно нажать. Имя оставлено прежним — его зовут
-     модули (wb.js), и оно же несёт обновление приложения. */
+     модули (mp.js), и оно же несёт обновление приложения. */
   notify(opts) {
     opts = opts || {};
     return this._push({

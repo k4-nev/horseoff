@@ -1,0 +1,62 @@
+<div class="mp-wrap" id="mpWrap">
+
+  <!-- ═══ SIDEBAR: серверы ═══ -->
+  <aside class="mp-side" id="mpSide">
+    <div class="mp-side-head">
+      <span class="mp-side-title">MP продвижение</span>
+      <div class="mp-side-actions">
+        <button class="mp-ico-btn" id="mpDemoToggle" onclick="MP.toggleTestServer()" title="Тестовый сервер">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+        </button>
+        <button class="mp-ico-btn" onclick="MP.addServer()" title="Добавить сервер">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="mp-side-list" id="mpServerList"></div>
+    <div class="mp-side-foot" id="mpSideFoot"><b>0</b> / 0 онлайн</div>
+  </aside>
+
+  <!-- затемнение+блюр модуля когда открыт сайдбар серверов -->
+  <div class="mp-backdrop" id="mpBackdrop" onclick="MP.closeSide()"></div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="mp-main">
+    <div class="mp-head">
+      <div class="mp-head-card">
+        <div class="mp-hd-left">
+          <button class="mp-hd-srv" onclick="MP.toggleSide()" title="Серверы">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </button>
+          <span class="mp-hd-dot" id="mpHeadDot"></span>
+          <span class="mp-hd-name" id="mpHeadName">Сервер не выбран</span>
+        </div>
+        <div class="mp-hd-seg" id="mpTabs" role="tablist">
+          <button class="mp-hd-tab active" data-tab="accounts"  onclick="MP.switchTab('accounts')" role="tab">Аккаунты</button>
+          <button class="mp-hd-tab" data-tab="reg"       onclick="MP.switchTab('reg')" role="tab">Регистратор</button>
+          <button class="mp-hd-tab" data-tab="warmup"    onclick="MP.switchTab('warmup')" role="tab">Прогрев</button>
+          <button class="mp-hd-tab" data-tab="purchases" onclick="MP.switchTab('purchases')" role="tab">Покупки</button>
+          <button class="mp-hd-tab" data-tab="pickup"    onclick="MP.switchTab('pickup')" role="tab">Получение</button>
+          <button class="mp-hd-tab" data-tab="reviews"   onclick="MP.switchTab('reviews')" role="tab">Отзывы</button>
+          <button class="mp-hd-tab" data-tab="stats"     onclick="MP.switchTab('stats')" role="tab">Статистика</button>
+        </div>
+        <div class="mp-hd-count" id="mpHeadCount"></div>
+      </div>
+    </div>
+
+    <div class="mp-ws" id="mpWorkspace">
+      <div class="mp-pane active" id="mpPane-accounts"></div>
+      <div class="mp-pane" id="mpPane-reg"></div>
+      <div class="mp-pane" id="mpPane-warmup"></div>
+      <div class="mp-pane" id="mpPane-purchases"></div>
+      <div class="mp-pane" id="mpPane-pickup"></div>
+      <div class="mp-pane" id="mpPane-reviews"></div>
+      <div class="mp-pane" id="mpPane-stats"></div>
+    </div>
+  </div>
+
+  <!-- модалка -->
+  <div class="mp-modal-ov" id="mpModal" onclick="if(event.target===this)MP.closeModal()">
+    <div class="mp-modal" id="mpModalBox"></div>
+  </div>
+</div>
