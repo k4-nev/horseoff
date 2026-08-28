@@ -249,17 +249,23 @@ try {
   check('лупа и ввод внутри одного поля',
     await ps.locator('.adm-search .ho-search-ic').count() === 1
     && await ps.locator('.adm-search input').count() === 1);
-  check('палитра поля — фиолетовая админская, а не цвета приложения',
-    await ps.evaluate(() => {
-      const sh = getComputedStyle(document.querySelector('.adm-shell'));
-      const ring = sh.getPropertyValue('--search-ring').trim();
-      const app = getComputedStyle(document.body).getPropertyValue('--accent').trim();
-      return ring === sh.getPropertyValue('--adm-accent').trim() && ring !== app;
-    }),
-    await ps.evaluate(() => {
-      const sh = getComputedStyle(document.querySelector('.adm-shell'));
-      return sh.getPropertyValue('--search-ring').trim() + ' против ' + getComputedStyle(document.body).getPropertyValue('--accent').trim();
-    }));
+  const ADM_LOOK = await ps.evaluate((sel) => {
+      const f = document.querySelector(sel);
+      const i = f.querySelector('input');
+      const fs = getComputedStyle(f);
+      const is = getComputedStyle(i);
+      return [
+        fs.backgroundColor,
+        fs.borderRadius,
+        Math.round(f.getBoundingClientRect().height) + 'px',
+        fs.boxShadow,
+        is.color,
+        is.fontSize,
+        is.fontFamily.split(',')[0].replace(/["']/g, ''),
+      ].join(' | ');
+    }, '.adm-search');
+  console.log('        эталон: ' + ADM_LOOK);
+  check('поле выглядит ровно так, как задумано в модуле', ADM_LOOK === 'rgb(246, 244, 251) | 10px | 36px | rgba(45, 30, 70, 0.1) 0px 2px 4px 0px inset, rgba(255, 255, 255, 0.7) 0px -1px 0px 0px inset, rgba(45, 30, 70, 0.05) 0px 0px 0px 0.5px | rgb(31, 26, 43) | 12.6px | Inter', ADM_LOOK);
   check('ширина поля осталась прежней',
     await ps.evaluate(() => Math.round(document.querySelector('.adm-search').getBoundingClientRect().width)) === 220,
     String(await ps.evaluate(() => Math.round(document.querySelector('.adm-search').getBoundingClientRect().width))));

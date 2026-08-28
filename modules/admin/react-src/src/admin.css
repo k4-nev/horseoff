@@ -62,17 +62,7 @@
 }
 
 /* Поиск — общий компонент каркаса (core/react-src/src/shared/SearchField).
-   Здесь только палитра: у админки своя, фиолетовая, а не цвета приложения. */
-.adm-shell {
-  --search-bg: var(--adm-surface2);
-  --search-ink: var(--adm-text);
-  --search-faint: var(--adm-faint);
-  --search-ring: var(--adm-accent);
-  --search-inset: rgba(45, 30, 70, 0.1);
-  --search-inset-focus: rgba(45, 30, 70, 0.14);
-  --search-edge: rgba(45, 30, 70, 0.05);
-  --search-hover: rgba(45, 30, 70, 0.07);
-}
+   Его вид списан отсюда, поэтому переопределять нечего: только ширина. */
 .adm-search { width: 220px; }
 
 /* Объёмный дропдаун — референс mp-dd-btn */

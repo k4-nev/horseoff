@@ -1,5 +1,10 @@
-/* Вид поля поиска. Значения по умолчанию — токены приложения; модуль со
-   своей палитрой переопределяет --search-* на своём контейнере. */
+/* Вид поля поиска взят из админки один в один: форма, цвет, шрифт. Это и
+   есть эталон — остальные модули не переопределяют ничего, кроме ширины,
+   иначе «общий компонент» снова разъедется на три похожих.
+
+   Переменные --search-* оставлены точкой настройки на случай модуля с
+   принципиально другой основой (не белой), но по умолчанию все получают
+   ровно то же поле, что стоит в «Пользователях». */
 .ho-search {
   display: flex;
   align-items: center;
@@ -9,19 +14,19 @@
   padding: 0 11px;
   border: none;
   border-radius: var(--search-radius, 10px);
-  background: var(--search-bg, var(--surface2));
-  color: var(--search-faint, var(--text-dim));
+  background: var(--search-bg, #f6f4fb);
+  color: var(--search-faint, #9c93ac);
   box-shadow:
-    inset 0 2px 4px var(--search-inset, rgba(23, 33, 54, 0.1)),
+    inset 0 2px 4px var(--search-inset, rgba(45, 30, 70, 0.1)),
     inset 0 -1px 0 var(--search-hi, rgba(255, 255, 255, 0.7)),
-    0 0 0 0.5px var(--search-edge, rgba(23, 33, 54, 0.06));
+    0 0 0 0.5px var(--search-edge, rgba(45, 30, 70, 0.05));
   transition: box-shadow 0.19s cubic-bezier(0.4, 0.12, 0.2, 1);
 }
 .ho-search:focus-within {
   box-shadow:
-    inset 0 2px 4px var(--search-inset-focus, rgba(23, 33, 54, 0.14)),
+    inset 0 2px 4px var(--search-inset-focus, rgba(45, 30, 70, 0.14)),
     inset 0 -1px 0 var(--search-hi, rgba(255, 255, 255, 0.7)),
-    0 0 0 1.5px var(--search-ring, var(--accent));
+    0 0 0 1.5px var(--search-ring, #6d4fc7);
 }
 
 .ho-search input {
@@ -31,11 +36,12 @@
   background: none;
   border: none;
   outline: none;
-  font: inherit;
+  font-family: 'Inter', -apple-system, sans-serif;
   font-size: var(--search-size, 12.6px);
-  color: var(--search-ink, var(--text));
+  font-weight: 400;
+  color: var(--search-ink, #1f1a2b);
 }
-.ho-search input::placeholder { color: var(--search-faint, var(--text-dim)); }
+.ho-search input::placeholder { color: var(--search-faint, #9c93ac); }
 
 .ho-search-ic {
   flex: none;
@@ -63,6 +69,6 @@
   opacity: 0.65;
   transition: opacity 0.15s, background 0.15s;
 }
-.ho-search-clear:hover { opacity: 1; background: var(--search-hover, rgba(23, 33, 54, 0.07)); }
+.ho-search-clear:hover { opacity: 1; background: var(--search-hover, rgba(45, 30, 70, 0.07)); }
 .ho-search-clear svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.ho-search-clear:focus-visible { outline: 2px solid var(--search-ring, var(--accent)); outline-offset: 1px; }
+.ho-search-clear:focus-visible { outline: 2px solid var(--search-ring, #6d4fc7); outline-offset: 1px; }

@@ -292,12 +292,40 @@ check('поле поиска по переписке — оно же',
 check('счётчик и стрелки живут в правом слоте, а не в отдельной обёртке',
   await p.locator('.msg-chat-search > .msg-search-count').count() === 1
   && await p.locator('.msg-chat-search > .msg-search-nav-btn').count() === 2);
-check('подсветка фокуса берёт акцент приложения',
-  await p.evaluate(() => {
-    const el = document.querySelector('.msg-search-field');
-    return getComputedStyle(el).getPropertyValue('--search-ring').trim() === ''
-      && getComputedStyle(document.body).getPropertyValue('--accent').trim() === '#4c4fd8';
-  }));
+/* Форма, цвет и шрифт списаны с поля в «Пользователях». Строка ниже —
+   тот же слепок, что сверяет админский набор: разъедутся — упадут оба. */
+const LOOK = await p.evaluate((sel) => {
+      const f = document.querySelector(sel);
+      const i = f.querySelector('input');
+      const fs = getComputedStyle(f);
+      const is = getComputedStyle(i);
+      return [
+        fs.backgroundColor,
+        fs.borderRadius,
+        Math.round(f.getBoundingClientRect().height) + 'px',
+        fs.boxShadow,
+        is.color,
+        is.fontSize,
+        is.fontFamily.split(',')[0].replace(/["']/g, ''),
+      ].join(' | ');
+    }, '.msg-search-field');
+check('поле один в один как в админке', LOOK === 'rgb(246, 244, 251) | 10px | 36px | rgba(45, 30, 70, 0.1) 0px 2px 4px 0px inset, rgba(255, 255, 255, 0.7) 0px -1px 0px 0px inset, rgba(45, 30, 70, 0.05) 0px 0px 0px 0.5px | rgb(31, 26, 43) | 12.6px | Inter', LOOK);
+check('поиск по переписке выглядит так же, как по контактам',
+  (await p.evaluate((sel) => {
+      const f = document.querySelector(sel);
+      const i = f.querySelector('input');
+      const fs = getComputedStyle(f);
+      const is = getComputedStyle(i);
+      return [
+        fs.backgroundColor,
+        fs.borderRadius,
+        Math.round(f.getBoundingClientRect().height) + 'px',
+        fs.boxShadow,
+        is.color,
+        is.fontSize,
+        is.fontFamily.split(',')[0].replace(/["']/g, ''),
+      ].join(' | ');
+    }, '.msg-chat-search')) === LOOK);
 
 await p.locator('.msg-search-field input').fill('разраб');
 await p.waitForTimeout(250);
