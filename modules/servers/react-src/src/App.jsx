@@ -477,7 +477,7 @@ export default function App({ registerHandlers }) {
           rows
         )}
       </div>
-      <div className="srv-footer"><span className="app-version">v2.235</span> · Created by k4nev with the support of mysika</div>
+      <div className="srv-footer"><span className="app-version" /> · Created by k4nev with the support of mysika</div>
 
       <CreateModal open={modal?.type === 'create'} onClose={() => setModal(null)} onSubmit={submitCreate} />
       <AddModal open={modal?.type === 'add'} onClose={() => setModal(null)} onSubmit={submitAdd} />

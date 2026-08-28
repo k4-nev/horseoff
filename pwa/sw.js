@@ -1,15 +1,18 @@
-const VERSION = 'horseoff-v2.332';
-const CACHE = VERSION;
+// Имя кэша больше не содержит версию. Раньше её приходилось бампать здесь
+// руками вслед за core/version.json, и она регулярно отставала. Смысла в
+// версии тут нет: обработчик fetch ходит в сеть первым (cache:'no-cache'),
+// а кэш нужен только как запасной вариант в офлайне. Свежесть обеспечивает
+// сеть, а не имя кэша.
+const CACHE = 'horseoff';
 
 self.addEventListener('install', e => { self.skipWaiting(); });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
+    // Чистим кэши прежних версий, включая старые horseoff-v2.*
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({type: 'window'}))
-      .then(clients => clients.forEach(c => c.postMessage({type: 'sw-activated', version: VERSION})))
   );
 });
 

@@ -62,6 +62,10 @@ def _build_id():
             # Исходники React-модулей в браузер не едут — на сборку не влияют
             if 'react-src' in p.parts or 'node_modules' in p.parts:
                 continue
+            # version.json пишет сам сервер: попади он в отпечаток, запись
+            # меняла бы его mtime и версия росла бы на каждом запросе
+            if p.name == 'version.json':
+                continue
             try:
                 st = p.stat()
             except OSError:
@@ -72,6 +76,48 @@ def _build_id():
     _BUILD_CACHE['at'] = now
     _BUILD_CACHE['id'] = h.hexdigest()[:12]
     return _BUILD_CACHE['id']
+VERSION_FILE = CORE_DIR / "version.json"
+
+def _bump(version):
+    """Поднимаем последнюю компоненту номера: 2.333 → 2.334."""
+    parts = str(version or '2.0').split('.')
+    try:
+        parts[-1] = str(int(parts[-1]) + 1)
+    except ValueError:
+        parts.append('1')
+    return '.'.join(parts)
+
+def ensure_version():
+    """Единственное место, где живёт версия приложения.
+
+    Сервер сам сравнивает отпечаток выложенной статики с записанным и, если
+    они разошлись, поднимает номер. То есть версия растёт на каждое реальное
+    изменение файлов и не зависит от того, вспомнил ли человек её бампнуть.
+
+    Возвращает {'version', 'build'}. Дёргается на старте и из /api/version,
+    поэтому выкладка без рестарта тоже замечается."""
+    build = _build_id()
+    with get_file_lock(VERSION_FILE):
+        data = {}
+        if VERSION_FILE.exists():
+            try:
+                data = json.loads(VERSION_FILE.read_text(encoding='utf-8'))
+            except Exception:
+                data = {}
+        if data.get('build') == build:
+            return {'version': data.get('version', '?'), 'build': build}
+        # Первый запуск на этом файле: фиксируем отпечаток, не поднимая номер,
+        # иначе одно только добавление поля build дало бы лишний бамп.
+        version = data.get('version', '2.0') if 'build' not in data else _bump(data.get('version'))
+        out = {'version': version, 'build': build}
+        try:
+            VERSION_FILE.write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
+        except OSError:
+            return out
+        if 'build' in data:
+            print(f"  [VERSION] {data.get('version')} -> {version} (файлы изменились)")
+        return out
+
 USERS_FILE = DATA_DIR / "users.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 SESSIONS_FILE = DATA_DIR / "sessions.json"
@@ -1855,13 +1901,9 @@ class Handler(BaseHTTPRequestHandler):
 
         # Version
         if path == '/api/version':
-            out = {'version': '?'}
-            vf = CORE_DIR / 'version.json'
-            if vf.exists():
-                try: out.update(json.loads(vf.read_text()))
-                except: pass
-            out['build'] = _build_id()
-            return self._json(200, out)
+            # ensure_version сам поднимет номер, если файлы изменились —
+            # выкладка без рестарта тоже будет замечена
+            return self._json(200, ensure_version())
 
         if path.startswith('/locale/'):
             return self._serve_file(LOCALE_DIR / path.split('/locale/')[1], base_dir=LOCALE_DIR)
@@ -2595,7 +2637,7 @@ class Handler(BaseHTTPRequestHandler):
 # ============================================================
 def main():
     print("=" * 50)
-    print("  HORSEOFF v2.187")
+    print(f"  HORSEOFF v{ensure_version()['version']}")
     print("=" * 50)
     migrate_user_roles()
     migrate_module_ids()

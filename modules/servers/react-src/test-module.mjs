@@ -100,8 +100,10 @@ try {
   const p4 = await open(BASE); // arcana по умолчанию
   await p4.locator('button.srv-settings-btn').click();
   await p4.waitForTimeout(50);
-  const active30 = await p4.locator('.srv-interval-btn', { hasText: '30s' }).evaluate((el) => getComputedStyle(el).fontWeight);
-  check('дефолтный интервал 30s подсвечен (fontWeight 700)', active30 === '700', active30);
+  const active30 = await p4.locator('.srv-interval-btn', { hasText: '30s' }).getAttribute('class');
+  check('дефолтный интервал 30s отмечен', active30.includes('on'), active30);
+  check('и помечен для скринридера',
+    (await p4.locator('.srv-interval-btn', { hasText: '30s' }).getAttribute('aria-checked')) === 'true');
   await p4.locator('.srv-interval-btn', { hasText: '45s' }).click();
   await p4.waitForTimeout(50);
   const wsSent = await p4.evaluate(() => window.__wsSent.filter((m) => m.type === 'set_interval'));
@@ -269,15 +271,17 @@ try {
   const p9 = await open(BASE);
   await p9.locator('button.srv-settings-btn').click();
   await p9.waitForTimeout(150);
-  const statusBefore = await p9.locator('#srvSettingsModal span', { hasText: '✗' }).count();
-  check('изначально ключ не установлен (✗)', statusBefore >= 1);
+  const statusBefore = await p9.locator('.srv-key-state').textContent();
+  check('изначально ключ не задан', statusBefore === 'Ключ не задан', statusBefore);
   await p9.fill('#srvSettingsModal input[placeholder="API key..."]', 'ruvds-secret-key');
   await p9.locator('#srvSettingsModal .btn-secondary', { hasText: 'Сохранить' }).click();
   await p9.waitForTimeout(150);
   toasts = await p9.evaluate(() => window.__toasts);
   check('сохранение ключа -> toast "API-ключ сохранён"', toasts.some((t) => t.msg === 'API-ключ сохранён'));
-  const statusAfter = await p9.locator('#srvSettingsModal span', { hasText: '✓' }).count();
-  check('после сохранения статус стал ✓', statusAfter >= 1);
+  const statusAfter = await p9.locator('.srv-key-state').textContent();
+  check('после сохранения ключ отмечен как сохранённый', statusAfter === 'Ключ сохранён', statusAfter);
+  check('состояние подсвечено, а не только подписано',
+    (await p9.locator('.srv-key-state').getAttribute('class')).includes('on'));
   await p9.close();
 
   console.log('\n── Контекстное меню (right-click): Копировать / Переслать ──');
@@ -375,8 +379,8 @@ try {
   await p12.evaluate(() => window.Servers.onSettingsUpdate({ poll_interval: 60 }));
   await p12.locator('button.srv-settings-btn').click();
   await p12.waitForTimeout(50);
-  const highlighted60 = await p12.locator('.srv-interval-btn', { hasText: '60s' }).evaluate((el) => getComputedStyle(el).fontWeight);
-  check('входящий WS settings-пуш обновляет подсветку интервала', highlighted60 === '700', highlighted60);
+  const highlighted60 = await p12.locator('.srv-interval-btn', { hasText: '60s' }).getAttribute('class');
+  check('входящий WS settings-пуш переставляет отметку интервала', highlighted60.includes('on'), highlighted60);
   await p12.close();
 } finally {
   await browser.close();

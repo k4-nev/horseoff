@@ -73,7 +73,7 @@ export default function SettingsModal({ open, onClose, currentInterval, onSetInt
       <div className="srv-about">
         Horseoff — легковесная панель мониторинга серверов 3proxy.
         <div className="srv-about-v">
-          <span className="app-version">v2.235</span> · Created by k4nev with the support of mysika
+          <span className="app-version" /> · Created by k4nev with the support of mysika
         </div>
       </div>
     </Drawer>

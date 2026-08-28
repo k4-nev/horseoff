@@ -28,6 +28,17 @@ const Shell = {
      низ экрана занят полем ввода. На телефоне кнопка «Приложения» на это
      время убирается, чтобы не лезть под палец. Раньше ровно эту роль играло
      прятание нижней панели через document.querySelector('.sidebar'). */
+  /* Единственное место, где номер версии попадает в разметку модулей.
+     Модуль объявляет пустой <span class="app-version">, а ядро его
+     заполняет — и при загрузке версии, и при загрузке самого модуля.
+     Без второго вызова модули, открытые позже входа, оставались с тем,
+     что зашито у них в разметке. */
+  _stampVersion() {
+    if (!this.appVersion || this.appVersion === '?') return;
+    var v = 'v' + this.appVersion;
+    document.querySelectorAll('.app-version').forEach(function (el) { el.textContent = v; });
+  },
+
   setImmersive(on) {
     if (this._uiState.immersive === !!on) return;
     this._uiEmit({ immersive: !!on });
@@ -360,9 +371,7 @@ const Shell = {
     if (v && v.version) {
       this.appVersion = v.version;
       this._uiEmit({ version: v.version });
-      /* .app-version встречается и в разметке модулей — там его по-прежнему
-         проставляем напрямую, а каркас берёт версию из состояния. */
-      document.querySelectorAll('.app-version').forEach(el => el.textContent = 'v' + v.version);
+      this._stampVersion();
     }
     // Only switch to messenger if modules loaded
     if (this.modules.length > 0) {
@@ -579,6 +588,9 @@ const Shell = {
       content.appendChild(container);
       if (js) { var s = document.createElement('script'); s.textContent = js; container.appendChild(s); }
       this.loadedModules[id] = container;
+      /* Модуль подгружается позже входа, поэтому его .app-version надо
+         заполнить здесь — иначе останется то, что зашито в разметке. */
+      this._stampVersion();
     } catch(e) { content.innerHTML = '<div class="loading">Ошибка загрузки модуля</div>'; }
   },
 

@@ -405,6 +405,26 @@ try {
   await pp.evaluate(() => Shell.dismissNote());
   await pp.waitForTimeout(200);
 
+  console.log('\n── Версия проставляется в одном месте ──');
+  /* Оболочка заполняет .app-version и при загрузке версии, и при загрузке
+     модуля. Без второго прохода модули, открытые позже входа, оставались
+     с тем, что зашито у них в разметке. */
+  const ver = await pp.evaluate(async () => {
+    const host = document.getElementById('moduleContent');
+    const box = document.createElement('div');
+    box.className = 'module-container';
+    box.innerHTML = '<span class="app-version">ЗАШИТО</span>';
+    host.appendChild(box);
+    const before = box.querySelector('.app-version').textContent;
+    Shell._stampVersion();
+    const after = box.querySelector('.app-version').textContent;
+    box.remove();
+    return { before, after, state: Shell._uiState.version };
+  });
+  check('до прохода в разметке остаётся зашитое', ver.before === 'ЗАШИТО');
+  check('оболочка проставляет реальный номер', ver.after === 'v' + ver.state, JSON.stringify(ver));
+  check('номер тот же, что в состоянии ядра', ver.state === VERSION, ver.state);
+
   console.log('\n── Обновление приложения ──');
   /* Сравниваем сборку, а не номер версии: version.json правят руками и на
      деплое забывают — из-за этого уведомление не приходило вообще. */
