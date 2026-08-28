@@ -3,6 +3,7 @@ import ContactList from './ContactList.jsx';
 import MessageList from './MessageList.jsx';
 import Composer from './Composer.jsx';
 import ProfilePanel from './ProfilePanel.jsx';
+import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import Backdrop from './Backdrop.jsx';
 import { markLive, markReact, resetLive } from './live.js';
 import { Confirm, ContactMenu, Gallery, MsgMenu, ReactionPicker } from './Overlays.jsx';
@@ -540,30 +541,30 @@ export default function App({ registerBridge }) {
 
               <div className="msg-search-group">
                 <div className={'msg-chat-search-wrap' + (searchOpen ? ' open' : '')}>
-                  <div className="msg-search-inner">
-                    <input
-                      className="msg-search-input" placeholder="Поиск..." autoComplete="off"
-                      value={chatSearch}
-                      onChange={(e) => { setChatSearch(e.target.value); setSearchIdx(0); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') { setSearchOpen(false); setChatSearch(''); }
-                        if (e.key === 'Enter' && matches.length) {
-                          setSearchIdx((i) => (e.shiftKey
-                            ? (i - 1 + matches.length) % matches.length
-                            : (i + 1) % matches.length));
-                        }
-                      }}
-                    />
+                  <SearchField
+                    className="msg-chat-search"
+                    placeholder="Поиск по переписке…"
+                    value={chatSearch}
+                    onChange={(v) => { setChatSearch(v); setSearchIdx(0); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { setSearchOpen(false); setChatSearch(''); }
+                      if (e.key === 'Enter' && matches.length) {
+                        setSearchIdx((i) => (e.shiftKey
+                          ? (i - 1 + matches.length) % matches.length
+                          : (i + 1) % matches.length));
+                      }
+                    }}
+                  >
                     <span className={'msg-search-count' + (matches.length ? ' has-results' : '')}>
                       {chatSearch.trim() ? (matches.length ? (Math.min(searchIdx, matches.length - 1) + 1) + '/' + matches.length : '0') : ''}
                     </span>
-                    <button className="msg-search-nav-btn" onClick={() => matches.length && setSearchIdx((i) => (i - 1 + matches.length) % matches.length)}>
+                    <button className="msg-search-nav-btn" aria-label="Предыдущее совпадение" onClick={() => matches.length && setSearchIdx((i) => (i - 1 + matches.length) % matches.length)}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15" /></svg>
                     </button>
-                    <button className="msg-search-nav-btn" onClick={() => matches.length && setSearchIdx((i) => (i + 1) % matches.length)}>
+                    <button className="msg-search-nav-btn" aria-label="Следующее совпадение" onClick={() => matches.length && setSearchIdx((i) => (i + 1) % matches.length)}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
                     </button>
-                  </div>
+                  </SearchField>
                 </div>
                 <button className="msg-header-btn" onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setChatSearch(''); }}>
                   <span className="ico ico-16 ico-search" />

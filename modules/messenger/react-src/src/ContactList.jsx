@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { displayName, fmtContactTime, lastPreview } from './lib.js';
 
 /* Список контактов. Поиск фильтрует список, а не прячет строки классом —
@@ -43,12 +44,13 @@ export default function ContactList({
     <div className={'msg-contacts' + (hidden ? ' mobile-hidden' : '')}>
       <div className="msg-contacts-head">
         <div className="msg-contacts-title">Сообщения</div>
-        <div className="msg-search-wrap">
-          <svg className="msg-search-icon" width="14" height="14" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input className="msg-search" placeholder="Поиск..." autoComplete="off" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
+        <SearchField
+          className="msg-search-field"
+          placeholder="Поиск…"
+          value={search}
+          onChange={setSearch}
+          clearable
+        />
       </div>
 
       {forward && (

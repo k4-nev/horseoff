@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api.js';
+import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import Icon from './Icon.jsx';
 import UserRow from './UserRow.jsx';
 import Drawer from './Drawer.jsx';
@@ -124,10 +125,13 @@ export default function App() {
   return (
     <div className="adm-shell" data-motion={motion.reduced ? 'off' : 'on'}>
       <div className="adm-toolbar">
-        <div className="adm-search">
-          <Icon name="search" />
-          <input placeholder="Найти пользователя…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
+        <SearchField
+          className="adm-search"
+          placeholder="Найти пользователя…"
+          value={search}
+          onChange={setSearch}
+          clearable
+        />
         <div className={'adm-dd' + (filterOpen ? ' open' : '')} ref={filterRef}>
           <button className="adm-dd-btn" onClick={() => setFilterOpen((v) => !v)}>
             {filterLabel}

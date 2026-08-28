@@ -104,10 +104,10 @@ check('контакты отрисованы', await p.locator('.msg-contact').c
 check('непрочитанное показано', (await p.locator('.msg-contact-unread').first().textContent()) === '2');
 check('онлайн отмечен', await p.locator('.msg-online-badge').count() === 1);
 check('без чата — приглашение выбрать', (await p.locator('.msg-chat-empty').textContent()).includes('Выберите контакт'));
-await p.locator('.msg-search').fill('разраб');
+await p.locator('.msg-search-field input').fill('разраб');
 await p.waitForTimeout(250);
 check('поиск по контактам сузил список', await p.locator('.msg-contact').count() === 1);
-await p.locator('.msg-search').fill('');
+await p.locator('.msg-search-field input').fill('');
 await p.waitForTimeout(250);
 
 console.log('\n── Открытие чата ──');
@@ -220,17 +220,48 @@ check('плашка убрана', await p.locator('.msg-pin-bar').count() === 0
 await p.locator('.msg-header-btn').click();
 await p.waitForTimeout(250);
 check('поиск по чату раскрылся', await p.locator('.msg-chat-search-wrap.open').count() === 1);
-await p.locator('.msg-search-input').fill('прокси');
+await p.locator('.msg-chat-search input').fill('прокси');
 await p.waitForTimeout(350);
 check('счётчик совпадений', (await p.locator('.msg-search-count').textContent()) === '1/1');
 check('несовпавшие скрыты', await p.locator('.msg-row.search-hidden').count() > 0);
-await p.locator('.msg-search-input').fill('заведомо-нет');
+await p.locator('.msg-chat-search input').fill('заведомо-нет');
 await p.waitForTimeout(300);
 check('нет совпадений — ноль', (await p.locator('.msg-search-count').textContent()) === '0');
-await p.locator('.msg-search-input').fill('');
+await p.locator('.msg-chat-search input').fill('');
 await p.locator('.msg-header-btn').click();
 await p.waitForTimeout(250);
 check('поиск закрыт, строки вернулись', await p.locator('.msg-row.search-hidden').count() === 0);
+
+console.log('\n── Оба поиска — один компонент ──');
+await p.locator('.msg-header-btn').click();
+await p.waitForTimeout(300);
+check('поиск по контактам и по переписке собраны из одного элемента',
+  await p.locator('.ho-search').count() === 2,
+  'найдено ' + await p.locator('.ho-search').count());
+check('поле поиска по контактам — это .ho-search',
+  await p.locator('.msg-search-field.ho-search').count() === 1);
+check('поле поиска по переписке — оно же',
+  await p.locator('.msg-chat-search.ho-search').count() === 1);
+check('счётчик и стрелки живут в правом слоте, а не в отдельной обёртке',
+  await p.locator('.msg-chat-search > .msg-search-count').count() === 1
+  && await p.locator('.msg-chat-search > .msg-search-nav-btn').count() === 2);
+check('подсветка фокуса берёт акцент приложения',
+  await p.evaluate(() => {
+    const el = document.querySelector('.msg-search-field');
+    return getComputedStyle(el).getPropertyValue('--search-ring').trim() === ''
+      && getComputedStyle(document.body).getPropertyValue('--accent').trim() === '#4c4fd8';
+  }));
+
+await p.locator('.msg-search-field input').fill('разраб');
+await p.waitForTimeout(250);
+check('крестик появляется при непустом поле', await p.locator('.msg-search-field .ho-search-clear').count() === 1);
+await p.locator('.msg-search-field .ho-search-clear').click();
+await p.waitForTimeout(250);
+check('крестик очищает поле и возвращает список',
+  (await p.locator('.msg-search-field input').inputValue()) === ''
+  && await p.locator('.msg-contact').count() === 2);
+await p.locator('.msg-header-btn').click();
+await p.waitForTimeout(250);
 
 console.log('\n── Меню контакта ──');
 await p.locator('.msg-contact').nth(1).click({ button: 'right' });

@@ -54,7 +54,7 @@ export default function Backdrop({ scrollRef }) {
       dx: rnd(-0.016, 0.016),     // доля ширины в секунду
       dy: rnd(-0.013, 0.013),
       depth: rnd(0.3, 1),
-      alpha: rnd(0.09, 0.17),
+      alpha: rnd(0.07, 0.135),
       warm: Math.random() < 0.35, // часть пятен уводим в холодный синий
     });
 

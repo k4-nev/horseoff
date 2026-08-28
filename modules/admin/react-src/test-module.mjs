@@ -242,6 +242,35 @@ try {
   await p3.close();
 
   console.log('\n── Мобильный тулбар <473px: поиск своей строкой, фильтр+лоток кнопок — второй, "Все роли" не сжата, без overflow ──');
+  console.log('\n── Поиск — общий компонент каркаса ──');
+  const ps = await open(BASE);
+  check('поле поиска собрано из общего элемента',
+    await ps.locator('.adm-search.ho-search').count() === 1);
+  check('лупа и ввод внутри одного поля',
+    await ps.locator('.adm-search .ho-search-ic').count() === 1
+    && await ps.locator('.adm-search input').count() === 1);
+  check('палитра поля — фиолетовая админская, а не цвета приложения',
+    await ps.evaluate(() => {
+      const sh = getComputedStyle(document.querySelector('.adm-shell'));
+      const ring = sh.getPropertyValue('--search-ring').trim();
+      const app = getComputedStyle(document.body).getPropertyValue('--accent').trim();
+      return ring === sh.getPropertyValue('--adm-accent').trim() && ring !== app;
+    }),
+    await ps.evaluate(() => {
+      const sh = getComputedStyle(document.querySelector('.adm-shell'));
+      return sh.getPropertyValue('--search-ring').trim() + ' против ' + getComputedStyle(document.body).getPropertyValue('--accent').trim();
+    }));
+  check('ширина поля осталась прежней',
+    await ps.evaluate(() => Math.round(document.querySelector('.adm-search').getBoundingClientRect().width)) === 220,
+    String(await ps.evaluate(() => Math.round(document.querySelector('.adm-search').getBoundingClientRect().width))));
+  await ps.locator('.adm-search input').fill('к');
+  await ps.waitForTimeout(250);
+  check('крестик очистки на месте', await ps.locator('.adm-search .ho-search-clear').count() === 1);
+  await ps.locator('.adm-search .ho-search-clear').click();
+  await ps.waitForTimeout(250);
+  check('крестик очищает поиск', (await ps.locator('.adm-search input').inputValue()) === '');
+  await ps.close();
+
   for (const width of [1280, 474, 473, 375]) {
     const pm = await open(BASE, { width, height: 860 });
     const overflow = await pm.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -262,7 +291,8 @@ try {
     await pm.close();
   }
 } finally {
-  await browser.close();
+  
+await browser.close();
   server.kill();
 }
 
