@@ -1309,17 +1309,14 @@ const Channels = {
 
     Shell.switchModule('messenger');
     setTimeout(function() {
-      if (window.Messenger) {
-        Messenger.cancelEdit(); Messenger.cancelReply();
-        Messenger.forwardPending = {
+      if (window.Messenger && Messenger.startForward) {
+        Messenger.startForward({
           type:'channel_forward',
           text: '📨 Переслано из ' + source + '\n' + (msg.from_name||'') + ': ' + text,
           fromName: msg.from_name || '',
           fromId: msg.from || '',
           preview: '📨 ' + source + ': ' + preview
-        };
-        Messenger._closeForForward();
-        Messenger._showForwardBanner('📨 ' + source + ': ' + preview);
+        });
       }
     }, 250);
   },
