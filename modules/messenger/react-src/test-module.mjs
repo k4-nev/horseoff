@@ -47,6 +47,9 @@ p.on('console', (m) => {
 await p.route('**/api/**', (route) => {
   const u = route.request().url();
   const j = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
+  // Сам файл вложения — не JSON: плееру нужен настоящий звук
+  // Сам файл вложения отдаёт статический сервер: ему нужен Range для перемотки
+  if (/\/api\/msg\/file\//.test(u)) return route.continue();
   if (u.includes('/api/auth/status')) return j({ username: 'k4nev', role: 'arcana' });
   if (u.includes('/api/profile')) return j({ username: 'k4nev', role: 'arcana', id: 'me', display_name: 'Костя', avatar: null });
   if (u.includes('/api/modules')) return j(MODULES);
@@ -310,14 +313,21 @@ await p.evaluate((t) => window.__recv({
 }), T2);
 await p.evaluate((t) => window.__recv({
   type: 'message', chat: 'me_u1',
-  msg: { id: 'att4', from: 'u1', from_name: 'Мысика', text: '', time: t + 3, attachments:
-    Array.from({ length: 7 }, (_, k) => ({ id: 'p' + k, type: k === 6 ? 'video' : 'image', name: 'ph' + k + '.jpg', size: 1000 })) },
+  msg: { id: 'att4', from: 'u1', from_name: 'Мысика', text: '', time: t + 3, attachments: [
+    { id: 'p0', type: 'video', name: 'clip.mp4', size: 9000, duration: 12, w: 1920, h: 1080 },
+    { id: 'p1', type: 'image', name: 'tall.jpg', size: 1000, w: 1080, h: 1920 },
+    { id: 'p2', type: 'image', name: 'sq.jpg', size: 1000, w: 1000, h: 1000 },
+    { id: 'p3', type: 'image', name: 'p34.jpg', size: 1000, w: 900, h: 1200 },
+    { id: 'p4', type: 'image', name: 'w43.jpg', size: 1000, w: 1200, h: 900 },
+    { id: 'p5', type: 'image', name: 'w32.jpg', size: 1000, w: 1500, h: 1000 },
+    { id: 'p6', type: 'image', name: 'wide2.jpg', size: 1000, w: 1920, h: 1080 },
+  ] },
 }), T2);
 await p.waitForTimeout(600);
 
 check('голосовое: прогресс на кольце вокруг кнопки',
   await p.locator('.msg-row[data-msgid="att1"] .msg-audio-ring').count() === 1);
-check('голосовое: волна ровная, прогрессом не красится',
+check('голосовое: волна на месте и до запуска чистая',
   await p.locator('.msg-row[data-msgid="att1"] .msg-audio-wave-bar.on').count() === 0
   && await p.locator('.msg-row[data-msgid="att1"] .msg-audio-wave-bar').count() > 20);
 check('аудиофайл: карточка трека с обложкой и дорожкой',
@@ -328,26 +338,152 @@ check('аудиофайл не путается с голосовым',
   && (await p.locator('.msg-row[data-msgid="att2"] .msg-track-meta').textContent()).includes('MP3'));
 check('документ: строка каталога с расширением в иконке',
   (await p.locator('.msg-row[data-msgid="att3"] .msg-att-file-icon').textContent()) === 'PDF');
-check('фото и видео: не больше четырёх плиток',
-  await p.locator('.msg-row[data-msgid="att4"] .msg-att-thumb').count() === 4);
+check('фото и видео: не больше шести плиток',
+  await p.locator('.msg-row[data-msgid="att4"] .msg-att-thumb').count() === 6);
 check('остаток ушёл под счётчик',
-  (await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').textContent()) === '+3');
-check('плитки одного размера',
+  (await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').textContent()) === '+1');
+check('плитка сохраняет свои пропорции, а не режется в квадрат',
   await p.evaluate(() => {
-    const t = [...document.querySelectorAll('.msg-row[data-msgid="att4"] .msg-att-thumb')];
-    const ws = t.map((e) => Math.round(e.getBoundingClientRect().width));
-    return new Set(ws).size === 1 && ws[0] > 20;
+    const box = (n) => document.querySelector('.msg-att-grid img[src*="' + n + '"]')
+      .closest('.msg-att-thumb').getBoundingClientRect();
+    const wide = box('p0');
+    const tall = box('p1');
+    const ar = (r) => r.width / r.height;
+    return ar(wide) > 1.5 && ar(tall) < 0.75;
+  }),
+  await p.evaluate(() => {
+    const b = (n) => { const r = document.querySelector('.msg-att-grid img[src*="' + n + '"]').closest('.msg-att-thumb').getBoundingClientRect(); return (r.width / r.height).toFixed(2); };
+    return 'wide ' + b('p0') + ' / tall ' + b('p1');
   }));
+check('в ряду плитки одной высоты и ряд заполнен целиком',
+  await p.evaluate(() => {
+    const rows = [...document.querySelectorAll('.msg-row[data-msgid="att4"] .msg-att-row')];
+    if (!rows.length) return false;
+    return rows.every((row) => {
+      const cells = [...row.querySelectorAll('.msg-att-thumb')];
+      const hs = cells.map((c) => Math.round(c.getBoundingClientRect().height));
+      const total = cells.reduce((a, c) => a + c.getBoundingClientRect().width, 0) + 4 * (cells.length - 1);
+      return new Set(hs).size === 1 && Math.abs(total - row.getBoundingClientRect().width) <= 2;
+    });
+  }));
+check('пачка не шире ленты', await p.evaluate(() => {
+  const g = document.querySelector('.msg-row[data-msgid="att4"] .msg-att-grid');
+  return g.getBoundingClientRect().width <= 300;
+}));
 check('счётчик открывает просмотрщик на своём месте в пачке', await (async () => {
   await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').click();
   await p.waitForTimeout(350);
   const txt = (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '');
   await p.keyboard.press('Escape');
   await p.waitForTimeout(250);
-  return txt === '4/7';
+  return txt === '6/7';
 })());
 
 await p.screenshot({ path: 'shot-attach.png' });
+
+console.log('\n── Голосовое: перемотка и прогресс ──');
+const voiceRow = '.msg-row[data-msgid="att1"] ';
+await p.evaluate(() => { Shell.dismissNote(); });
+await p.locator(voiceRow + '.msg-audio-btn').click();
+await p.waitForTimeout(900);
+check('голосовое играет',
+  await p.evaluate(() => !!document.querySelector('.msg-row[data-msgid="att1"] .msg-audio-player.playing')));
+check('волна показывает проигранное, а не только кольцо',
+  await p.locator(voiceRow + '.msg-audio-wave-bar.on').count() > 0,
+  'закрашено ' + await p.locator(voiceRow + '.msg-audio-wave-bar.on').count());
+check('кольцо вокруг кнопки тоже идёт',
+  await p.evaluate(() => {
+    const r = document.querySelector('.msg-row[data-msgid="att1"] .msg-audio-ring');
+    return parseFloat(getComputedStyle(r).getPropertyValue('--pct')) > 0;
+  }));
+
+/* Перемотка: щёлкаем по правой трети волны и смотрим, что закрашенных
+   столбиков стало заметно больше. */
+const barsBefore = await p.locator(voiceRow + '.msg-audio-wave-bar.on').count();
+const wv = await p.locator(voiceRow + '.msg-audio-wave').boundingBox();
+await p.mouse.click(wv.x + wv.width * 0.75, wv.y + wv.height / 2);
+await p.waitForTimeout(500);
+const barsAfter = await p.locator(voiceRow + '.msg-audio-wave-bar.on').count();
+check('перемотка по волне работает', barsAfter > barsBefore + 8, barsBefore + ' -> ' + barsAfter);
+
+/* Дорожка трека — тоже мишень для перемотки. */
+await p.locator('.msg-row[data-msgid="att2"] .msg-audio-btn').click();
+await p.waitForTimeout(700);
+const tl = await p.locator('.msg-row[data-msgid="att2"] .msg-track-line').boundingBox();
+await p.mouse.click(tl.x + tl.width * 0.7, tl.y + tl.height / 2);
+await p.waitForTimeout(250);
+check('перемотка по дорожке трека работает',
+  await p.evaluate(() => parseFloat(document.querySelector('.msg-row[data-msgid="att2"] .msg-track-line i').style.width) > 50),
+  await p.evaluate(() => document.querySelector('.msg-row[data-msgid="att2"] .msg-track-line i').style.width));
+
+await p.locator('.msg-row[data-msgid="att2"] .msg-audio-btn').click();
+await p.waitForTimeout(300);
+check('остановленное и доигравшее не сыплет ошибками',
+  await p.evaluate(() => Shell._uiState.notes.filter((n) => /Ошибка воспроизведения/.test(JSON.stringify(n))).length) === 0,
+  JSON.stringify(await p.evaluate(() => Shell._uiState.notes.map((n) => n.text || n.title))));
+
+console.log('\n── Анимации только на глазах ──');
+await p.evaluate(() => window.__recv({
+  type: 'message', chat: 'me_u1',
+  msg: { id: 'anim1', from: 'u1', from_name: 'Мысика', text: 'Прилетело при открытом чате', time: Math.floor(Date.now() / 1000) },
+}));
+await p.waitForTimeout(60);
+check('сообщение в открытом чате появляется с анимацией',
+  await p.locator('.msg-row[data-msgid="anim1"].msg-anim').count() === 1);
+await p.waitForTimeout(500);
+check('после проигрыша пометка снята — повторов не будет',
+  await p.locator('.msg-row[data-msgid="anim1"].msg-anim').count() === 0);
+
+/* Вкладка свёрнута: человек ленту не видит, значит и вход показывать некому */
+await p.evaluate(() => {
+  window.__vis = 'hidden';
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => window.__vis });
+  window.__recv({
+    type: 'message', chat: 'me_u1',
+    msg: { id: 'anim2', from: 'u1', from_name: 'Мысика', text: 'Прилетело в свёрнутую вкладку', time: Math.floor(Date.now() / 1000) },
+  });
+});
+await p.waitForTimeout(80);
+check('в свёрнутой вкладке анимации нет',
+  await p.locator('.msg-row[data-msgid="anim2"].msg-anim').count() === 0);
+await p.evaluate(() => { window.__vis = 'visible'; });
+
+/* Событие про другой чат в открытую ленту попадать не должно вовсе */
+await p.evaluate(() => window.__recv({
+  type: 'message', chat: 'me_u2',
+  msg: { id: 'anim3', from: 'u2', from_name: 'Разработчик', text: 'Мимо открытого чата', time: Math.floor(Date.now() / 1000) },
+}));
+await p.waitForTimeout(80);
+check('чужой чат ленту не трогает', await p.locator('.msg-row[data-msgid="anim3"]').count() === 0);
+
+await p.evaluate(() => window.__recv({ type: 'reaction', chat: 'me_u1', msg_id: 'anim1', reactions: { u1: '\u{1F525}' } }));
+await p.waitForTimeout(60);
+check('живая реакция проигрывает появление',
+  await p.locator('.msg-row[data-msgid="anim1"] .msg-reaction-capsule.animate').count() === 1);
+await p.waitForTimeout(600);
+check('и тоже гаснет после проигрыша',
+  await p.locator('.msg-row[data-msgid="anim1"] .msg-reaction-capsule.animate').count() === 0);
+check('капсула реакции без контура и в тон облака',
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.msg-row[data-msgid="anim1"] .msg-reaction-capsule'));
+    const bub = getComputedStyle(document.querySelector('.msg-bubble.mine')).backgroundColor;
+    return st.borderTopWidth === '0px' && st.boxShadow === 'none' && st.backgroundColor === bub;
+  }),
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.msg-row[data-msgid="anim1"] .msg-reaction-capsule'));
+    return st.backgroundColor + ' / border ' + st.borderTopWidth + ' / shadow ' + st.boxShadow;
+  }));
+
+check('треугольник видео стоит в центре кнопки',
+  await p.evaluate(() => {
+    const btn = document.querySelector('.msg-video-play');
+    const svg = btn && btn.querySelector('svg');
+    if (!svg) return false;
+    const b = btn.getBoundingClientRect();
+    const s2 = svg.getBoundingClientRect();
+    return Math.abs((b.left + b.width / 2) - (s2.left + s2.width / 2)) <= 2.5
+      && Math.abs((b.top + b.height / 2) - (s2.top + s2.height / 2)) <= 1.5;
+  }));
 
 console.log('\n── Живой фон ленты ──');
 check('слой фона есть и лежит под сообщениями',

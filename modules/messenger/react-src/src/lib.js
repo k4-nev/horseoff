@@ -96,6 +96,60 @@ export function layoutMessages(msgs, meId) {
   });
 }
 
+/* Раскладка пачки фото и видео.
+
+   Плитки больше не квадратные: у вложения с сервера приходят w и h, и кадр
+   9:16 не должен обрезаться до квадрата наравне с 16:9. Считаем как в
+   «оправданных рядах» (justified rows): набираем в ряд, пока сумма
+   соотношений не дойдёт до целевой, затем высота ряда = доступная ширина,
+   делённая на эту сумму. Так соседние снимки одного ряда всегда одной
+   высоты, а ряд ровно заполняет ширину при любых пропорциях.
+
+   Ширину берём фиксированной: облако и так ограничено, мерить DOM ради
+   раскладки — лишний повод для дёрганья при каждом рендере. */
+export const MEDIA_W = 292;
+const GAP = 4;
+
+export function layoutMedia(items, width = MEDIA_W, gap = GAP) {
+  const ar = (a) => {
+    const r = a.w && a.h ? a.w / a.h : 1;
+    return Math.max(0.55, Math.min(2.4, r));   // панорамы и «столбы» подрезаем
+  };
+  if (items.length === 1) {
+    const a = ar(items[0]);
+    let w = width;
+    let h = w / a;
+    const MAXH = 340;
+    if (h > MAXH) { h = MAXH; w = h * a; }
+    return [[{ item: items[0], w: Math.round(w), h: Math.round(h) }]];
+  }
+
+  // Целевая сумма соотношений: у ряда из портретов она меньше, чем из панорам
+  const target = items.length <= 4 ? 2.1 : 2.6;
+  const rows = [];
+  let row = [];
+  let sum = 0;
+  items.forEach((it, i) => {
+    row.push(it);
+    sum += ar(it);
+    const last = i === items.length - 1;
+    if (sum >= target || row.length === 3 || last) { rows.push({ row, sum }); row = []; sum = 0; }
+  });
+
+  return rows.map(({ row: r, sum: s }) => {
+    const avail = width - gap * (r.length - 1);
+    const h = Math.max(78, Math.min(260, avail / s));
+    return r.map((it, k) => ({
+      item: it,
+      // Последнюю плитку добираем остатком, иначе округления оставляют щель
+      w: k === r.length - 1
+        ? Math.round(avail - r.slice(0, k).reduce((acc, x) => acc + Math.round(h * ar(x)), 0))
+        : Math.round(h * ar(it)),
+      h: Math.round(h),
+    }));
+  });
+}
+
 export function groupByDate(items) {
   const groups = new Map();
   items.forEach((a) => {

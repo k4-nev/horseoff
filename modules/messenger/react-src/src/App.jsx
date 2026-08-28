@@ -4,6 +4,7 @@ import MessageList from './MessageList.jsx';
 import Composer from './Composer.jsx';
 import ProfilePanel from './ProfilePanel.jsx';
 import Backdrop from './Backdrop.jsx';
+import { markLive, markReact, resetLive } from './live.js';
 import { Confirm, ContactMenu, Gallery, MsgMenu, ReactionPicker } from './Overlays.jsx';
 import { stopAudio } from './audio.js';
 import { S, chatKey, displayName, toast, wsSend, buzz } from './lib.js';
@@ -144,6 +145,7 @@ export default function App({ registerBridge }) {
 
   /* ── Открытие и закрытие чата ─────────────────────────────────────── */
   const openChat = useCallback((userId) => {
+    resetLive();
     const c = contacts.find((x) => x.id === userId);
     setChat(userId);
     setMessages([]);
@@ -217,6 +219,7 @@ export default function App({ registerBridge }) {
 
     if (d.type === 'message') {
       if (mine && d.chat === mine) {
+        markLive(d.msg.id);
         setMessages((m) => (m.some((x) => x.id === d.msg.id) ? m : m.concat(d.msg)));
         wsSend({ type: 'read', chat: d.chat, to: cur });
         if (d.msg.attachments && d.msg.attachments.length) setAttachKey((k) => k + 1);
@@ -233,7 +236,7 @@ export default function App({ registerBridge }) {
             return m.map((x) => (x.id === d.temp_id ? d.msg : x));
           }
           if (m.some((x) => x.id === d.msg.id)) return m;
-          if (mine && d.chat === mine) return m.concat(d.msg);
+          if (mine && d.chat === mine) { markLive(d.msg.id); return m.concat(d.msg); }
           return m;
         });
       }
@@ -258,6 +261,7 @@ export default function App({ registerBridge }) {
 
     if (d.type === 'reaction') {
       if (mine && d.chat === mine && d.msg_id) {
+        markReact(d.msg_id);
         setMessages((m) => m.map((x) => (x.id === d.msg_id ? { ...x, reactions: d.reactions || {} } : x)));
       }
       return;
@@ -386,6 +390,7 @@ export default function App({ registerBridge }) {
       id: tempId, from: me.id, from_name: me.name, text: t,
       time: Math.floor(Date.now() / 1000), read: false, ...extra,
     };
+    markLive(tempId);
     setMessages((m) => m.concat(msg));
     buzz(10);
     wsSend({ type: 'send', to: chat, text: t, temp_id: tempId, ...extra });

@@ -151,10 +151,9 @@
 
 /* Attachments in message — standalone, no bubble */
 .msg-content{display:flex;flex-direction:column;max-width:70%;margin-bottom:4px}
-.msg-att-grid{display:flex;gap:5px;width:260px;max-width:100%}
-.msg-att-grid.single{width:220px}
-.msg-att-thumb{flex:1;min-width:0;aspect-ratio:1;border-radius:9px;overflow:hidden;cursor:pointer;position:relative}
-.msg-att-grid.single .msg-att-thumb{aspect-ratio:auto;height:170px}
+.msg-att-grid{display:flex;flex-direction:column;gap:4px;max-width:100%}
+.msg-att-row{display:flex;gap:4px}
+.msg-att-thumb{flex:none;border-radius:9px;overflow:hidden;cursor:pointer;position:relative;background:var(--surface2)}
 .msg-att-more{position:absolute;inset:0;background:color-mix(in srgb,#141a26 52%,transparent);color:#fff;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
 .msg-att-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity 0.15s}
 .msg-att-thumb:hover img{opacity:0.85}
@@ -169,7 +168,8 @@
 /* Video in message */
 .msg-att-video{position:relative;cursor:pointer}
 .msg-video-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.25);border-radius:6px}
-.msg-video-play{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px}
+.msg-video-play{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;display:flex;align-items:center;justify-content:center}
+.msg-video-play svg{width:17px;height:17px;display:block;margin-left:1px}
 .msg-video-dur{font-size:10px;color:#fff;font-family:'JetBrains Mono',monospace;margin-top:2px}
 .msg-att-video-playing{width:240px;height:auto;aspect-ratio:auto}
 .msg-att-video-playing video{border-radius:6px}
@@ -191,13 +191,16 @@
 .msg-track-cover{width:44px;height:44px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(140deg,var(--accent),color-mix(in srgb,var(--accent) 42%,#1d2430))}
 .msg-track-cover svg{width:22px;height:22px}
 .msg-track-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim)}
-.msg-track-line{height:3px;border-radius:99px;background:color-mix(in srgb,var(--text-dim) 22%,transparent);overflow:hidden;margin-top:2px}
+.msg-track-line{height:3px;border-radius:99px;background:color-mix(in srgb,var(--text-dim) 22%,transparent);margin-top:5px;cursor:pointer;position:relative;touch-action:manipulation}
+/* Полоса в три пикселя — не мишень: расширяем площадь попадания невидимкой */
+.msg-track-line::after{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.msg-track-line i{border-radius:99px}
 .msg-track-line i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .18s linear}
 .msg-audio-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .msg-audio-name{font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg-audio-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0}
 /* Waveform bars container */
-.msg-audio-wave{flex:1;display:flex;align-items:center;justify-content:space-between;height:26px;cursor:pointer}
+.msg-audio-wave{flex:1;display:flex;align-items:center;justify-content:space-between;height:26px;cursor:pointer;padding:7px 0;margin:-7px 0;touch-action:manipulation}
 .msg-audio-wave-bar{width:3px;border-radius:2px;flex-shrink:0;transition:background 0.08s;transform-origin:center}
 .msg-audio-player.playing .msg-audio-wave-bar{animation:waveReveal 0.45s cubic-bezier(0.22,1,0.36,1) both}
 @keyframes waveReveal{from{transform:scaleY(0.12);opacity:0.4}to{transform:scaleY(1);opacity:1}}
@@ -406,15 +409,15 @@
 .msg-reactions{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .msg-bubble{transition:all 0.2s ease}
 .msg-reaction-capsule{display:inline-flex;align-items:center;gap:3px;padding:2px 3px 2px 6px;border-radius:20px;cursor:pointer;transition:transform 0.15s}
-.msg-reaction-capsule.animate{animation:reactIn 0.2s ease-out}
+.msg-reaction-capsule.animate{animation:reactIn 0.34s cubic-bezier(0.34,1.5,0.5,1)}
 .msg-reaction-capsule:hover{transform:scale(1.05)}
-.msg-reaction-capsule.on-theirs{background:color-mix(in srgb,var(--accent) 25%,transparent)}
-.msg-reaction-capsule.on-mine{background:#fff;box-shadow:0 0 0 1px var(--accent-line)}
+.msg-reaction-capsule.on-theirs{background:var(--accent-soft);border:none}
+.msg-reaction-capsule.on-mine{background:#fff;border:none;box-shadow:none}
 .msg-reaction-emoji{font-size:14px;line-height:1}
 .msg-reaction-ava{width:18px;height:18px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.1);font-size:9px;font-weight:700;color:rgba(0,0,0,0.4);flex-shrink:0}
 .msg-reaction-ava img{width:100%;height:100%;object-fit:cover}
 .msg-reaction-ava span{font-size:9px}
-@keyframes reactIn{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
+@keyframes reactIn{0%{opacity:0;transform:scale(0.4)}62%{opacity:1;transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
 
 /* Group time */
 .msg-group-time{font-size:9px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;position:absolute;bottom:-18px}
@@ -579,12 +582,14 @@
 /* ─── ANIMATIONS ─── */
 
 /* 1. Sent message - slide up */
-@keyframes msg-sent{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-.msg-row.mine.msg-anim .msg-bubble{animation:msg-sent 0.15s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes msg-sent{from{opacity:0;transform:translateY(14px) scale(0.96)}to{opacity:1;transform:none}}
+.msg-row.mine.msg-anim .msg-content{animation:msg-sent 0.26s cubic-bezier(0.34,1.4,0.5,1)}
 
 /* 2. Received message - slide from left */
-@keyframes msg-recv{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
-.msg-row.theirs.msg-anim .msg-bubble{animation:msg-recv 0.15s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes msg-recv{from{opacity:0;transform:translate(-10px,10px) scale(0.96)}to{opacity:1;transform:none}}
+.msg-row.theirs.msg-anim .msg-content{animation:msg-recv 0.26s cubic-bezier(0.34,1.4,0.5,1)}
+.msg-row.msg-anim .msg-row-ava{animation:msg-ava-in 0.26s cubic-bezier(0.34,1.4,0.5,1)}
+@keyframes msg-ava-in{from{opacity:0;transform:scale(0.7)}to{opacity:1;transform:none}}
 
 /* 3. Typing dots wave */
 .msg-typing-dots{display:inline-flex;gap:3px;align-items:center;margin-left:4px}
@@ -657,8 +662,8 @@ body.theme-light .msg-attach-preview{background:#fff;border-bottom-color:#e8ecf2
 body.theme-light .msg-bubble.mine{background:var(--accent-soft);color:var(--text);border:none}
 body.theme-light .msg-bubble.theirs{background:#ffffff;color:#252a35;border:none}
 body.theme-light .msg-bubble-sender{color:var(--accent-dark)}
-body.theme-light .msg-reaction-capsule.on-theirs{background:var(--accent)}
-body.theme-light .msg-reaction-capsule.on-mine{background:#fff;box-shadow:0 0 0 1px var(--accent-line)}
+body.theme-light .msg-reaction-capsule.on-theirs{background:var(--accent-soft)}
+body.theme-light .msg-reaction-capsule.on-mine{background:#fff;box-shadow:none}
 body.theme-light .msg-ctx-menu{background:#ffffff;border:none;box-shadow:0 4px 24px rgba(0,0,0,0.15)}
 body.theme-light .msg-ctx-reactions{border-bottom-color:#f0f0f0}
 body.theme-light .msg-ctx-react-btn:hover{background:#f0f0f0}

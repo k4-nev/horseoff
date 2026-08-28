@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import Attachments from './Attachments.jsx';
+import { clearLive, clearReact, isLive, isReact } from './live.js';
 import { linkify } from './lib.js';
 
 /* Одно сообщение. Раньше строка собиралась склейкой HTML вместе с
@@ -14,7 +15,7 @@ function Ava({ src, letter, hidden }) {
   );
 }
 
-const Reactions = memo(function Reactions({ reactions, side, meId, avaOf, onToggle }) {
+const Reactions = memo(function Reactions({ reactions, side, meId, avaOf, onToggle, animate, onAnimEnd }) {
   const ids = Object.keys(reactions || {});
   if (!ids.length) return null;
   return (
@@ -25,7 +26,8 @@ const Reactions = memo(function Reactions({ reactions, side, meId, avaOf, onTogg
         const ava = avaOf(uid);
         return (
           <div
-            className={'msg-reaction-capsule ' + (side === 'mine' ? 'on-mine' : 'on-theirs')}
+            className={'msg-reaction-capsule ' + (side === 'mine' ? 'on-mine' : 'on-theirs') + (animate ? ' animate' : '')}
+            onAnimationEnd={(e) => { onAnimEnd(); e.currentTarget.classList.remove('animate'); }}
             key={uid}
             onClick={mine ? (e) => { e.stopPropagation(); onToggle(emoji); } : undefined}
           >
@@ -57,15 +59,20 @@ function MessageRow({
   const { m, isNew, isEnd, mine } = row;
   const side = mine ? 'mine' : 'theirs';
   const ava = avaOf(m.from, m.from_name);
+  /* Вход проигрываем только тому, кто в этот момент смотрел в чат */
+  const fresh = isLive(m.id);
+  const reactFresh = isReact(m.id);
 
   const ctx = (e) => { e.preventDefault(); e.stopPropagation(); onCtx(e, m); };
 
   return (
     <div
       ref={rowRef}
-      className={'msg-row ' + side + (isEnd ? ' group-end' : '') + (hidden ? ' search-hidden' : '') + (highlighted ? ' msg-highlight' : '')}
+      className={'msg-row ' + side + (isEnd ? ' group-end' : '') + (hidden ? ' search-hidden' : '')
+        + (highlighted ? ' msg-highlight' : '') + (fresh ? ' msg-anim' : '')}
       data-msgid={m.id}
       onContextMenu={ctx}
+      onAnimationEnd={(e) => { clearLive(m.id); e.currentTarget.classList.remove('msg-anim'); }}
     >
       <Ava src={ava.src} letter={ava.letter} hidden={!isNew} />
 
@@ -95,11 +102,19 @@ function MessageRow({
         {m.text ? (
           <div className={'msg-bubble ' + side}>
             <Text value={m.text} />
-            <Reactions reactions={m.reactions} side={side} meId={meId} avaOf={avaOf} onToggle={(em) => onToggleReaction(m.id, em)} />
+            <Reactions
+              reactions={m.reactions} side={side} meId={meId} avaOf={avaOf}
+              animate={reactFresh} onAnimEnd={() => clearReact(m.id)}
+              onToggle={(em) => onToggleReaction(m.id, em)}
+            />
           </div>
         ) : (m.reactions && Object.keys(m.reactions).length ? (
           <div className="msg-reactions-standalone">
-            <Reactions reactions={m.reactions} side={side} meId={meId} avaOf={avaOf} onToggle={(em) => onToggleReaction(m.id, em)} />
+            <Reactions
+              reactions={m.reactions} side={side} meId={meId} avaOf={avaOf}
+              animate={reactFresh} onAnimEnd={() => clearReact(m.id)}
+              onToggle={(em) => onToggleReaction(m.id, em)}
+            />
           </div>
         ) : null)}
       </div>

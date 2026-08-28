@@ -1,5 +1,5 @@
 import { seekAudio, toggleAudio, useAudio } from './audio.js';
-import { WAVE_H, attUrl, fmtDuration, fmtSize } from './lib.js';
+import { MEDIA_W, WAVE_H, attUrl, fmtDuration, fmtSize, layoutMedia } from './lib.js';
 
 /* Вложения сообщения: сетка фото и видео, проигрыватель аудио, файлы. */
 
@@ -16,8 +16,8 @@ const LoadIco = () => (
   </svg>
 );
 
-function Wave({ id, count, pct, mine, voice, flat }) {
-  const played = flat ? 0 : Math.round((pct / 100) * count);
+function Wave({ id, count, pct, mine, voice }) {
+  const played = Math.round((pct / 100) * count);
   const cPlayed = mine && voice ? '#fff' : 'var(--accent)';
   const cRest = mine && voice ? 'rgba(255,255,255,0.4)' : (voice ? '#d2dae3' : 'var(--border)');
   return (
@@ -33,7 +33,7 @@ function Wave({ id, count, pct, mine, voice, flat }) {
       {Array.from({ length: count }, (_, i) => (
         <span
           key={i}
-          className="msg-audio-wave-bar"
+          className={'msg-audio-wave-bar' + (i < played ? ' on' : '')}
           style={{ height: WAVE_H[i % WAVE_H.length] + 'px', background: i < played ? cPlayed : cRest }}
         />
       ))}
@@ -69,7 +69,7 @@ function AudioPlayer({ a, mine }) {
     return (
       <div className={'msg-audio-player msg-voice' + (playing ? ' playing' : '')}>
         {btn(true)}
-        <Wave id={a.id} count={36} pct={pct} mine={mine} voice flat />
+        <Wave id={a.id} count={36} pct={pct} mine={mine} voice />
         <span className="msg-audio-time">{label}</span>
       </div>
     );
@@ -92,7 +92,16 @@ function AudioPlayer({ a, mine }) {
           <span className="msg-audio-time">{label}</span>
         </div>
         <div className="msg-track-meta">{ext}{a.size ? ' · ' + fmtSize(a.size) : ''}</div>
-        <div className="msg-track-line"><i style={{ width: pct + '%' }} /></div>
+        <div
+          className="msg-track-line"
+          onClick={(e) => {
+            e.stopPropagation();
+            const r = e.currentTarget.getBoundingClientRect();
+            seekAudio(a.id, (e.clientX - r.left) / r.width);
+          }}
+        >
+          <i style={{ width: pct + '%' }} />
+        </div>
       </div>
       {btn(false)}
     </div>
@@ -101,36 +110,48 @@ function AudioPlayer({ a, mine }) {
 
 export default function Attachments({ items, mine, onOpenMedia }) {
   if (!items || !items.length) return null;
-  const images = items.filter((a) => a.type === 'image');
-  const videos = items.filter((a) => a.type === 'video');
   const audios = items.filter((a) => a.type === 'audio');
   const files = items.filter((a) => a.type === 'file');
-  /* Просмотрщик листает всю пачку сообщения в том же порядке, что и сетка */
-  const media = images.concat(videos);
+  /* Порядок пачки — как отправили: раньше картинки шли перед видео, и клип
+     из середины альбома уезжал в конец, а с ним и место в просмотрщике. */
+  const media = items.filter((a) => a.type === 'image' || a.type === 'video');
   /* Показываем не больше четырёх плиток: остальное уходит под счётчик, иначе
      пачка из двадцати фото растягивает ленту на несколько экранов. */
-  const SHOWN = 4;
+  const SHOWN = 6;
   const shown = media.slice(0, SHOWN);
   const rest = media.length - shown.length;
+  const rows = media.length ? layoutMedia(shown) : [];
+  let idx = -1;
 
   return (
     <>
       {media.length > 0 && (
-        <div className={'msg-att-grid' + (shown.length === 1 ? ' single' : '')}>
-          {shown.map((a, k) => (
-            <div
-              className={'msg-att-thumb' + (a.type === 'video' ? ' msg-att-video' : '')}
-              key={a.id}
-              onClick={() => onOpenMedia(media, k)}
-            >
-              <img src={a._localUrl || attUrl(a.id, '/thumb')} loading="lazy" alt="" />
-              {a.type === 'video' && (
-                <div className="msg-video-overlay">
-                  <div className="msg-video-play">▶</div>
-                  {a.duration ? <span className="msg-video-dur">{fmtDuration(a.duration)}</span> : null}
-                </div>
-              )}
-              {rest > 0 && k === shown.length - 1 && <div className="msg-att-more">+{rest}</div>}
+        <div className="msg-att-grid" style={{ width: MEDIA_W }}>
+          {rows.map((cells, ri) => (
+            <div className="msg-att-row" key={ri}>
+              {cells.map(({ item: a, w, h }) => {
+                idx += 1;
+                const k = idx;
+                return (
+                  <div
+                    className={'msg-att-thumb' + (a.type === 'video' ? ' msg-att-video' : '')}
+                    key={a.id}
+                    style={{ width: w, height: h }}
+                    onClick={() => onOpenMedia(media, k)}
+                  >
+                    <img src={a._localUrl || attUrl(a.id, '/thumb')} loading="lazy" alt="" />
+                    {a.type === 'video' && (
+                      <div className="msg-video-overlay">
+                        <div className="msg-video-play">
+                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6L19 12z" /></svg>
+                        </div>
+                        {a.duration ? <span className="msg-video-dur">{fmtDuration(a.duration)}</span> : null}
+                      </div>
+                    )}
+                    {rest > 0 && k === shown.length - 1 && <div className="msg-att-more">+{rest}</div>}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
