@@ -43,7 +43,6 @@ export default function ContactList({
   return (
     <div className={'msg-contacts' + (hidden ? ' mobile-hidden' : '')}>
       <div className="msg-contacts-head">
-        <div className="msg-contacts-title">Сообщения</div>
         <SearchField
           className="msg-search-field"
           placeholder="Поиск…"

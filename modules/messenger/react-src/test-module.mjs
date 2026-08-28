@@ -232,6 +232,53 @@ await p.locator('.msg-header-btn').click();
 await p.waitForTimeout(250);
 check('поиск закрыт, строки вернулись', await p.locator('.msg-row.search-hidden').count() === 0);
 
+console.log('\n── Шапки списка и чата на одной линии ──');
+check('заголовка «Сообщения» над списком больше нет',
+  await p.locator('.msg-contacts-title').count() === 0);
+check('низ обеих шапок совпадает',
+  await p.evaluate(() => {
+    const a = document.querySelector('.msg-contacts-head').getBoundingClientRect();
+    const b = document.querySelector('.msg-chat-header').getBoundingClientRect();
+    return Math.abs(a.bottom - b.bottom) <= 1 && Math.abs(a.height - b.height) <= 1;
+  }),
+  await p.evaluate(() => {
+    const a = document.querySelector('.msg-contacts-head').getBoundingClientRect();
+    const b = document.querySelector('.msg-chat-header').getBoundingClientRect();
+    return 'список ' + Math.round(a.height) + '/' + Math.round(a.bottom)
+      + ' против чата ' + Math.round(b.height) + '/' + Math.round(b.bottom);
+  }));
+check('поиск по центру своей шапки',
+  await p.evaluate(() => {
+    const h = document.querySelector('.msg-contacts-head').getBoundingClientRect();
+    const f = document.querySelector('.msg-search-field').getBoundingClientRect();
+    return Math.abs((h.top + h.height / 2) - (f.top + f.height / 2)) <= 1;
+  }));
+/* Лента раньше отступала от верха фиксированными 52px при шапке в 60 —
+   первые строки уходили под неё. Теперь начало ленты = низ шапки. */
+check('лента начинается ровно под шапкой',
+  await p.evaluate(() => {
+    const head = document.querySelector('.msg-chat-header').getBoundingClientRect();
+    const list = document.querySelector('.msg-messages').getBoundingClientRect();
+    return Math.abs(list.top - head.bottom) <= 1;
+  }),
+  await p.evaluate(() => {
+    const head = document.querySelector('.msg-chat-header').getBoundingClientRect();
+    const list = document.querySelector('.msg-messages').getBoundingClientRect();
+    return 'шапка до ' + Math.round(head.bottom) + ', лента с ' + Math.round(list.top);
+  }));
+check('и с закреплённым сообщением тоже', await (async () => {
+  await p.evaluate(() => window.__recv({ type: 'pinned', msg_id: 'm1', text: 'Первое сообщение' }));
+  await p.waitForTimeout(300);
+  const ok = await p.evaluate(() => {
+    const wrap = document.querySelector('.msg-chat-header-wrap').getBoundingClientRect();
+    const list = document.querySelector('.msg-messages').getBoundingClientRect();
+    return Math.abs(list.top - wrap.bottom) <= 1;
+  });
+  await p.evaluate(() => window.__recv({ type: 'unpinned' }));
+  await p.waitForTimeout(250);
+  return ok;
+})());
+
 console.log('\n── Оба поиска — один компонент ──');
 await p.locator('.msg-header-btn').click();
 await p.waitForTimeout(300);

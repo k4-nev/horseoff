@@ -591,7 +591,7 @@ export default function App({ registerBridge }) {
 
         {chat && (
           <div
-            className="msg-chat-active" style={{ display: 'block' }}
+            className="msg-chat-active"
             onTouchStart={onRowTouchStart}
             onTouchMove={onRowTouchMove}
             onTouchEnd={onRowTouchEnd}

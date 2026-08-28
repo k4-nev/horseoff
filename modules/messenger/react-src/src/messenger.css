@@ -6,8 +6,10 @@
 
 /* ===== CONTACTS ===== */
 .msg-contacts{width:400px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;background:var(--surface)}
-.msg-contacts-head{padding:14px 16px;border-bottom:1px solid var(--border)}
-.msg-contacts-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:10px}
+/* Ровно та же высота, что у .msg-chat-header — разделительные линии двух
+   колонок должны совпадать. Заголовок «Сообщения» убран: модуль и так
+   подписан в меню, а строка съедала 30px над каждым списком. */
+.msg-contacts-head{height:60px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--border);flex-shrink:0}
 /* Поиск — общий компонент каркаса (core/react-src/src/shared/SearchField).
    Модулю остаётся ширина и скругление под свою вёрстку. */
 .msg-search-field{width:100%;--search-radius:20px;--search-size:12px}
@@ -58,7 +60,10 @@
   box-shadow:inset 0 14px 20px -18px rgba(23,33,54,.5)}
 .msg-chat-empty,.msg-chat-header-wrap,.msg-chat-active{z-index:1}
 .msg-chat-empty{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
-.msg-chat-active{position:absolute;top:0;left:0;right:0;bottom:0}
+/* Раньше это была плашка во весь чат, положенная ПОД шапку: лента отступала
+   от верха фиксированными 52px, хотя шапка занимает 60, а с закреплённым
+   сообщением и больше. Теперь колонка честно делит высоту с шапкой. */
+.msg-chat-active{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 
 .msg-chat-header{height:60px;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);z-index:10;box-shadow:0 1px 6px rgba(0,0,0,0.08)}
 .msg-back-btn{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:8px;min-width:44px;min-height:44px;border-radius:8px}
@@ -73,7 +78,7 @@
 .msg-chat-typing{font-size:11px;color:var(--accent);margin-left:8px;white-space:nowrap}
 .msg-mob-dots{display:none;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:6px;margin-left:auto}
 
-.msg-messages{position:absolute;top:52px;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 20px 0 20px;padding-bottom:calc(var(--msg-composer-h,70px) + 14px)}
+.msg-messages{flex:1;min-height:0;position:relative;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 20px 0 20px;padding-bottom:calc(var(--msg-composer-h,70px) + 14px)}
 .msg-messages::-webkit-scrollbar{width:3px}
 .msg-messages::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:3px}
 
@@ -492,7 +497,7 @@
      запаса последний контакт из-под неё не доскроллить. */
   .msg-contact-list{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
   .msg-chat{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:var(--bg)}
-  .msg-chat.mobile-open{display:block}
+  .msg-chat.mobile-open{display:flex}
   .msg-back-btn{display:flex}
   .msg-mob-dots{display:flex}
   .msg-contacts.mobile-hidden{display:none}
