@@ -571,7 +571,22 @@ const Shell = {
 
   loadedModules: {},
 
+  /** Объект модуля, который тот кладёт в window (Messenger, Bots, Channels…). */
+  _moduleApi(id) {
+    var name = id.charAt(0).toUpperCase() + id.slice(1);
+    return window[name] || null;
+  },
+
   async switchModule(id) {
+    /* Модуль может попросить слово перед уходом — «Боты» так спрашивают,
+       сохранять ли раскладку. Метод существовал и раньше, но его никто не
+       звал: правки молча терялись при переключении. */
+    if (this.activeModule && this.activeModule !== id) {
+      var prev = this._moduleApi(this.activeModule);
+      if (prev && typeof prev.onDeactivate === 'function') {
+        try { prev.onDeactivate(); } catch (e) {}
+      }
+    }
     this.activeModule = id;
     if (id === 'messenger') { this.unreadTotal = 0; this.updateMsgBadge(); }
     if (id === 'valentine') this._uiEmit({ valentine: 0 });

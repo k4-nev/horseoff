@@ -231,6 +231,25 @@ try {
   check('кнопка в угле Cloud Dancer, а не в бирюзе',
     !/\b0,\s*212,\s*170\b/.test(pal.btn) && /rgb\((65|74|93),\s*(60|69|87),\s*(54|63|79)\)/.test(pal.btn), pal.btn);
 
+  console.log('\n── Модуль успевает сказать слово перед уходом ──');
+  /* «Боты» на этом держат вопрос «сохранить раскладку?». Метод был у модуля
+     и раньше, но оболочка его не звала — правки терялись молча. */
+  await p.evaluate(() => Shell.switchModule('servers'));
+  await p.waitForTimeout(500);
+  await p.evaluate(() => {
+    window.__said = [];
+    window.Servers = { onDeactivate: () => window.__said.push('servers') };
+  });
+  await p.evaluate(() => Shell.switchModule('bots'));
+  await p.waitForTimeout(600);
+  check('уходя из модуля, оболочка предупреждает его',
+    await p.evaluate(() => window.__said.length === 1 && window.__said[0] === 'servers'),
+    JSON.stringify(await p.evaluate(() => window.__said)));
+  await p.evaluate(() => Shell.switchModule('bots'));
+  await p.waitForTimeout(400);
+  check('повторный выбор того же модуля его не будит',
+    await p.evaluate(() => window.__said.length === 1));
+
   console.log('\n── Плашка голосовой ловит клики ──');
   const vb = await p.evaluate(() => {
     const bar = document.getElementById('sidebarVoiceBar');
