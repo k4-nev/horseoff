@@ -1,5 +1,6 @@
+export { default as Gallery } from '../../../../core/react-src/src/shared/chat/Gallery.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { EMOJIS, TOP_REACTIONS, TWO_DAYS, attUrl } from './lib.js';
+import { EMOJIS, TOP_REACTIONS, TWO_DAYS } from './lib.js';
 
 /* Всплывающее поверх чата: меню сообщения, палитра реакций, подтверждение,
    просмотрщик. Раньше каждое создавалось через createElement + innerHTML и
@@ -140,67 +141,6 @@ export function Confirm({ open, onClose, onOk }) {
           <button className="msg-confirm-btn danger" onClick={() => { onOk(); onClose(); }}>Очистить</button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/** Просмотрщик: одно окно на картинку и видео, с листанием по всей пачке —
-    вложениям сообщения или всей вкладке «Медиа». */
-export function Gallery({ open, onClose }) {
-  const items = open ? open.items : null;
-  const [i, setI] = useState(0);
-  const touch = useRef(null);
-
-  useEffect(() => { if (open) setI(open.index || 0); }, [open]);
-
-  const n = items ? items.length : 0;
-  const step = (d) => setI((k) => (n ? (k + d + n) % n : 0));
-
-  useDocEvent(!!open, 'keydown', (e) => {
-    if (e.key === 'Escape') onClose();
-    else if (e.key === 'ArrowLeft') step(-1);
-    else if (e.key === 'ArrowRight') step(1);
-  });
-
-  if (!open || !n) return null;
-  const cur = items[Math.min(i, n - 1)];
-  const video = cur.type === 'video';
-
-  /* Свайп: на телефоне стрелки жать некуда, а пальцем листать привычно. */
-  const onStart = (e) => { touch.current = e.touches[0].clientX; };
-  const onEnd = (e) => {
-    if (touch.current == null) return;
-    const dx = e.changedTouches[0].clientX - touch.current;
-    touch.current = null;
-    if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
-  };
-
-  const arrow = (dir) => (
-    <button
-      className={'msg-gallery-nav ' + (dir < 0 ? 'prev' : 'next')}
-      onClick={(e) => { e.stopPropagation(); step(dir); }}
-      aria-label={dir < 0 ? 'Предыдущее' : 'Следующее'}
-    >
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points={dir < 0 ? '15 18 9 12 15 6' : '9 18 15 12 9 6'} />
-      </svg>
-    </button>
-  );
-
-  return (
-    <div
-      className="msg-gallery-overlay active"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onTouchStart={onStart}
-      onTouchEnd={onEnd}
-    >
-      <button className="msg-gallery-close" onClick={onClose}>×</button>
-      {n > 1 && arrow(-1)}
-      {video
-        ? <video key={cur.id} src={attUrl(cur.id)} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
-        : <img className="msg-gallery-img" key={cur.id} src={attUrl(cur.id)} alt="" />}
-      {n > 1 && arrow(1)}
-      {n > 1 && <div className="msg-gallery-count">{(i % n) + 1} / {n}</div>}
     </div>
   );
 }

@@ -432,54 +432,54 @@ await p.evaluate((t) => window.__recv({
 await p.waitForTimeout(600);
 
 check('голосовое: прогресс на кольце вокруг кнопки',
-  await p.locator('.msg-row[data-msgid="att1"] .msg-audio-ring').count() === 1);
+  await p.locator('.msg-row[data-msgid="att1"] .ho-audio-ring').count() === 1);
 check('голосовое: волна на месте и до запуска чистая',
-  await p.locator('.msg-row[data-msgid="att1"] .msg-audio-wave-bar.on').count() === 0
-  && await p.locator('.msg-row[data-msgid="att1"] .msg-audio-wave-bar').count() > 20);
+  await p.locator('.msg-row[data-msgid="att1"] .ho-audio-bar.on').count() === 0
+  && await p.locator('.msg-row[data-msgid="att1"] .ho-audio-bar').count() > 20);
 check('аудиофайл: карточка трека с обложкой и дорожкой',
-  await p.locator('.msg-row[data-msgid="att2"] .msg-track-cover').count() === 1
-  && await p.locator('.msg-row[data-msgid="att2"] .msg-track-line').count() === 1);
+  await p.locator('.msg-row[data-msgid="att2"] .ho-track-cover').count() === 1
+  && await p.locator('.msg-row[data-msgid="att2"] .ho-track-line').count() === 1);
 check('аудиофайл не путается с голосовым',
-  await p.locator('.msg-row[data-msgid="att2"] .msg-audio-ring').count() === 0
-  && (await p.locator('.msg-row[data-msgid="att2"] .msg-track-meta').textContent()).includes('MP3'));
+  await p.locator('.msg-row[data-msgid="att2"] .ho-audio-ring').count() === 0
+  && (await p.locator('.msg-row[data-msgid="att2"] .ho-track-meta').textContent()).includes('MP3'));
 check('документ: строка каталога с расширением в иконке',
-  (await p.locator('.msg-row[data-msgid="att3"] .msg-att-file-icon').textContent()) === 'PDF');
+  (await p.locator('.msg-row[data-msgid="att3"] .ho-att-file-icon').textContent()) === 'PDF');
 check('фото и видео: не больше шести плиток',
-  await p.locator('.msg-row[data-msgid="att4"] .msg-att-thumb').count() === 6);
+  await p.locator('.msg-row[data-msgid="att4"] .ho-att-thumb').count() === 6);
 check('остаток ушёл под счётчик',
-  (await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').textContent()) === '+1');
+  (await p.locator('.msg-row[data-msgid="att4"] .ho-att-more').textContent()) === '+1');
 check('плитка сохраняет свои пропорции, а не режется в квадрат',
   await p.evaluate(() => {
-    const box = (n) => document.querySelector('.msg-att-grid img[src*="' + n + '"]')
-      .closest('.msg-att-thumb').getBoundingClientRect();
+    const box = (n) => document.querySelector('.ho-att-grid img[src*="' + n + '"]')
+      .closest('.ho-att-thumb').getBoundingClientRect();
     const wide = box('p0');
     const tall = box('p1');
     const ar = (r) => r.width / r.height;
     return ar(wide) > 1.5 && ar(tall) < 0.75;
   }),
   await p.evaluate(() => {
-    const b = (n) => { const r = document.querySelector('.msg-att-grid img[src*="' + n + '"]').closest('.msg-att-thumb').getBoundingClientRect(); return (r.width / r.height).toFixed(2); };
+    const b = (n) => { const r = document.querySelector('.ho-att-grid img[src*="' + n + '"]').closest('.ho-att-thumb').getBoundingClientRect(); return (r.width / r.height).toFixed(2); };
     return 'wide ' + b('p0') + ' / tall ' + b('p1');
   }));
 check('в ряду плитки одной высоты и ряд заполнен целиком',
   await p.evaluate(() => {
-    const rows = [...document.querySelectorAll('.msg-row[data-msgid="att4"] .msg-att-row')];
+    const rows = [...document.querySelectorAll('.msg-row[data-msgid="att4"] .ho-att-row')];
     if (!rows.length) return false;
     return rows.every((row) => {
-      const cells = [...row.querySelectorAll('.msg-att-thumb')];
+      const cells = [...row.querySelectorAll('.ho-att-thumb')];
       const hs = cells.map((c) => Math.round(c.getBoundingClientRect().height));
       const total = cells.reduce((a, c) => a + c.getBoundingClientRect().width, 0) + 4 * (cells.length - 1);
       return new Set(hs).size === 1 && Math.abs(total - row.getBoundingClientRect().width) <= 2;
     });
   }));
 check('пачка не шире ленты', await p.evaluate(() => {
-  const g = document.querySelector('.msg-row[data-msgid="att4"] .msg-att-grid');
+  const g = document.querySelector('.msg-row[data-msgid="att4"] .ho-att-grid');
   return g.getBoundingClientRect().width <= 300;
 }));
 check('счётчик открывает просмотрщик на своём месте в пачке', await (async () => {
-  await p.locator('.msg-row[data-msgid="att4"] .msg-att-more').click();
+  await p.locator('.msg-row[data-msgid="att4"] .ho-att-more').click();
   await p.waitForTimeout(350);
-  const txt = (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '');
+  const txt = (await p.locator('.ho-gallery-count').textContent()).replace(/\s/g, '');
   await p.keyboard.press('Escape');
   await p.waitForTimeout(250);
   return txt === '6/7';
@@ -490,39 +490,39 @@ await p.screenshot({ path: 'shot-attach.png' });
 console.log('\n── Голосовое: перемотка и прогресс ──');
 const voiceRow = '.msg-row[data-msgid="att1"] ';
 await p.evaluate(() => { Shell.dismissNote(); });
-await p.locator(voiceRow + '.msg-audio-btn').click();
+await p.locator(voiceRow + '.ho-audio-btn').click();
 await p.waitForTimeout(900);
 check('голосовое играет',
-  await p.evaluate(() => !!document.querySelector('.msg-row[data-msgid="att1"] .msg-audio-player.playing')));
+  await p.evaluate(() => !!document.querySelector('.msg-row[data-msgid="att1"] .ho-audio.playing')));
 check('волна показывает проигранное, а не только кольцо',
-  await p.locator(voiceRow + '.msg-audio-wave-bar.on').count() > 0,
-  'закрашено ' + await p.locator(voiceRow + '.msg-audio-wave-bar.on').count());
+  await p.locator(voiceRow + '.ho-audio-bar.on').count() > 0,
+  'закрашено ' + await p.locator(voiceRow + '.ho-audio-bar.on').count());
 check('кольцо вокруг кнопки тоже идёт',
   await p.evaluate(() => {
-    const r = document.querySelector('.msg-row[data-msgid="att1"] .msg-audio-ring');
+    const r = document.querySelector('.msg-row[data-msgid="att1"] .ho-audio-ring');
     return parseFloat(getComputedStyle(r).getPropertyValue('--pct')) > 0;
   }));
 
 /* Перемотка: щёлкаем по правой трети волны и смотрим, что закрашенных
    столбиков стало заметно больше. */
-const barsBefore = await p.locator(voiceRow + '.msg-audio-wave-bar.on').count();
-const wv = await p.locator(voiceRow + '.msg-audio-wave').boundingBox();
+const barsBefore = await p.locator(voiceRow + '.ho-audio-bar.on').count();
+const wv = await p.locator(voiceRow + '.ho-audio-wave').boundingBox();
 await p.mouse.click(wv.x + wv.width * 0.75, wv.y + wv.height / 2);
 await p.waitForTimeout(500);
-const barsAfter = await p.locator(voiceRow + '.msg-audio-wave-bar.on').count();
+const barsAfter = await p.locator(voiceRow + '.ho-audio-bar.on').count();
 check('перемотка по волне работает', barsAfter > barsBefore + 8, barsBefore + ' -> ' + barsAfter);
 
 /* Дорожка трека — тоже мишень для перемотки. */
-await p.locator('.msg-row[data-msgid="att2"] .msg-audio-btn').click();
+await p.locator('.msg-row[data-msgid="att2"] .ho-audio-btn').click();
 await p.waitForTimeout(700);
-const tl = await p.locator('.msg-row[data-msgid="att2"] .msg-track-line').boundingBox();
+const tl = await p.locator('.msg-row[data-msgid="att2"] .ho-track-line').boundingBox();
 await p.mouse.click(tl.x + tl.width * 0.7, tl.y + tl.height / 2);
 await p.waitForTimeout(250);
 check('перемотка по дорожке трека работает',
-  await p.evaluate(() => parseFloat(document.querySelector('.msg-row[data-msgid="att2"] .msg-track-line i').style.width) > 50),
-  await p.evaluate(() => document.querySelector('.msg-row[data-msgid="att2"] .msg-track-line i').style.width));
+  await p.evaluate(() => parseFloat(document.querySelector('.msg-row[data-msgid="att2"] .ho-track-line i').style.width) > 50),
+  await p.evaluate(() => document.querySelector('.msg-row[data-msgid="att2"] .ho-track-line i').style.width));
 
-await p.locator('.msg-row[data-msgid="att2"] .msg-audio-btn').click();
+await p.locator('.msg-row[data-msgid="att2"] .ho-audio-btn').click();
 await p.waitForTimeout(300);
 check('остановленное и доигравшее не сыплет ошибками',
   await p.evaluate(() => Shell._uiState.notes.filter((n) => /Ошибка воспроизведения/.test(JSON.stringify(n))).length) === 0,
@@ -582,7 +582,7 @@ check('капсула реакции без контура и в тон обла
 
 check('треугольник видео стоит в центре кнопки',
   await p.evaluate(() => {
-    const btn = document.querySelector('.msg-video-play');
+    const btn = document.querySelector('.ho-video-play');
     const svg = btn && btn.querySelector('svg');
     if (!svg) return false;
     const b = btn.getBoundingClientRect();
@@ -594,7 +594,7 @@ check('треугольник видео стоит в центре кнопки
 console.log('\n── Живой фон ленты ──');
 check('слой фона есть и лежит под сообщениями',
   await p.evaluate(() => {
-    const c = document.querySelector('.msg-chat .msg-backdrop');
+    const c = document.querySelector('.msg-chat .ho-backdrop');
     if (!c) return false;
     const st = getComputedStyle(c);
     const r = c.getBoundingClientRect();
@@ -602,7 +602,7 @@ check('слой фона есть и лежит под сообщениями',
   }));
 check('фон рисуется, а не остаётся пустым холстом',
   await p.evaluate(() => {
-    const c = document.querySelector('.msg-chat .msg-backdrop');
+    const c = document.querySelector('.msg-chat .ho-backdrop');
     const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     for (let i = 3; i < px.length; i += 4) if (px[i] > 0) return true;
     return false;
@@ -642,25 +642,25 @@ await p.waitForTimeout(400);
 console.log('\n── Просмотрщик листает ──');
 await p.locator('.msg-profile-attach-item').first().click();
 await p.waitForTimeout(400);
-check('просмотрщик открылся', await p.locator('.msg-gallery-overlay.active').count() === 1);
-check('счётчик показывает место в пачке', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '1/3');
-check('стрелки обе на месте', await p.locator('.msg-gallery-nav').count() === 2);
-await p.locator('.msg-gallery-nav.next').click();
+check('просмотрщик открылся', await p.locator('.ho-gallery').count() === 1);
+check('счётчик показывает место в пачке', (await p.locator('.ho-gallery-count').textContent()).replace(/\s/g, '') === '1/3');
+check('стрелки обе на месте', await p.locator('.ho-gallery-nav').count() === 2);
+await p.locator('.ho-gallery-nav.next').click();
 await p.waitForTimeout(250);
-check('вперёд листает', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '2/3');
-check('видео в пачке открывается видео, а не картинкой', await p.locator('.msg-gallery-overlay video').count() === 1);
+check('вперёд листает', (await p.locator('.ho-gallery-count').textContent()).replace(/\s/g, '') === '2/3');
+check('видео в пачке открывается видео, а не картинкой', await p.locator('.ho-gallery video').count() === 1);
 await p.keyboard.press('ArrowRight');
 await p.waitForTimeout(250);
-check('стрелка на клавиатуре тоже листает', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '3/3');
+check('стрелка на клавиатуре тоже листает', (await p.locator('.ho-gallery-count').textContent()).replace(/\s/g, '') === '3/3');
 await p.keyboard.press('ArrowRight');
 await p.waitForTimeout(250);
-check('с конца уходит в начало', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '1/3');
-await p.locator('.msg-gallery-nav.prev').click();
+check('с конца уходит в начало', (await p.locator('.ho-gallery-count').textContent()).replace(/\s/g, '') === '1/3');
+await p.locator('.ho-gallery-nav.prev').click();
 await p.waitForTimeout(250);
-check('назад с начала уходит в конец', (await p.locator('.msg-gallery-count').textContent()).replace(/\s/g, '') === '3/3');
+check('назад с начала уходит в конец', (await p.locator('.ho-gallery-count').textContent()).replace(/\s/g, '') === '3/3');
 await p.keyboard.press('Escape');
 await p.waitForTimeout(300);
-check('Esc закрыл просмотрщик', await p.locator('.msg-gallery-overlay.active').count() === 0);
+check('Esc закрыл просмотрщик', await p.locator('.ho-gallery').count() === 0);
 await p.keyboard.press('Escape');
 await p.waitForTimeout(400);
 check('Esc закрыл панель', await p.locator('.msg-profile.open').count() === 0);

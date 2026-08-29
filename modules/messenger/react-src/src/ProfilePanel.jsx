@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { toggleAudio } from './audio.js';
+import { toggleAudio } from '../../../../core/react-src/src/shared/chat/audio.js';
 import { api, attUrl, chatKey, displayName, fmtDuration, fmtSize, groupByDate } from './lib.js';
 
 /* Панель профиля собеседника — выезжает справа поверх чата, тем же приёмом,

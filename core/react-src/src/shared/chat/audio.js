@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
-import { attUrl, toast } from './lib.js';
+import { attUrl } from './media.js';
 
-/* Один проигрыватель на весь модуль: запуск нового трека останавливает
+/* Один проигрыватель на всё приложение: запуск нового трека останавливает
    предыдущий. Раньше состояние жило в DOM (классы .playing, подмена иконки,
    перекраска столбиков вручную), и рассинхронизировалось при перерисовке
    ленты. Здесь это обычное состояние, на которое подписаны сами плееры. */
+
+let onError = null;
+
+/** Куда сообщать об ошибке файла — модуль подставляет свой toast. */
+export function setAudioErrorHandler(fn) { onError = fn; }
 
 let audio = null;
 let current = null; // {id, state:'load'|'play'|'pause', t, dur}
@@ -60,7 +65,7 @@ function start(id, seek) {
     emit();
   };
   audio.onended = stop;
-  audio.onerror = () => { stop(); toast('Ошибка воспроизведения', 'error'); };
+  audio.onerror = () => { stop(); if (onError) onError(); };
 }
 
 export function toggleAudio(id) {

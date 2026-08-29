@@ -1,0 +1,108 @@
+/* Вложения сообщения — общий вид для «Сообщений» и «Каналов».
+   Цвет берётся из --chat-accent, иначе из акцента приложения. */
+
+/* ── Пачка фото и видео ─────────────────────────────────────────────── */
+.ho-att-grid { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+.ho-att-row { display: flex; gap: 4px; }
+.ho-att-thumb {
+  flex: none; position: relative; overflow: hidden; cursor: pointer;
+  border-radius: 9px; background: var(--surface2);
+}
+.ho-att-thumb img { width: 100%; height: 100%; object-fit: cover; transition: opacity .15s; }
+.ho-att-thumb:hover img { opacity: .85; }
+.ho-att-more {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, #141a26 52%, transparent); color: #fff;
+  font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;
+  backdrop-filter: blur(2px);
+}
+.ho-video-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; background: rgba(0, 0, 0, .25);
+}
+.ho-video-play {
+  width: 36px; height: 36px; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.ho-video-play svg { width: 17px; height: 17px; display: block; margin-left: 1px; }
+.ho-video-dur { margin-top: 2px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #fff; }
+
+/* ── Файл ───────────────────────────────────────────────────────────── */
+.ho-att-file {
+  display: flex; align-items: center; gap: 10px; max-width: 280px; margin-top: 3px;
+  padding: 8px 12px; border-radius: 8px; text-decoration: none; color: inherit; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.ho-att-file:hover { border-color: var(--accent-line); background: var(--accent-glow); }
+.ho-att-file-icon {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--accent-line); color: var(--chat-accent, var(--accent));
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: .02em;
+}
+.ho-att-file-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ho-att-file-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ho-att-file-size { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+
+/* ── Звук ───────────────────────────────────────────────────────────── */
+.ho-audio {
+  display: flex; align-items: center; gap: 14px; margin-top: 3px;
+  min-width: 240px; max-width: 360px; padding: 6px 16px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 16px;
+}
+.ho-audio--voice { gap: 13px; min-width: 220px; border-radius: 16px 16px 16px 5px; background: var(--surface); }
+.ho-audio--track { gap: 12px; padding: 9px 13px 9px 9px; border-radius: 14px; }
+
+.ho-audio-btn {
+  position: relative; flex-shrink: 0; width: 36px; height: 36px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; color: #fff; transition: transform .1s;
+  background: linear-gradient(180deg, var(--accent-dark), var(--chat-accent, var(--accent)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 3px 8px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.ho-audio-btn:active { transform: scale(.94); }
+.ho-audio--voice .ho-audio-btn {
+  border-radius: 50%; overflow: visible; box-shadow: none;
+  background: var(--accent-soft); color: var(--chat-accent, var(--accent));
+}
+/* Кольцо прогресса вокруг кнопки */
+.ho-audio-ring {
+  position: absolute; inset: -3px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--chat-accent, var(--accent)) var(--pct, 0turn), color-mix(in srgb, var(--accent) 18%, transparent) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+}
+.ho-audio-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.ho-audio-icon svg { width: 24px; height: 24px; display: block; }
+
+.ho-audio-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ho-audio-name-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ho-audio-name { font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ho-audio-time { flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+
+.ho-track-cover {
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: 8px; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(140deg, var(--chat-accent, var(--accent)), color-mix(in srgb, var(--accent) 42%, #1d2430));
+}
+.ho-track-cover svg { width: 22px; height: 22px; }
+.ho-track-meta { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-dim); }
+.ho-track-line {
+  position: relative; height: 3px; margin-top: 5px; border-radius: 99px; cursor: pointer;
+  background: color-mix(in srgb, var(--text-dim) 22%, transparent); touch-action: manipulation;
+}
+/* Полоса в три пикселя — не мишень: расширяем площадь попадания невидимкой */
+.ho-track-line::after { content: ""; position: absolute; left: 0; right: 0; top: -8px; bottom: -8px; }
+.ho-track-line i { display: block; height: 100%; border-radius: 99px; background: var(--chat-accent, var(--accent)); transition: width .18s linear; }
+
+/* Волна — она же полоса перемотки, поэтому с запасом по высоте под палец */
+.ho-audio-wave {
+  flex: 1; display: flex; align-items: center; justify-content: space-between;
+  height: 26px; padding: 7px 0; margin: -7px 0; cursor: pointer; touch-action: manipulation;
+}
+.ho-audio-bar { width: 3px; flex-shrink: 0; border-radius: 2px; transform-origin: center; transition: background .08s; }
+.ho-audio.playing .ho-audio-bar { animation: ho-wave-reveal .45s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes ho-wave-reveal { from { transform: scaleY(.12); opacity: .4 } to { transform: scaleY(1); opacity: 1 } }
+
+.ho-spin { animation: ho-spin 1s linear infinite; }
+@keyframes ho-spin { to { transform: rotate(360deg) } }

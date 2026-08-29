@@ -46,7 +46,6 @@
 /* Живой фон ленты: рисуется под сообщениями, событий не перехватывает.
    Остальные дети .msg-chat уже позиционированы сами, так что общего правила
    им не нужно — оно бы переопределило position:absolute у ленты. */
-.msg-backdrop{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
 /* Объём фона: мягкий свет сверху, лёгкая тень по нижним углам и виньетка
    по краям. Пузыри сообщений от этого перестают лежать на плоской заливке
    и читаются как приподнятые над полотном. */
@@ -155,59 +154,15 @@
 
 /* Attachments in message — standalone, no bubble */
 .msg-content{display:flex;flex-direction:column;max-width:70%;margin-bottom:4px}
-.msg-att-grid{display:flex;flex-direction:column;gap:4px;max-width:100%}
-.msg-att-row{display:flex;gap:4px}
-.msg-att-thumb{flex:none;border-radius:9px;overflow:hidden;cursor:pointer;position:relative;background:var(--surface2)}
-.msg-att-more{position:absolute;inset:0;background:color-mix(in srgb,#141a26 52%,transparent);color:#fff;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
-.msg-att-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity 0.15s}
-.msg-att-thumb:hover img{opacity:0.85}
-.msg-att-file{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-top:3px;max-width:280px;text-decoration:none;color:inherit;box-shadow:none}
-.msg-att-file:hover{border-color:var(--accent-line);background:var(--accent-glow)}
-.msg-att-file-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:none;border:1px solid var(--accent-line);flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.02em}
-.msg-att-file-info{min-width:0;display:flex;flex-direction:column;gap:2px}
-.msg-att-file-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
-.msg-att-file-size{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)}
-.msg-row.mine .msg-att-file{background:linear-gradient(180deg,var(--surface),var(--surface2));border-color:var(--border)}
 
 /* Video in message */
-.msg-att-video{position:relative;cursor:pointer}
-.msg-video-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.25);border-radius:6px}
-.msg-video-play{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;display:flex;align-items:center;justify-content:center}
-.msg-video-play svg{width:17px;height:17px;display:block;margin-left:1px}
-.msg-video-dur{font-size:10px;color:#fff;font-family:'JetBrains Mono',monospace;margin-top:2px}
-.msg-att-video-playing{width:240px;height:auto;aspect-ratio:auto}
-.msg-att-video-playing video{border-radius:6px}
 
 /* ── Audio player in message (music tracks) ── */
-.msg-audio-player{display:flex;align-items:center;gap:14px;padding:6px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;min-width:240px;max-width:360px;margin-top:3px}
-.msg-row.mine .msg-audio-player{background:color-mix(in srgb,var(--accent) 10%,transparent);border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
 /* Square gradient play button for music */
-.msg-audio-btn{width:36px;height:36px;border-radius:14px;background:linear-gradient(180deg,var(--accent-dark),var(--accent));border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 8px color-mix(in srgb,var(--accent) 30%,transparent);transition:transform 0.1s}
-.msg-audio-btn:active{transform:scale(0.94)}
 /* Кольцо прогресса вокруг кнопки: волна перестала показывать проигранное,
    иначе прогресс читался в двух местах сразу и оба неточно. */
-.msg-audio-ring{position:absolute;inset:-3px;border-radius:50%;pointer-events:none;background:conic-gradient(var(--accent) var(--pct,0turn),color-mix(in srgb,var(--accent) 18%,transparent) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2.5px),#000 calc(100% - 2.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 2.5px),#000 calc(100% - 2.5px))}
-.msg-audio-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.msg-audio-icon svg{width:24px;height:24px;display:block}
-.msg-audio-player.msg-voice .msg-audio-icon svg{width:24px;height:24px}
-.msg-audio-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.msg-audio-player.msg-track{gap:12px;padding:9px 13px 9px 9px;border-radius:14px}
-.msg-track-cover{width:44px;height:44px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(140deg,var(--accent),color-mix(in srgb,var(--accent) 42%,#1d2430))}
-.msg-track-cover svg{width:22px;height:22px}
-.msg-track-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim)}
-.msg-track-line{height:3px;border-radius:99px;background:color-mix(in srgb,var(--text-dim) 22%,transparent);margin-top:5px;cursor:pointer;position:relative;touch-action:manipulation}
 /* Полоса в три пикселя — не мишень: расширяем площадь попадания невидимкой */
-.msg-track-line::after{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
-.msg-track-line i{border-radius:99px}
-.msg-track-line i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .18s linear}
-.msg-audio-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.msg-audio-name{font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.msg-audio-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);flex-shrink:0}
 /* Waveform bars container */
-.msg-audio-wave{flex:1;display:flex;align-items:center;justify-content:space-between;height:26px;cursor:pointer;padding:7px 0;margin:-7px 0;touch-action:manipulation}
-.msg-audio-wave-bar{width:3px;border-radius:2px;flex-shrink:0;transition:background 0.08s;transform-origin:center}
-.msg-audio-player.playing .msg-audio-wave-bar{animation:waveReveal 0.45s cubic-bezier(0.22,1,0.36,1) both}
-@keyframes waveReveal{from{transform:scaleY(0.12);opacity:0.4}to{transform:scaleY(1);opacity:1}}
 
 /* Loading spinner */
 .msg-loading-spin{animation:spin 1s linear infinite}
@@ -232,12 +187,8 @@
 .msg-upload-loading{display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(81,212,136,0.1);border-radius:14px}
 
 /* ── Voice message bubbles ── */
-.msg-audio-player.msg-voice{display:flex;align-items:center;gap:13px;padding:6px 16px;border-radius:16px 16px 16px 5px;background:var(--surface);border:1px solid var(--border);min-width:220px;max-width:360px}
 /* Round play button for voice */
-.msg-audio-player.msg-voice .msg-audio-btn{width:36px;height:36px;border-radius:50%;background:var(--accent-soft);color:var(--accent);box-shadow:none;position:relative;overflow:visible}
 /* Outgoing voice bubble */
-.msg-row.mine .msg-audio-player.msg-voice{background:color-mix(in srgb,var(--accent) 20%,transparent);border-color:color-mix(in srgb,var(--accent) 35%,transparent);border-radius:16px 16px 5px 16px}
-.msg-row.mine .msg-audio-player.msg-voice .msg-audio-time{color:var(--text-dim)}
 
 /* Mic mode send button */
 
@@ -262,7 +213,6 @@
 .msg-profile-video-badge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;background:rgba(0,0,0,0.2);border-radius:4px}
 
 /* Gallery viewer */
-.msg-gallery-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;justify-content:center;align-items:center}
 
 /* Action bar (reply/forward) above input */
 .msg-action-bar-wrap{position:absolute;bottom:110%;left:0;right:0;background:var(--surface);border-bottom:2px solid var(--border);border-radius:15px;opacity:0.97}
@@ -358,20 +308,8 @@
 .msg-forward-banner-text{font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg-forward-banner-close{background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;padding:4px;line-height:1}
 .msg-forward-banner-close:hover{color:var(--text)}
-.msg-gallery-overlay.active{display:flex}
-.msg-gallery-close{position:absolute;top:16px;right:16px;background:none;border:none;color:#fff;font-size:32px;cursor:pointer;z-index:10;opacity:0.7}
-.msg-gallery-close:hover{opacity:1}
-.msg-gallery-img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px}
 /* Листание пачки: стрелки по краям, на телефоне работает свайп */
-.msg-gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.12);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.75;transition:opacity 0.15s,background 0.15s;z-index:10}
-.msg-gallery-nav:hover{opacity:1;background:rgba(255,255,255,0.22)}
-.msg-gallery-nav.prev{left:16px}
-.msg-gallery-nav.next{right:16px}
-.msg-gallery-count{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.8);font-size:12px;letter-spacing:0.04em;background:rgba(0,0,0,0.4);padding:4px 10px;border-radius:10px}
 @media(max-width:768px){
-  .msg-gallery-nav{width:38px;height:38px;background:rgba(255,255,255,0.08)}
-  .msg-gallery-nav.prev{left:6px}
-  .msg-gallery-nav.next{right:6px}
 }
 
 /* Profile panel attachment tabs */
@@ -646,22 +584,6 @@ body.theme-light .msg-chat-header-ava{background:#eaecf2;border-color:rgb(230,23
 body.theme-light .msg-chat-name{color:#252a35}
 body.theme-light .msg-input-area{background:#fff;border:1px solid rgb(230,234,240);box-shadow:0 4px 16px rgba(23,33,54,.07),0 1px 3px rgba(23,33,54,.04),inset 0 1px 0 #fff}
 body.theme-light .msg-input{color:#252a35}
-body.theme-light .msg-att-file{background:#fff;border-color:#e6eaf0;box-shadow:none}
-body.theme-light .msg-att-file:hover{border-color:var(--accent-line);background:var(--accent-glow)}
-body.theme-light .msg-att-file-icon{background:none;border:1px solid var(--accent-line);color:var(--accent)}
-body.theme-light .msg-att-file-name{color:#2a2f3a}
-body.theme-light .msg-att-file-size{color:#aab2bf}
-body.theme-light .msg-row.mine .msg-att-file{background:#fff;border-color:#e6eaf0}
-body.theme-light .msg-audio-player{background:#fff;border-color:#e6eaf0;box-shadow:0 1px 2px rgba(23,33,54,.04),0 8px 22px rgba(23,33,54,.06)}
-body.theme-light .msg-row.mine .msg-audio-player{background:#fff;border-color:#e6eaf0}
-body.theme-light .msg-audio-btn{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 80%,#fff),var(--accent));box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 8px color-mix(in srgb,var(--accent) 34%,transparent)}
-body.theme-light .msg-audio-name{color:#2a2f3a}
-body.theme-light .msg-audio-time{color:#aab2bf}
-body.theme-light .msg-audio-player.msg-voice{background:#fff;border:1px solid #e9edf2}
-body.theme-light .msg-audio-player.msg-voice .msg-audio-btn{background:var(--accent-soft);color:var(--accent);box-shadow:none}
-body.theme-light .msg-row.mine .msg-audio-player.msg-voice{background:var(--accent-soft);border:none}
-body.theme-light .msg-row.mine .msg-audio-player.msg-voice .msg-audio-btn{background:#fff;color:var(--accent);box-shadow:none}
-body.theme-light .msg-row.mine .msg-audio-player.msg-voice .msg-audio-time{color:var(--text-dim)}
 body.theme-light .msg-edit-bar{background:#f0fdf4;color:#166534;border-bottom-color:#bbf7d0}
 body.theme-light .msg-action-bar-wrap{background:#fff;border-bottom-color:#e8ecf2}
 body.theme-light .msg-attach-preview{background:#fff;border-bottom-color:#e8ecf2}

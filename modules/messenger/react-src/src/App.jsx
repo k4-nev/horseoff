@@ -4,10 +4,10 @@ import MessageList from './MessageList.jsx';
 import Composer from './Composer.jsx';
 import ProfilePanel from './ProfilePanel.jsx';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
-import Backdrop from './Backdrop.jsx';
+import Backdrop from '../../../../core/react-src/src/shared/chat/Backdrop.jsx';
 import { markLive, markReact, resetLive } from './live.js';
 import { Confirm, ContactMenu, Gallery, MsgMenu, ReactionPicker } from './Overlays.jsx';
-import { stopAudio } from './audio.js';
+import { setAudioErrorHandler, stopAudio } from '../../../../core/react-src/src/shared/chat/audio.js';
 import { S, chatKey, displayName, toast, wsSend, buzz } from './lib.js';
 
 /* Корень модуля: всё состояние переписки живёт здесь, а не в DOM.
@@ -508,7 +508,7 @@ export default function App({ registerBridge }) {
       />
 
       <div className={'msg-chat' + (chat ? ' mobile-open' : '')} ref={chatColRef}>
-        <Backdrop scrollRef={scrollRef} />
+        <Backdrop scrollRef={scrollRef} variant="dust" />
         {!chat && (
           <div className="msg-chat-empty" style={{ display: 'flex' }}>
             <svg width="56" height="56" viewBox="0 0 32 32" fill="none" stroke="#ccc" strokeWidth="1">

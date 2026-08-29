@@ -6,6 +6,12 @@
 
 export const S = () => window.Shell;
 
+/* Вложения, звук и разбор текста общие с «Каналами» — они живут в каркасе.
+   Реэкспорт оставлен, чтобы остальной модуль не знал, откуда они приходят. */
+export {
+  attUrl, fmtSize, fmtDuration, linkify, mediaType, layoutMedia, MEDIA_W, WAVE_H,
+} from '../../../../core/react-src/src/shared/chat/media.js';
+
 export const chatKey = (a, b) => [a, b].sort().join('_');
 
 /* Только через обёртки: Shell.api внутри читает this.headers(), и оторванная
@@ -16,27 +22,7 @@ export const wsSend = (m) => { const s = S(); if (s && s.wsSend) s.wsSend(m); };
 export const toast = (t, type) => { const s = S(); if (s && s.toast) s.toast(t, type); };
 export const buzz = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
 
-/* Токен в query: файлы вложений отдаются по нему, заголовок к <img> не
-   приложить. */
-export function attUrl(id, suffix) {
-  const s = S();
-  const tk = s && s.token ? '?token=' + encodeURIComponent(s.token) : '';
-  return '/api/msg/file/' + id + (suffix || '') + tk;
-}
-
 export const displayName = (c) => (c ? c.display_name || c.username : '');
-
-export const fmtSize = (b) => {
-  if (b < 1024) return b + ' Б';
-  if (b < 1048576) return Math.round(b / 1024) + ' КБ';
-  return (b / 1048576).toFixed(1) + ' МБ';
-};
-
-export const fmtDuration = (s) => {
-  const m = Math.floor(s / 60);
-  const sec = Math.round(s % 60);
-  return m + ':' + (sec < 10 ? '0' : '') + sec;
-};
 
 export const fmtTime = (t) =>
   new Date(t * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -96,60 +82,6 @@ export function layoutMessages(msgs, meId) {
   });
 }
 
-/* Раскладка пачки фото и видео.
-
-   Плитки больше не квадратные: у вложения с сервера приходят w и h, и кадр
-   9:16 не должен обрезаться до квадрата наравне с 16:9. Считаем как в
-   «оправданных рядах» (justified rows): набираем в ряд, пока сумма
-   соотношений не дойдёт до целевой, затем высота ряда = доступная ширина,
-   делённая на эту сумму. Так соседние снимки одного ряда всегда одной
-   высоты, а ряд ровно заполняет ширину при любых пропорциях.
-
-   Ширину берём фиксированной: облако и так ограничено, мерить DOM ради
-   раскладки — лишний повод для дёрганья при каждом рендере. */
-export const MEDIA_W = 292;
-const GAP = 4;
-
-export function layoutMedia(items, width = MEDIA_W, gap = GAP) {
-  const ar = (a) => {
-    const r = a.w && a.h ? a.w / a.h : 1;
-    return Math.max(0.55, Math.min(2.4, r));   // панорамы и «столбы» подрезаем
-  };
-  if (items.length === 1) {
-    const a = ar(items[0]);
-    let w = width;
-    let h = w / a;
-    const MAXH = 340;
-    if (h > MAXH) { h = MAXH; w = h * a; }
-    return [[{ item: items[0], w: Math.round(w), h: Math.round(h) }]];
-  }
-
-  // Целевая сумма соотношений: у ряда из портретов она меньше, чем из панорам
-  const target = items.length <= 4 ? 2.1 : 2.6;
-  const rows = [];
-  let row = [];
-  let sum = 0;
-  items.forEach((it, i) => {
-    row.push(it);
-    sum += ar(it);
-    const last = i === items.length - 1;
-    if (sum >= target || row.length === 3 || last) { rows.push({ row, sum }); row = []; sum = 0; }
-  });
-
-  return rows.map(({ row: r, sum: s }) => {
-    const avail = width - gap * (r.length - 1);
-    const h = Math.max(78, Math.min(260, avail / s));
-    return r.map((it, k) => ({
-      item: it,
-      // Последнюю плитку добираем остатком, иначе округления оставляют щель
-      w: k === r.length - 1
-        ? Math.round(avail - r.slice(0, k).reduce((acc, x) => acc + Math.round(h * ar(x)), 0))
-        : Math.round(h * ar(it)),
-      h: Math.round(h),
-    }));
-  });
-}
-
 export function groupByDate(items) {
   const groups = new Map();
   items.forEach((a) => {
@@ -163,35 +95,12 @@ export function groupByDate(items) {
 export const EMOJIS = ['😊', '😂', '❤️', '👍', '👋', '🔥', '😎', '🤔', '👌', '🙏', '😅', '🎉', '💪', '😍', '🤝', '👀', '✅', '❌', '⚡', '💯', '🚀', '😢', '😡', '🤣', '😘', '🥰', '😏', '😁', '😉', '🙂', '😐', '😑', '🤷', '💬', '📡', '🖥️', '⚙️', '🔧', '✨', '💀'];
 export const TOP_REACTIONS = ['❤️', '👍', '😂', '🔥', '😢'];
 
-/* Ссылки в тексте. Возвращаем куски, а не HTML: текст остаётся текстом. */
-const URL_RE = /(https?:\/\/[^\s]+)/g;
-export function linkify(text) {
-  const out = [];
-  let last = 0;
-  String(text || '').replace(URL_RE, (url, offset) => {
-    if (offset > last) out.push({ t: text.slice(last, offset) });
-    out.push({ t: url, url });
-    last = offset + url.length;
-    return url;
-  });
-  if (last < (text || '').length) out.push({ t: text.slice(last) });
-  return out;
-}
-
 /* Ограничения на вложения. Правила те же, что были — просто собраны в одном
    месте, а не размазаны по десятку if внутри цикла. */
 const IMG = /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif)$/i;
 const AUD = /\.(mp3|ogg|wav|m4a|aac|wma|flac)$/i;
 const VID = /\.(mp4|mov|avi|mkv|webm|3gp)$/i;
 const FIL = /\.(pdf|doc|docx|xls|xlsx|zip|rar|txt|csv|pptx|json|xml)$/i;
-
-export function mediaType(name) {
-  if (IMG.test(name)) return 'image';
-  if (VID.test(name)) return 'video';
-  if (AUD.test(name)) return 'audio';
-  if (FIL.test(name)) return 'file';
-  return 'unknown';
-}
 
 /** Можно ли добавить файл к уже набранным. Возвращает текст отказа или null. */
 export function rejectFile(file, current) {
@@ -209,6 +118,3 @@ export function rejectFile(file, current) {
   return null;
 }
 
-/* Столбики звуковой дорожки. Высоты фиксированные: настоящую огибающую
-   считать не по чему — сервер её не отдаёт. */
-export const WAVE_H = [8, 15, 22, 12, 18, 9, 14, 20, 7, 13, 17, 10, 16, 19, 11, 21, 8, 14];

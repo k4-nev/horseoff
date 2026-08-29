@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import Attachments from './Attachments.jsx';
+import Attachments from '../../../../core/react-src/src/shared/chat/Attachments.jsx';
 import { clearLive, clearReact, isLive, isReact } from './live.js';
 import { linkify } from './lib.js';
 
