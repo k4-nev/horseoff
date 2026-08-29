@@ -88,7 +88,7 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
       tilt: rnd(-0.12, 0.12),
       thick: rnd(26, 74),
       depth: rnd(0.35, 1.1),
-      alpha: rnd(0.05, 0.1),
+      alpha: rnd(0.035, 0.075),
       warm: Math.random() < 0.4,
     });
 
