@@ -466,6 +466,31 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 .ch-va-tile-name{position:absolute;bottom:6px;left:8px;right:8px;font-size:11px;color:#fff;background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px)}
 .ch-va-tile-mico{font-size:10px}
 .ch-va-tile.ch-va-muted .ch-va-tile-name::after{content:'🔇';font-size:10px;margin-left:auto}
+/* ── Развёрнутый участник ───────────────────────────────────────────────
+   Слой живёт в body и накрывает всё устройство: у него не было ни одной
+   строки стилей, поэтому «на весь экран» раскрывалось внутри чата. */
+.ch-va-overlay{position:fixed;inset:0;z-index:4000;background:#0b0d12;display:flex;align-items:center;justify-content:center;overscroll-behavior:contain}
+.ch-va-overlay .ch-va-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0b0d12}
+.ch-va-ov-av{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;color:#fff}
+.ch-va-ov-avimg{width:min(38vw,180px);height:min(38vw,180px);border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.16)}
+.ch-va-ov-avimg-empty{width:min(38vw,180px);height:min(38vw,180px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:min(15vw,68px);font-weight:700;background:rgba(255,255,255,.1);border:3px solid rgba(255,255,255,.16)}
+.ch-va-ov-name{font-size:17px;font-weight:600;letter-spacing:.2px}
+.ch-va-ov-close{position:absolute;top:max(12px,env(safe-area-inset-top));right:14px;width:38px;height:38px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:background .15s}
+.ch-va-ov-close:hover{background:rgba(255,255,255,.24)}
+.ch-va-ov-bar{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 12px calc(18px + env(safe-area-inset-bottom));pointer-events:none}
+.ch-va-ov-capsule{display:flex;align-items:center;gap:6px;max-width:100%;padding:8px 10px;border-radius:16px;background:rgba(18,20,28,.72);backdrop-filter:blur(14px);box-shadow:0 8px 30px rgba(0,0,0,.4);pointer-events:auto}
+.ch-va-ov-who{display:flex;align-items:center;gap:7px;color:#fff;font-size:13px;padding:0 8px 0 2px;max-width:40vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ch-va-ov-mini{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.ch-va-ov-mini-empty{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:rgba(255,255,255,.16);flex-shrink:0}
+.ch-va-ov-btn{width:42px;height:42px;border:none;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .12s}
+.ch-va-ov-btn:hover{background:rgba(255,255,255,.2)}
+.ch-va-ov-btn:active{transform:scale(.92)}
+.ch-va-ov-leave{background:rgba(231,76,60,.9)}
+.ch-va-ov-leave:hover{background:#e74c3c}
+@media(max-width:520px){
+  .ch-va-ov-btn{width:38px;height:38px}
+  .ch-va-ov-who{max-width:32vw;font-size:12px}
+}
 .ch-va-listeners{padding:6px 12px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex-shrink:0;overflow:hidden}
 .ch-va-lst-title{font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;width:100%}
 .ch-va-listener{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-dim)}

@@ -924,6 +924,33 @@ await p.evaluate(() => { const el = document.querySelector('.msg-messages'); el.
 await p.waitForTimeout(700);
 check('на длинной переписке верх по-прежнему догружает старое', (await older()) > base);
 
+/* Поле ввода растёт под длинный текст, лента ужимается на столько же — и
+   последние сообщения уезжали под ввод. Лента должна оставаться внизу. */
+await p.evaluate(() => { const el = document.querySelector('.msg-messages'); el.scrollTop = el.scrollHeight; });
+await p.waitForTimeout(300);
+const geo = async () => p.evaluate(() => {
+  const list = document.querySelector('.msg-messages');
+  const input = document.querySelector('.msg-input-area');
+  const all = document.querySelectorAll('.msg-row');
+  const last = all[all.length - 1];
+  return {
+    inputH: Math.round(input.getBoundingClientRect().height),
+    below: Math.round(list.scrollHeight - list.scrollTop - list.clientHeight),
+    gap: Math.round(input.getBoundingClientRect().top - last.getBoundingClientRect().bottom),
+  };
+});
+const calmG = await geo();
+await p.locator('.msg-input').fill('очень длинное сообщение, которое обязательно займёт несколько строк и заставит поле ввода вырасти вверх, отобрав высоту у ленты сообщений');
+await p.waitForTimeout(400);
+const typedG = await geo();
+check('поле ввода правда выросло', typedG.inputH > calmG.inputH + 8, calmG.inputH + ' → ' + typedG.inputH);
+check('переписка не ушла под выросшее поле ввода',
+  typedG.below < 4 && typedG.gap >= 0, JSON.stringify(typedG));
+await p.locator('.msg-input').fill('');
+await p.waitForTimeout(400);
+const backG = await geo();
+check('поле схлопнулось, лента по-прежнему внизу', backG.below < 4 && backG.gap >= 0, JSON.stringify(backG));
+
 await p.screenshot({ path: 'shot-desktop.png' });
 await p.locator('.msg-chat-peer').click();
 await p.waitForTimeout(500);

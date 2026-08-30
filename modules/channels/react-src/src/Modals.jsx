@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { CHANNEL_ICONS, api, compressImage, displayName } from './lib.js';
+import * as voice from './voice.js';
 
 /* Окна модуля: группа, канал, подтверждение удаления, добавление участников,
    настройки голоса и два предупреждения перед включением камеры и экрана. */
@@ -216,20 +217,38 @@ export function AddMembersModal({ open, members, onClose, onAdd }) {
 /** Настройки голоса: выбор устройств и проверка микрофона. */
 export function VoiceSettingsModal({ open, onClose }) {
   const [devices, setDevices] = useState({ mics: [], cams: [], spks: [] });
+  const [picked, setPicked] = useState(voice.getDevices());
   const [level, setLevel] = useState(0);
   const test = useRef(null);
 
+  const load = useCallback(() => navigator.mediaDevices.enumerateDevices().then((all) => {
+    setDevices({
+      mics: all.filter((d) => d.kind === 'audioinput'),
+      cams: all.filter((d) => d.kind === 'videoinput'),
+      spks: all.filter((d) => d.kind === 'audiooutput'),
+    });
+  }).catch(() => {}), []);
+
   useEffect(() => {
     if (!open) return undefined;
-    navigator.mediaDevices.enumerateDevices().then((all) => {
-      setDevices({
-        mics: all.filter((d) => d.kind === 'audioinput'),
-        cams: all.filter((d) => d.kind === 'videoinput'),
-        spks: all.filter((d) => d.kind === 'audiooutput'),
-      });
-    }).catch(() => {});
-    return () => stopTest();
-  }, [open]);
+    setPicked(voice.getDevices());
+    load();
+    // Список меняется на ходу: воткнули гарнитуру — она должна появиться
+    const md = navigator.mediaDevices;
+    if (md && md.addEventListener) md.addEventListener('devicechange', load);
+    return () => {
+      if (md && md.removeEventListener) md.removeEventListener('devicechange', load);
+      stopTest();
+    };
+  }, [open, load]);
+
+  /* Выбор применяем сразу и запоминаем: раньше select висел сам по себе —
+     ни живая дорожка не менялась, ни выбор не переживал закрытие окна. */
+  const choose = (kind, id) => {
+    setPicked((v) => ({ ...v, [kind]: id }));
+    voice.setDevice(kind, id);
+    if (kind === 'mic' && test.current) { stopTest(); setTimeout(startTest, 60); }
+  };
 
   const stopTest = () => {
     if (!test.current) return;
@@ -243,7 +262,10 @@ export function VoiceSettingsModal({ open, onClose }) {
   const startTest = async () => {
     if (test.current) { stopTest(); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chosen = voice.getDevices().mic;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: chosen ? { deviceId: { exact: chosen } } : true,
+      });
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const an = ctx.createAnalyser();
       an.fftSize = 512;
@@ -264,12 +286,35 @@ export function VoiceSettingsModal({ open, onClose }) {
 
   if (!open) return null;
   const opts = (list, prefix) => list.map((d, i) => <option value={d.deviceId} key={d.deviceId || i}>{d.label || prefix + ' ' + (i + 1)}</option>);
+  const sinkOk = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
 
   return (
     <Modal title="⚙️ Настройки голоса" onClose={() => { stopTest(); onClose(); }} wide>
-      <div className="form-group"><label className="form-label">Микрофон</label><select className="form-input">{opts(devices.mics, 'Микрофон')}</select></div>
-      <div className="form-group"><label className="form-label">Камера</label><select className="form-input"><option value="">Нет</option>{opts(devices.cams, 'Камера')}</select></div>
-      <div className="form-group"><label className="form-label">Динамик</label><select className="form-input">{devices.spks.length ? opts(devices.spks, 'Динамик') : <option>Системный динамик</option>}</select></div>
+      <div className="form-group">
+        <label className="form-label">Микрофон</label>
+        <select className="form-input" data-kind="mic" value={picked.mic} onChange={(e) => choose('mic', e.target.value)}>
+          <option value="">Системный по умолчанию</option>
+          {opts(devices.mics, 'Микрофон')}
+        </select>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Камера</label>
+        <select className="form-input" data-kind="cam" value={picked.cam} onChange={(e) => choose('cam', e.target.value)}>
+          <option value="">Системная по умолчанию</option>
+          {opts(devices.cams, 'Камера')}
+        </select>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Динамик</label>
+        <select
+          className="form-input" data-kind="spk" value={picked.spk}
+          disabled={!sinkOk} onChange={(e) => choose('spk', e.target.value)}
+        >
+          <option value="">Системный динамик</option>
+          {sinkOk ? opts(devices.spks, 'Динамик') : null}
+        </select>
+        {!sinkOk && <div className="form-hint">Браузер не умеет выбирать динамик — звук идёт в системный</div>}
+      </div>
       <div className="form-group">
         <label className="form-label">Тест микрофона</label>
         <div className="ch-vs-test-wrap">
@@ -281,7 +326,8 @@ export function VoiceSettingsModal({ open, onClose }) {
         <button
           className="btn btn-secondary" style={{ width: '100%' }}
           onClick={() => navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-            .then((s) => s.getTracks().forEach((t) => t.stop())).catch(() => {})}
+            // Названия устройств браузер отдаёт только после разрешения — перечитываем
+            .then((s) => { s.getTracks().forEach((t) => t.stop()); load(); }).catch(() => {})}
         >
           🔐 Запросить разрешения на микрофон и камеру
         </button>

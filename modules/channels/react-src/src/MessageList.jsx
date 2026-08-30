@@ -165,6 +165,24 @@ export default function MessageList({
     return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
 
+  /* Поле ввода растёт вместе с набранным текстом (а на телефоне ещё и
+     клавиатура, полоска ответа, превью вложений) — лента при этом ужимается,
+     и последние сообщения уезжают под ввод: набрал длинное — переписка
+     «поднялась», отправил и поле схлопнулось — «опустилась». Браузер
+     scrollTop при таком сжатии не трогает, поэтому подтягиваем сами: если до
+     изменения размера человек был внизу — остаётся внизу. */
+  const pinned = useRef(true);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      if (!pinned.current) return;
+      el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollRef]);
+
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -177,6 +195,7 @@ export default function MessageList({
       if (!messages.length) return;
       booted.current = channelId;
       prevLen.current = messages.length;
+      pinned.current = true;
       el.scrollTop = el.scrollHeight;
       setUnreadBelow(0);
       return;
@@ -221,6 +240,7 @@ export default function MessageList({
       onLoadMore();
     }
     const below = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinned.current = below < 24;
     if (below < 120) setUnreadBelow(0);
     setShowBtn(below > 120);
   };

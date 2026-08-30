@@ -43,6 +43,64 @@ const iceQueue = {};
 let localStream = null;
 let vadCtx = null;
 
+/* ── Выбранные устройства ───────────────────────────────────────────────
+   Выбор из настроек надо и запомнить между сеансами, и применить сразу —
+   раньше select ничего никуда не отдавал: закрыл окно, и выбора как не
+   бывало. Пустая строка — «системное по умолчанию». */
+const DEV_KEY = 'ho_voice_devices';
+let devices = { mic: '', cam: '', spk: '' };
+try {
+  const saved = JSON.parse(localStorage.getItem(DEV_KEY) || '{}');
+  devices = { mic: saved.mic || '', cam: saved.cam || '', spk: saved.spk || '' };
+} catch (e) { /* испорченная запись — берём системные */ }
+
+export function getDevices() { return { ...devices }; }
+
+const micConstraint = () => (devices.mic ? { deviceId: { exact: devices.mic } } : true);
+const camConstraint = (res) => (devices.cam ? { ...res, deviceId: { exact: devices.cam } } : res);
+
+/* Динамик выбирается не ограничением, а на самом элементе: setSinkId есть
+   не везде, поэтому неудача здесь ничего не ломает. */
+export function attachSink(el) {
+  if (!el || !devices.spk || !el.setSinkId) return;
+  el.setSinkId(devices.spk).catch(() => {});
+}
+
+/** Смена устройства из настроек: запоминаем и подменяем живую дорожку. */
+export async function setDevice(kind, id) {
+  devices = { ...devices, [kind]: id || '' };
+  try { localStorage.setItem(DEV_KEY, JSON.stringify(devices)); } catch (e) { /* приватный режим */ }
+
+  if (kind === 'spk') { emit({ streamsVersion: state.streamsVersion + 1 }); return; }
+  if (!state.roomId || !localStream) return;
+
+  const wantVideo = kind === 'cam';
+  if (wantVideo && (state.videoMuted || state.screenSharing)) return;  // нечего подменять
+  const old = wantVideo ? localStream.getVideoTracks()[0] : localStream.getAudioTracks()[0];
+  if (!old) return;
+
+  try {
+    const fresh = await navigator.mediaDevices.getUserMedia(
+      wantVideo ? { video: camConstraint({ width: { ideal: 1280 }, height: { ideal: 720 } }) } : { audio: micConstraint() },
+    );
+    const track = wantVideo ? fresh.getVideoTracks()[0] : fresh.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = old.enabled;
+    Object.keys(peers).forEach((uid) => {
+      const sender = peers[uid].getSenders().find((x) => x.track && x.track.kind === track.kind);
+      if (sender) sender.replaceTrack(track).catch(() => {});
+    });
+    localStream.removeTrack(old);
+    old.stop();
+    localStream.addTrack(track);
+    if (!wantVideo) { stopVAD(); initVAD(); }
+    emit({ streamsVersion: state.streamsVersion + 1 });
+    toast(wantVideo ? 'Камера переключена' : 'Микрофон переключён');
+  } catch (e) {
+    toast('Не удалось переключить устройство', 'error');
+  }
+}
+
 function emit(patch) {
   state = { ...state, ...patch };
   subs.forEach((fn) => fn(state));
@@ -123,7 +181,7 @@ async function renegotiate(userId) {
 export async function joinRoom(spaceId, roomId, myId) {
   emit({ joining: true });
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraint(), video: false });
     localStream.getAudioTracks().forEach((t) => { t.enabled = false; });
     emit({ isSpeaker: true });
   } catch (e) {
@@ -141,8 +199,15 @@ export async function joinRoom(spaceId, roomId, myId) {
 
 /* Кто говорит — по громкости своего же потока: сервер такого не знает, а
    подсветка плитки нужна сразу, без круга через сеть. */
+function stopVAD() {
+  if (!vadCtx) return;
+  try { vadCtx.close(); } catch (e) { /* уже закрыт */ }
+  vadCtx = null;
+}
+
 function initVAD() {
   if (!localStream) return;
+  stopVAD();
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(localStream);
@@ -159,6 +224,7 @@ function initVAD() {
       let sum = 0;
       for (let i = 0; i < data.length; i++) sum += data[i];
       const isSpeaking = sum / data.length > 10 && !state.muted;
+      if (ctx !== vadCtx) return;   // дорожку сменили — этот анализатор больше не нужен
       if (isSpeaking !== speaking) {
         speaking = isSpeaking;
         wsSend({ type: 'voice_speaking', room_id: state.roomId, speaking });
@@ -181,7 +247,7 @@ export function cleanup() {
   Object.keys(remote).forEach((uid) => delete remote[uid]);
   Object.keys(iceQueue).forEach((uid) => delete iceQueue[uid]);
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
-  if (vadCtx) { try { vadCtx.close(); } catch (e) { /* уже закрыт */ } vadCtx = null; }
+  stopVAD();
   emit({
     roomId: null, spaceId: null, room: null, isSpeaker: false,
     muted: true, videoMuted: true, screenSharing: false, handRaised: false,
@@ -208,7 +274,7 @@ export async function enableCamera() {
     if (existing) {
       existing.enabled = true;
     } else {
-      const vs = await navigator.mediaDevices.getUserMedia({ video: res });
+      const vs = await navigator.mediaDevices.getUserMedia({ video: camConstraint(res) });
       const track = vs.getVideoTracks()[0];
       if (!track) return;
       if (localStream) localStream.addTrack(track);

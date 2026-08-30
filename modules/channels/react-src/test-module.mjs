@@ -118,7 +118,21 @@ await p.route('**/api/**', (route) => {
   return j({ ok: true });
 });
 
-await p.addInitScript(() => { localStorage.setItem('ho_token', 't'); localStorage.removeItem('ho_pin'); });
+await p.addInitScript(() => {
+  localStorage.setItem('ho_token', 't');
+  localStorage.removeItem('ho_pin');
+  localStorage.removeItem('ho_voice_devices');
+  // Чем именно просят микрофон и камеру — иначе выбор устройства не проверить
+  window.__gum = [];
+  const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = (c) => { window.__gum.push(JSON.parse(JSON.stringify(c))); return real(c); };
+  // Полный экран в headless не дают без жеста — запоминаем сам факт запроса
+  window.__fs = [];
+  Element.prototype.requestFullscreen = function req() {
+    window.__fs.push(this.className);
+    return Promise.resolve();
+  };
+});
 await p.goto(BASE);
 await p.waitForSelector('#appShell.active');
 await p.evaluate(() => {
@@ -403,6 +417,76 @@ await p.waitForTimeout(700);
 check('на длинной ленте верх по-прежнему догружает старое',
   historyOffsets.some((o) => o > 0), 'запросы истории: ' + historyOffsets.join(', '));
 
+/* Поле ввода растёт под длинный текст, лента на столько же ужимается — и
+   последние сообщения уезжали под ввод: набрал — «поднялось», отправил —
+   «опустилось». Лента должна оставаться прижатой к низу. */
+await p.evaluate(() => { const el = document.querySelector('.ch-messages'); el.scrollTop = el.scrollHeight; });
+await p.waitForTimeout(300);
+const grow = async () => p.evaluate(() => {
+  const list = document.querySelector('.ch-messages');
+  const input = document.querySelector('.ch-input-area');
+  const all = document.querySelectorAll('.ch-msg');
+  const last = all[all.length - 1];
+  return {
+    inputH: Math.round(input.getBoundingClientRect().height),
+    below: Math.round(list.scrollHeight - list.scrollTop - list.clientHeight),
+    gap: Math.round(input.getBoundingClientRect().top - last.getBoundingClientRect().bottom),
+  };
+});
+const calm = await grow();
+await p.locator('.ch-input').fill('очень длинное сообщение, которое обязательно займёт несколько строк и заставит поле ввода вырасти вверх, отобрав высоту у ленты сообщений');
+await p.waitForTimeout(400);
+const typed = await grow();
+check('поле ввода правда выросло', typed.inputH > calm.inputH + 8, calm.inputH + ' → ' + typed.inputH);
+check('переписка не ушла под выросшее поле ввода',
+  typed.below < 4 && typed.gap >= 0, JSON.stringify(typed));
+await p.locator('.ch-input').fill('');
+await p.waitForTimeout(400);
+const back = await grow();
+check('поле схлопнулось, лента по-прежнему внизу', back.below < 4 && back.gap >= 0, JSON.stringify(back));
+
+console.log('\n── Настройки устройств ──');
+/* Выбор в настройках раньше никуда не уходил: select ни к чему не привязан,
+   при следующем открытии — снова первый пункт, и живая дорожка оставалась
+   от системного устройства. */
+await p.locator('.ch-voice-room').click();
+await p.waitForTimeout(500);
+await p.locator('.srv-settings-btn').click();
+await p.waitForTimeout(700);
+check('окно настроек голоса открылось', await p.locator('select[data-kind="mic"]').count() === 1);
+const micOpts = await p.evaluate(() => [...document.querySelectorAll('select[data-kind="mic"] option')].map((o) => o.value));
+check('микрофоны перечислены', micOpts.length >= 2, micOpts.length + ' пунктов');
+const chosenMic = micOpts.find((v) => v);
+await p.selectOption('select[data-kind="mic"]', chosenMic);
+await p.waitForTimeout(400);
+check('выбор микрофона сохранён',
+  await p.evaluate(() => (JSON.parse(localStorage.getItem('ho_voice_devices') || '{}').mic || '') !== ''),
+  await p.evaluate(() => localStorage.getItem('ho_voice_devices')));
+const camOpts = await p.evaluate(() => [...document.querySelectorAll('select[data-kind="cam"] option')].map((o) => o.value));
+const chosenCam = camOpts.find((v) => v);
+if (chosenCam) {
+  await p.selectOption('select[data-kind="cam"]', chosenCam);
+  await p.waitForTimeout(300);
+}
+await p.locator('.modal-actions .btn-primary').click();
+await p.waitForTimeout(400);
+await p.locator('.srv-settings-btn').click();
+await p.waitForTimeout(600);
+check('при повторном открытии выбор на месте',
+  (await p.locator('select[data-kind="mic"]').inputValue()) === chosenMic,
+  await p.locator('select[data-kind="mic"]').inputValue());
+await p.locator('.modal-actions .btn-primary').click();
+await p.waitForTimeout(400);
+
+await p.evaluate(() => { window.__gum = []; });
+await p.locator('.ch-vpj-join-btn').click();
+await p.waitForTimeout(900);
+check('вход в комнату берёт выбранный микрофон',
+  await p.evaluate((id) => window.__gum.some((c) => c.audio && c.audio.deviceId && c.audio.deviceId.exact === id), chosenMic),
+  JSON.stringify(await p.evaluate(() => window.__gum)));
+await p.locator('.ch-va-ctrl-leave').click();
+await p.waitForTimeout(600);
+
 console.log('\n── Голосовая комната ──');
 await p.locator('.ch-voice-room').click();
 await p.waitForTimeout(600);
@@ -523,6 +607,32 @@ await p.setViewportSize({ width: 1440, height: 900 });
 await p.waitForTimeout(400);
 await fill(2);
 await p.waitForTimeout(300);
+
+/* «На весь экран» должно быть экраном устройства, а не колонкой чата: слой
+   выносится в body и просит настоящий полный экран. */
+await p.evaluate(() => { window.__fs = []; });
+await p.locator('.ch-va-tile').first().click();
+await p.waitForTimeout(500);
+check('развёрнутая плитка живёт в body, а не внутри чата',
+  await p.evaluate(() => {
+    const o = document.querySelector('.ch-va-overlay');
+    return !!o && o.parentElement === document.body;
+  }));
+const ovBox = await p.evaluate(() => {
+  const o = document.querySelector('.ch-va-overlay');
+  const r = o.getBoundingClientRect();
+  const cs = getComputedStyle(o);
+  return { w: Math.round(r.width), h: Math.round(r.height), pos: cs.position, z: cs.zIndex };
+});
+check('слой накрывает всё окно, а не область чата',
+  ovBox.pos === 'fixed' && ovBox.w === 1440 && ovBox.h === 900 && Number(ovBox.z) >= 1000,
+  JSON.stringify(ovBox));
+check('запрошен полный экран устройства',
+  await p.evaluate(() => window.__fs.some((c) => c.indexOf('ch-va-overlay') !== -1)),
+  JSON.stringify(await p.evaluate(() => window.__fs)));
+await p.locator('.ch-va-ov-close').click();
+await p.waitForTimeout(400);
+check('закрытие убирает слой', await p.locator('.ch-va-overlay').count() === 0);
 
 check('плашка комнаты появилась в каркасе',
   await p.evaluate(() => document.querySelector('#sidebarVoiceBar .sb-voice-bar-ico') !== null));

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { plural } from './lib.js';
 import * as voice from './voice.js';
 
@@ -8,8 +9,9 @@ import * as voice from './voice.js';
    а держать MediaStream в состоянии React незачем: он живёт в движке
    (voice.js) и переживает перерисовки. */
 
-function Video({ userId, version, muted, hidden }) {
-  const ref = useRef(null);
+function Video({ userId, version, muted, hidden, vref }) {
+  const own = useRef(null);
+  const ref = vref || own;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -18,6 +20,7 @@ function Video({ userId, version, muted, hidden }) {
       el.srcObject = s || null;
       if (s) el.play().catch(() => {});
     }
+    voice.attachSink(el);
   }, [userId, version, hidden]);
   return <video className="ch-va-video" ref={ref} autoPlay playsInline muted={muted} style={{ display: hidden ? 'none' : 'block' }} />;
 }
@@ -68,11 +71,54 @@ export function PreJoin({ name, room, onJoin, onSettings, joining }) {
   );
 }
 
-/** Развёрнутая плитка: один участник во весь экран. */
+/* Полноэкранный режим устройства, а не «во весь чат». Развёрнутая плитка
+   раньше просто рисовалась div-ом внутри колонки канала — без единого стиля,
+   поэтому и разворачивалась в пределах чата. Теперь слой выносится в body и
+   просит у браузера настоящий полный экран; iOS элементы разворачивать не
+   умеет, там остаётся встроенный полноэкранный режим самого видео. */
+function goFullscreen(el, video) {
+  const req = el && (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen);
+  if (req) return req.call(el, { navigationUI: 'hide' }) || Promise.resolve();
+  if (video && video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen(); } catch (e) { /* нельзя до старта */ } }
+  return Promise.resolve();
+}
+
+function exitFullscreen() {
+  const d = document;
+  if (!(d.fullscreenElement || d.webkitFullscreenElement)) return;
+  const exit = d.exitFullscreen || d.webkitExitFullscreen || d.msExitFullscreen;
+  if (exit) { try { exit.call(d); } catch (e) { /* уже вышли */ } }
+}
+
+/** Развёрнутая плитка: один участник во весь экран устройства. */
 function Expanded({ p, isMe, st, onClose, onMic, onCam, onScreen, onLeave, hasDisplayMedia }) {
-  return (
-    <div className="ch-va-overlay">
-      <Video userId={p.user_id} version={st.streamsVersion} muted={isMe} hidden={p.video_muted} />
+  const box = useRef(null);
+  const vid = useRef(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+
+  useEffect(() => {
+    goFullscreen(box.current, vid.current).catch(() => {});
+    /* Выход из полного экрана системной кнопкой или Esc — это и есть закрытие:
+       иначе слой остаётся висеть поверх приложения. */
+    const onFs = () => {
+      if (!(document.fullscreenElement || document.webkitFullscreenElement)) close.current();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close.current(); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+      document.removeEventListener('keydown', onKey);
+      exitFullscreen();
+    };
+  }, []);
+
+  return createPortal(
+    <div className="ch-va-overlay" ref={box}>
+      <Video userId={p.user_id} version={st.streamsVersion} muted={isMe} hidden={p.video_muted} vref={vid} />
       {p.video_muted && (
         <div className="ch-va-ov-av">
           <Avatar p={p} cls="ch-va-ov-avimg" />
@@ -99,7 +145,8 @@ function Expanded({ p, isMe, st, onClose, onMic, onCam, onScreen, onLeave, hasDi
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
