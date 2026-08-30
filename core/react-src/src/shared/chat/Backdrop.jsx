@@ -9,8 +9,9 @@ import './backdrop.css';
    кадров в секунду (каждый кадр стоит десятка радиальных градиентов).
 
    Общий слой у модулей один, различается рисунок поверх пятен:
-     dust    — редкая пыль точками («Сообщения»);
-     ribbons — широкие мягкие ленты, медленно текущие поперёк («Каналы»).
+     dust  — редкая пыль точками («Сообщения»);
+     rings — редкие круги, медленно расходящиеся от случайных точек, как
+             от капли на воде («Каналы»).
    Разный рисунок нужен, чтобы два чата не путались между собой боковым
    зрением: у них одна геометрия и почти одна палитра.
 
@@ -44,7 +45,7 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
     let h = 0;
     let blobs = [];
     let dust = [];
-    let ribbons = [];
+    let rings = [];
 
     const [ar, ag, ab] = accentRGB(canvas);
     const tint = (a) => 'rgba(' + ar + ',' + ag + ',' + ab + ',' + a + ')';
@@ -76,19 +77,20 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
       halo: Math.random() < 0.18,
     });
 
-    /* Лента — синусоида во всю ширину: своя частота, амплитуда, наклон и
-       скорость течения. Толщина в десятки пикселей и почти прозрачная
-       заливка, поэтому читается как складка света, а не как график. */
-    const spawnRibbon = (i, total) => ({
-      y: (i + 0.5) / total + rnd(-0.06, 0.06),
-      amp: rnd(0.03, 0.09),
-      freq: rnd(0.9, 2.1),
-      phase: rnd(0, Math.PI * 2),
-      speed: rnd(0.05, 0.16) * (Math.random() < 0.5 ? -1 : 1),
-      tilt: rnd(-0.12, 0.12),
-      thick: rnd(26, 74),
+    /* Круг расходится от своей точки и гаснет к краю — как от капли. У
+       каждого своя скорость и предельный радиус, стартуют они вразнобой,
+       поэтому картинка не пульсирует в такт. */
+    const spawnRing = (mid) => ({
+      x: rnd(0.08, 0.92),
+      y: rnd(0.08, 0.92),
+      // mid=true — первый набор рождается уже подросшим, чтобы при открытии
+      // канала фон не начинался с пустоты
+      r: mid ? rnd(0.05, 0.75) : 0,
+      max: rnd(0.42, 0.95),
+      speed: rnd(0.022, 0.05),
+      width: rnd(1.1, 2.6),
       depth: rnd(0.35, 1.1),
-      alpha: rnd(0.035, 0.075),
+      alpha: rnd(0.1, 0.2),
       warm: Math.random() < 0.4,
     });
 
@@ -105,16 +107,16 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
       while (blobs.length < nb) blobs.push(spawnBlob());
       blobs.length = nb;
 
-      if (variant === 'ribbons') {
-        const nr = w < 620 ? 4 : 6;
-        while (ribbons.length < nr) ribbons.push(spawnRibbon(ribbons.length, nr));
-        ribbons.length = nr;
+      if (variant === 'rings') {
+        const nr = w < 620 ? 5 : 8;
+        while (rings.length < nr) rings.push(spawnRing(true));
+        rings.length = nr;
         dust.length = 0;
       } else {
         const nd = Math.max(20, Math.min(52, Math.round((w * h) / 16000)));
         while (dust.length < nd) dust.push(spawnDust());
         dust.length = nd;
-        ribbons.length = 0;
+        rings.length = 0;
       }
     };
 
@@ -170,30 +172,22 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
       }
     };
 
-    const drawRibbons = (dt) => {
-      const STEP = 26;   // шаг по x: полоса гладкая, но точек немного
-      for (let i = 0; i < ribbons.length; i++) {
-        const r = ribbons[i];
-        r.phase += r.speed * dt;
-        const shift = pointer.y * 38 * r.depth + scrollShift * 34 * r.depth;
-        const baseY = r.y * h + shift;
-        const drift = pointer.x * 26 * r.depth;
-
+    const drawRings = (dt) => {
+      const side = Math.min(w, h);
+      for (let i = 0; i < rings.length; i++) {
+        const r = rings[i];
+        r.r += r.speed * dt;
+        if (r.r > r.max) { rings[i] = spawnRing(false); continue; }
+        const t = r.r / r.max;
+        // Гаснет к краю и чуть подрастает в толщине — так круг «уходит»
+        const a = r.alpha * (1 - t) * Math.min(1, t * 6);
+        if (a <= 0.002) continue;
+        const px = r.x * w + pointer.x * 46 * r.depth;
+        const py = r.y * h + pointer.y * 36 * r.depth + scrollShift * 30 * r.depth;
         ctx.beginPath();
-        for (let x = -STEP; x <= w + STEP; x += STEP) {
-          const t = x / (w || 1);
-          const y = baseY + Math.sin(t * Math.PI * 2 * r.freq + r.phase) * r.amp * h + t * r.tilt * h;
-          if (x <= -STEP) ctx.moveTo(x + drift, y); else ctx.lineTo(x + drift, y);
-        }
-        const g = ctx.createLinearGradient(0, baseY - r.thick, 0, baseY + r.thick);
-        const col = r.warm ? '104,138,200' : ar + ',' + ag + ',' + ab;
-        g.addColorStop(0, 'rgba(' + col + ',0)');
-        g.addColorStop(0.5, 'rgba(' + col + ',' + r.alpha + ')');
-        g.addColorStop(1, 'rgba(' + col + ',0)');
-        ctx.strokeStyle = g;
-        ctx.lineWidth = r.thick;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.arc(px, py, r.r * side, 0, Math.PI * 2);
+        ctx.strokeStyle = r.warm ? 'rgba(104,138,200,' + a.toFixed(4) + ')' : tint(a.toFixed(4));
+        ctx.lineWidth = r.width * (1 + t);
         ctx.stroke();
       }
     };
@@ -203,7 +197,7 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
       pointer.x += (pointer.tx - pointer.x) * Math.min(1, dt * 2.2);
       pointer.y += (pointer.ty - pointer.y) * Math.min(1, dt * 2.2);
       drawBlobs(dt);
-      if (variant === 'ribbons') drawRibbons(dt); else drawDust(dt);
+      if (variant === 'rings') drawRings(dt); else drawDust(dt);
     };
 
     if (reduce) {
@@ -256,5 +250,6 @@ export default function Backdrop({ scrollRef, variant = 'dust' }) {
     };
   }, [scrollRef, variant]);
 
-  return <canvas className="ho-backdrop" ref={ref} aria-hidden="true" />;
+  // Рисунок подписан в разметке: так видно, какой из модулей что показывает
+  return <canvas className="ho-backdrop" data-variant={variant} ref={ref} aria-hidden="true" />;
 }

@@ -148,13 +148,14 @@ const Row = memo(function Row({
 });
 
 export default function MessageList({
-  messages, loading, meId, admin, lastRead, search, activeMatch, scrollRef,
+  messages, loading, meId, admin, lastRead, search, activeMatch, scrollRef, channelId,
   onLoadMore, onCtx, onReply, onForward, onPin, onEdit, onDelete, onReact, onOpenMedia, onJump,
 }) {
   const [showBtn, setShowBtn] = useState(false);
   const [unreadBelow, setUnreadBelow] = useState(0);
   const keep = useRef(null);
   const prevLen = useRef(0);
+  const booted = useRef(null);   // для какого канала уже доехали до низа
 
   const rows = layoutMessages(messages, meId, lastRead);
   const q = (search || '').trim().toLowerCase();
@@ -167,6 +168,20 @@ export default function MessageList({
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+
+    /* Открыли канал — сразу к последним сообщениям. Без этого лента
+       оставалась на самом верху истории, каждое новое сообщение считалось
+       «непрочитанным ниже», а своё письмо резко уносило вниз — это и
+       читалось как «чат подпрыгнул». */
+    if (booted.current !== channelId) {
+      if (!messages.length) return;
+      booted.current = channelId;
+      prevLen.current = messages.length;
+      el.scrollTop = el.scrollHeight;
+      setUnreadBelow(0);
+      return;
+    }
+
     if (keep.current != null) {
       // Подгрузили старые: держим то, что человек читал
       el.scrollTop = el.scrollHeight - keep.current;
@@ -184,7 +199,7 @@ export default function MessageList({
     } else {
       setUnreadBelow((n) => n + 1);
     }
-  }, [messages, meId, scrollRef]);
+  }, [messages, meId, scrollRef, channelId]);
 
   useEffect(() => {
     if (!activeMatch) return;

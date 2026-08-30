@@ -437,7 +437,7 @@ export default function App({ registerBridge }) {
       />
 
       <div className={'ch-chat' + (channel ? ' mobile-open' : '')}>
-        <Backdrop scrollRef={scrollRef} variant="ribbons" />
+        <Backdrop scrollRef={scrollRef} variant="rings" />
 
         {chan && (
           <div className="ch-chat-head" style={{ display: 'flex' }}>
@@ -530,6 +530,7 @@ export default function App({ registerBridge }) {
 
             <MessageList
               messages={messages} loading={loading} meId={meId} admin={admin} lastRead={lastRead}
+              channelId={channel}
               search={searchOpen ? search : ''} activeMatch={searchOpen ? activeMatch : null} scrollRef={scrollRef}
               onLoadMore={loadMore}
               onCtx={(e, m) => setCtx({ m, x: e.clientX, y: e.clientY })}

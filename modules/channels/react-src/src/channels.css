@@ -115,8 +115,11 @@
 .ch-msg-qbtn:active{transform:scale(0.9)}
 
 /* Reply in message */
-.ch-msg-reply{padding:4px 8px;margin-bottom:4px;border-left:2px solid var(--accent);background:var(--surface2);border-radius:0 6px 6px 0;font-size:11px;cursor:pointer;transition:background 0.1s}
-.ch-msg-reply:hover{background:var(--border)}
+/* Строка сообщения прозрачная, под ней живой фон — цитата на var(--surface2)
+   на нём терялась. Плотная подложка с рамкой и полосой акцента читается на
+   любом кадре фона. */
+.ch-msg-reply{padding:5px 9px;margin-bottom:4px;border:1px solid var(--border);border-left:2px solid var(--accent);background:var(--surface);border-radius:0 7px 7px 0;font-size:11px;cursor:pointer;transition:background 0.1s,border-color 0.1s;box-shadow:0 1px 2px rgba(23,33,54,.05)}
+.ch-msg-reply:hover{background:var(--accent-glow);border-color:var(--accent-line)}
 .ch-msg-reply-name{font-weight:600;color:var(--accent);font-size:10px}
 .ch-msg-reply-text{color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;display:block}
 

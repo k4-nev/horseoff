@@ -592,6 +592,8 @@ check('треугольник видео стоит в центре кнопки
   }));
 
 console.log('\n── Живой фон ленты ──');
+check('модуль просит рисунок точками — не тот, что в «Каналах»',
+  await p.evaluate(() => document.querySelector('.ho-backdrop').dataset.variant) === 'dust');
 check('слой фона есть и лежит под сообщениями',
   await p.evaluate(() => {
     const c = document.querySelector('.msg-chat .ho-backdrop');

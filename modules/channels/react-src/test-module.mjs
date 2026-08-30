@@ -48,7 +48,11 @@ const T = Math.floor(Date.now() / 1000);
 const MESSAGES = [
   { id: 'm1', from: 'u2', from_name: 'Мысика', role: 'arcana', text: 'Прокси на втором лежит', time: T - 600, reactions: {} },
   { id: 'm2', from: 'u2', from_name: 'Мысика', role: 'arcana', text: 'перезапусти когда сможешь', time: T - 580, reactions: {} },
-  { id: 'm3', from: 'me', from_name: 'Костя', role: 'arcana', text: 'уже поднял', time: T - 300, reactions: { '👍': ['u2'] } },
+  {
+    id: 'm3', from: 'me', from_name: 'Костя', role: 'arcana', text: 'уже поднял', time: T - 300,
+    reactions: { '👍': ['u2'] },
+    reply_to: 'm1', reply_name: 'Мысика', reply_text: 'Прокси на втором лежит',
+  },
   {
     id: 'm4', from: 'u3', from_name: 'Дежурный', role: 'rare', text: 'вот логи', time: T - 100, reactions: {},
     attachments: [
@@ -142,6 +146,20 @@ check('у сообщения видно автора и роль',
   (await p.locator('.ch-msg .ch-msg-author').first().textContent()) === 'Мысика'
   && (await p.locator('.ch-msg .role-badge').first().textContent()) === 'ARCANA');
 check('своё сообщение помечено', await p.locator('.ch-msg-author.me').count() === 1);
+check('цитата ответа показана', (await p.locator('.ch-msg-reply-text').textContent()) === 'Прокси на втором лежит');
+/* Строка сообщения прозрачная, под ней живой фон: у цитаты должна быть своя
+   плотная подложка, иначе её на фоне не видно. */
+check('цитата не просвечивает фоном',
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.ch-msg-reply'));
+    const a = st.backgroundColor.match(/[\d.]+/g);
+    const opaque = a.length < 4 || Number(a[3]) > 0.9;
+    return opaque && parseFloat(st.borderLeftWidth) >= 2 && parseFloat(st.borderTopWidth) >= 1;
+  }),
+  await p.evaluate(() => {
+    const st = getComputedStyle(document.querySelector('.ch-msg-reply'));
+    return st.backgroundColor + ', рамка ' + st.borderTopWidth + '/' + st.borderLeftWidth;
+  }));
 check('разделитель непрочитанного на месте', await p.locator('.ch-new-sep').count() === 1);
 check('канал отмечен прочитанным на сервере',
   await p.evaluate(() => performance.getEntriesByType('resource').some((r) => r.name.includes('/channels/read'))));
@@ -362,9 +380,12 @@ check('фон нарисован, а не пустой холст',
     for (let i = 3; i < px.length; i += 4) if (px[i] > 0) return true;
     return false;
   }));
-/* Рисунок должен отличаться от «Сообщений»: там редкие точки, здесь широкие
-   ленты. Считаем долю закрашенных пикселей — у лент она заметно выше. */
-check('рисунок лентами, а не точками',
+/* Рисунок должен отличаться от «Сообщений»: там редкие точки, здесь круги,
+   расходящиеся от случайных точек. Проверяем и объявленный рисунок, и то,
+   что холст действительно им заполнен. */
+check('модуль просит рисунок кругами',
+  await p.evaluate(() => document.querySelector('.ch-chat .ho-backdrop').dataset.variant) === 'rings');
+check('холст заполнен, а не усыпан редкими точками',
   await p.evaluate(() => {
     const c = document.querySelector('.ch-chat .ho-backdrop');
     const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
