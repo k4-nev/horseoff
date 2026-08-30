@@ -86,7 +86,12 @@ export default function MessageList({
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    if (el.scrollTop < 80) {
+    /* Порог сам по себе выполняется и на короткой переписке: лента чуть выше
+       экрана, доехали до низа — scrollTop почти ноль, и модуль идёт за
+       предыдущей страницей без повода. Проверяем, что выше правда есть что
+       листать. */
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll > 240 && el.scrollTop < 80) {
       keepScroll.current = el.scrollHeight - el.scrollTop;
       onLoadMore();
     }

@@ -881,6 +881,49 @@ await p.waitForTimeout(300);
 await p.evaluate((h) => window.__recv({ type: 'history', offset: 0, messages: h }), HISTORY);
 await p.waitForTimeout(400);
 check('после возврата история снова на месте', await p.locator('.msg-row').count() === 4);
+
+console.log('\n── Догрузка истории не срабатывает вхолостую ──');
+/* Порог «лента почти в начале» выполняется и там, где листать нечего: своё
+   сообщение доводит короткую переписку до низа, scrollTop остаётся у нуля —
+   и модуль уходил за предыдущей страницей, подкидывая ленту вверх. */
+await p.evaluate(() => new Promise((done) => {
+  const el = document.querySelector('.msg-messages');
+  let i = 0;
+  const step = () => {
+    if (i >= 40 || el.scrollHeight - el.clientHeight > 0) return done(i);
+    window.__recv({
+      type: 'message', chat: 'me_u1',
+      msg: { id: 'pad' + i, from: 'u1', from_name: 'Мысика', text: 'строка ' + i, time: Math.floor(Date.now() / 1000) },
+    });
+    i += 1;
+    return setTimeout(step, 60);
+  };
+  step();
+}));
+await p.waitForTimeout(400);
+const older = () => p.evaluate(() => window.__sent.filter((m) => m.type === 'history' && m.offset > 0).length);
+const base = await older();
+const slackM = await p.evaluate(() => {
+  const el = document.querySelector('.msg-messages');
+  el.scrollTop = 0;
+  return Math.round(el.scrollHeight - el.clientHeight);
+});
+await p.waitForTimeout(500);
+check('лента едва переросла экран — запас ' + slackM + ' px', slackM > 0 && slackM < 240);
+check('у верха короткой переписки старое не запрашивается', (await older()) === base);
+
+for (let k = 0; k < 40; k++) {
+  // eslint-disable-next-line no-await-in-loop
+  await p.evaluate((n) => window.__recv({
+    type: 'message', chat: 'me_u1',
+    msg: { id: 'far' + n, from: 'u1', from_name: 'Мысика', text: 'ещё ' + n, time: Math.floor(Date.now() / 1000) },
+  }), k);
+}
+await p.waitForTimeout(600);
+await p.evaluate(() => { const el = document.querySelector('.msg-messages'); el.scrollTop = 0; });
+await p.waitForTimeout(700);
+check('на длинной переписке верх по-прежнему догружает старое', (await older()) > base);
+
 await p.screenshot({ path: 'shot-desktop.png' });
 await p.locator('.msg-chat-peer').click();
 await p.waitForTimeout(500);

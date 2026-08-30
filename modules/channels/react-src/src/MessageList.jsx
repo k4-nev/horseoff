@@ -212,7 +212,11 @@ export default function MessageList({
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    if (el.scrollTop < 60) {
+    /* Старые тянем, только когда выше действительно что-то есть: у ленты чуть
+       длиннее экрана scrollTop и так близок к нулю, и без этой проверки она
+       подгружала страницу на каждое своё же доведение до низа. */
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll > 240 && el.scrollTop < 60) {
       keep.current = el.scrollHeight - el.scrollTop;
       onLoadMore();
     }

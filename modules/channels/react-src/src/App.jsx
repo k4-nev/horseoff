@@ -283,7 +283,11 @@ export default function App({ registerBridge }) {
   const onWS = useCallback((d) => {
     if (d.type && d.type.startsWith('voice_')) {
       const passThru = ['voice_rooms_update', 'voice_invite_notify', 'voice_kicked'];
-      if (vs.roomId || passThru.indexOf(d.type) !== -1) {
+      /* Комнату спрашиваем у движка, а не у состояния экрана: voice_state
+         приходит сразу за voice_join — раньше, чем React перерисуется, — и по
+         замкнутому старому значению событие отбрасывалось вместе со всем
+         составом комнаты. */
+      if (voice.getVoiceState().roomId || passThru.indexOf(d.type) !== -1) {
         voice.onVoiceWS(d, {
           onInvite: (x) => setInvite(x),
           onHand: (x) => { if (admin) toast('✋ ' + x.username + ' хочет говорить'); },
@@ -361,7 +365,7 @@ export default function App({ registerBridge }) {
       refresh();
       setTimeout(refresh, 4200);
     }
-  }, [vs.roomId, admin, loadSpaces, loadMembers, meId, user.username, openChannel]);
+  }, [admin, loadSpaces, loadMembers, meId, user.username, openChannel]);
 
   useEffect(() => {
     registerBridge({

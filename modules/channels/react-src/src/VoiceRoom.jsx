@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { plural } from './lib.js';
 import * as voice from './voice.js';
 
@@ -103,16 +103,97 @@ function Expanded({ p, isMe, st, onClose, onMic, onCam, onScreen, onLeave, hasDi
   );
 }
 
+/* ── Раскладка плиток ───────────────────────────────────────────────────
+   Раньше число колонок было прибито к числу участников: на телефоне те же
+   две-три колонки, что и на мониторе, и плитка выходила в палец шириной —
+   разглядеть в ней было нечего. Считаем колонки от реального размера
+   контейнера: перебираем все разбиения и берём то, при котором кадр внутри
+   ячейки выходит самым крупным. Ниже MIN_H плитку не ужимаем — вместо этого
+   сетка начинает прокручиваться. */
+const GAP = 6;
+const MIN_H = 104;    // ниже лица уже не читаются
+const MIN_W = 148;
+
+function pickGrid(n, w, h) {
+  if (!n || w < 40 || h < 40) return { cols: 1, rows: n || 1, rowH: 0, scroll: false, av: 72 };
+  // На узком экране кадр ближе к квадрату — так он занимает всю ширину
+  const ar = w >= 560 ? 16 / 9 : 4 / 3;
+  let best = null;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const cw = (w - GAP * (cols - 1)) / cols;
+    if (cols > 1 && cw < MIN_W) continue;
+    const ch = Math.max(MIN_H, (h - GAP * (rows - 1)) / rows);
+    /* Картинка растянута по ячейке (object-fit:cover), поэтому в зачёт идёт
+       вся её площадь, но с поправкой на обрезку: чем сильнее ячейка вытянута
+       относительно кадра, тем больше от него срезано по краям. Плюс лёгкий
+       штраф за дыры в последнем ряду — при равном счёте ровная сетка
+       приятнее. */
+    const cellAr = cw / ch;
+    const fit = Math.min(cellAr, ar) / Math.max(cellAr, ar);
+    const score = cw * ch * Math.sqrt(fit) * Math.pow(n / (cols * rows), 0.25);
+    if (!best || score > best.score * 1.02) best = { cols, rows, score };
+  }
+  if (!best) best = { cols: 1, rows: n, score: 0 };
+  const free = (h - GAP * (best.rows - 1)) / best.rows;
+  const rowH = Math.max(MIN_H, Math.floor(free));
+  return {
+    cols: best.cols,
+    rows: best.rows,
+    rowH,
+    scroll: rowH * best.rows + GAP * (best.rows - 1) > h + 1,
+    av: Math.max(34, Math.min(84, Math.round(rowH * 0.42))),
+  };
+}
+
+function useVoiceGrid(n) {
+  const ref = useRef(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = () => {
+      const r = el.getBoundingClientRect();
+      // округляем и держим порог: иначе появление полосы прокрутки
+      // переключало бы раскладку туда-сюда каждый кадр
+      setBox((b) => (Math.abs(b.w - r.width) > 3 || Math.abs(b.h - r.height) > 3
+        ? { w: Math.round(r.width), h: Math.round(r.height) } : b));
+    };
+    read();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', read);
+      return () => window.removeEventListener('resize', read);
+    }
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const layout = useMemo(() => pickGrid(n, box.w, box.h), [n, box.w, box.h]);
+  return [ref, layout];
+}
+
 export function ActiveRoom({ st, admin, onSettings, onLeave, onCam, onScreen }) {
   const [expanded, setExpanded] = useState(null);
   const speakers = (st.room && st.room.speakers) || [];
   const listeners = (st.room && st.room.listeners) || [];
   const hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
   const exp = expanded ? speakers.find((p) => p.user_id === expanded) : null;
+  const [gridRef, grid] = useVoiceGrid(speakers.length);
 
   return (
     <div className="ch-va-wrap" style={{ display: 'flex' }}>
-      <div className="ch-va-grid" data-count={speakers.length}>
+      <div
+        className="ch-va-grid"
+        ref={gridRef}
+        data-count={speakers.length}
+        data-cols={grid.cols}
+        data-scroll={grid.scroll ? '1' : '0'}
+        style={{
+          '--va-cols': grid.cols,
+          '--va-row': grid.rowH ? grid.rowH + 'px' : '1fr',
+          '--va-av': grid.av + 'px',
+        }}
+      >
         {speakers.map((p) => {
           const isMe = p.user_id === st.myId;
           return (

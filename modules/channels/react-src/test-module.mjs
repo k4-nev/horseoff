@@ -85,6 +85,7 @@ p.on('console', (m) => {
 });
 
 const posted = [];
+const historyOffsets = [];
 await p.route('**/api/**', (route) => {
   const req = route.request();
   const u = req.url();
@@ -101,7 +102,15 @@ await p.route('**/api/**', (route) => {
   if (u.includes('/api/mod/channels/init')) return j({ spaces: SPACES, channels: CHANNELS, voice_rooms: { v1: { total: 1, speaker_count: 1, speakers: [{ user_id: 'u2', username: 'mysika' }] } } });
   if (u.includes('/api/mod/channels/messages')) {
     const off = Number(new URL(u).searchParams.get('offset') || 0);
-    return j(off > 0 ? { messages: [] } : { messages: MESSAGES, last_read: T - 400 });
+    historyOffsets.push(off);
+    // Догрузка отдаёт ещё страницу — на ней и было видно, как лента подпрыгивает
+    if (off > 0) {
+      return j({ messages: Array.from({ length: 20 }, (_, i) => ({
+        id: 'old' + off + '_' + i, from: 'u2', from_name: 'Мысика', role: 'common',
+        text: 'ранее ' + off + '-' + i, time: T - 5000 + i * 20,
+      })) });
+    }
+    return j({ messages: MESSAGES, last_read: T - 400 });
   }
   if (u.includes('/api/mod/channels/members')) return j(MEMBERS);
   if (u.includes('/api/mod/channels/pins')) return j([{ id: 'm1', from_name: 'Мысика', text: 'Прокси на втором лежит' }]);
@@ -192,6 +201,7 @@ const sent = await p.evaluate(() => window.__sent.filter((m) => m.type === 'ch_s
 check('сообщение ушло с каналом и группой',
   !!sent && sent.text === 'привет каналу' && sent.channel_id === 'c1' && sent.space_id === 's1',
   JSON.stringify(sent));
+
 
 await p.locator('.ch-msg[data-msgid="m3"]').hover();
 await p.locator('.ch-msg[data-msgid="m3"] .ch-msg-qbtn[title="Ответить"]').click();
@@ -315,28 +325,117 @@ check('назначение модератора ушло на сервер',
   posted.some((r) => r.url.includes('/channels/members') && r.body.set_moderator && r.body.set_moderator.value === true),
   JSON.stringify(posted.filter((r) => r.url.includes('/channels/members')).pop()));
 
+console.log('\n── Лента не подпрыгивает ──');
+/* Своё же сообщение доводит ленту до низа. Когда переписка чуть длиннее
+   экрана, scrollTop после этого всего пара десятков пикселей — и лента
+   считала, что доехала до начала истории: тянула предыдущую страницу и
+   подскакивала вверх. Второе сообщение уводило scrollTop за порог, поэтому
+   выглядело это как «первое подкидывает, второе опускает». */
+// Добираем строки по одной ровно до той точки, где лента только-только
+// переросла экран: запас прокрутки в пару десятков пикселей — это и есть
+// ловушка.
+await p.evaluate((t) => new Promise((done) => {
+  const el = document.querySelector('.ch-messages');
+  let i = 0;
+  const step = () => {
+    if (i >= 40 || el.scrollHeight - el.clientHeight > 0) return done(i);
+    window.__recv({
+      type: 'ch_message', channel_id: 'c1', space_id: 's1',
+      msg: { id: 'fill' + i, from: 'u2', from_name: 'Мысика', role: 'common', text: 'строка ' + i, time: t - 300 + i },
+    });
+    i += 1;
+    return setTimeout(step, 60);
+  };
+  step();
+}), T);
+await p.waitForTimeout(400);
+historyOffsets.length = 0;
+const slack = await p.evaluate(() => {
+  const el = document.querySelector('.ch-messages');
+  el.scrollTop = 0;
+  return Math.round(el.scrollHeight - el.clientHeight);
+});
+await p.waitForTimeout(500);
+check('лента едва переросла экран — запас ' + slack + ' px', slack > 0 && slack < 240);
+check('у самого верха короткой ленты история не запрашивается',
+  historyOffsets.length === 0, 'запросы истории: ' + historyOffsets.join(', '));
+
+await p.evaluate(() => { const el = document.querySelector('.ch-messages'); el.scrollTop = el.scrollHeight; });
+await p.waitForTimeout(400);
+historyOffsets.length = 0;
+const jumpBefore = await p.evaluate(() => {
+  const el = document.querySelector('.ch-messages');
+  return { rows: document.querySelectorAll('.ch-msg').length, top: Math.round(el.scrollTop), h: Math.round(el.scrollHeight) };
+});
+await p.evaluate((t) => window.__recv({
+  type: 'ch_message', channel_id: 'c1', space_id: 's1',
+  msg: { id: 'own1', from: 'me', from_name: 'Костя', role: 'arcana', text: 'своё письмо', time: t },
+}), T);
+await p.waitForTimeout(600);
+const jumpAfter = await p.evaluate(() => {
+  const el = document.querySelector('.ch-messages');
+  return {
+    rows: document.querySelectorAll('.ch-msg').length,
+    top: Math.round(el.scrollTop), h: Math.round(el.scrollHeight),
+    bottom: Math.round(el.scrollHeight - el.scrollTop - el.clientHeight),
+  };
+});
+check('короткая лента не тянет старую историю',
+  historyOffsets.length === 0, 'запросы истории: ' + historyOffsets.join(', '));
+check('после своего сообщения прибавилась одна строка, а не страница',
+  jumpAfter.rows === jumpBefore.rows + 1,
+  jumpBefore.rows + ' → ' + jumpAfter.rows);
+check('лента осталась внизу', jumpAfter.bottom < 4, JSON.stringify(jumpAfter));
+
+/* И обратная сторона: на длинной переписке догрузка обязана работать. */
+await p.evaluate((t) => {
+  for (let i = 0; i < 40; i++) {
+    window.__recv({
+      type: 'ch_message', channel_id: 'c1', space_id: 's1',
+      msg: { id: 'more' + i, from: 'u2', from_name: 'Мысика', role: 'common', text: 'ещё ' + i, time: t + 10 + i },
+    });
+  }
+}, T);
+await p.waitForTimeout(600);
+historyOffsets.length = 0;
+await p.evaluate(() => { const el = document.querySelector('.ch-messages'); el.scrollTop = 0; });
+await p.waitForTimeout(700);
+check('на длинной ленте верх по-прежнему догружает старое',
+  historyOffsets.some((o) => o > 0), 'запросы истории: ' + historyOffsets.join(', '));
+
 console.log('\n── Голосовая комната ──');
 await p.locator('.ch-voice-room').click();
 await p.waitForTimeout(600);
 check('показан экран перед входом', await p.locator('.ch-vpj-wrap').count() === 1);
 check('видно, кто уже в комнате', (await p.locator('.ch-vpj-status').textContent()).includes('1 участник'));
 check('текстового ввода в голосовом канале нет', await p.locator('.ch-input-area').count() === 0);
+/* Состав комнаты сервер присылает сразу за voice_join — в том же кадре, до
+   первой перерисовки. Отвечаем синхронно прямо из отправки, иначе проверка
+   не поймает то, что было в модуле: он спрашивал номер комнаты у состояния
+   экрана, там ещё пусто, и весь состав уходил в мусор. */
+await p.evaluate(() => {
+  const send = Shell.wsSend;
+  Shell.wsSend = (m) => {
+    send(m);
+    if (m.type === 'voice_join') {
+      window.__recv({
+        type: 'voice_state',
+        you_are: 'speaker',
+        room: {
+          speakers: [
+            { user_id: 'me', username: 'k4nev', muted: true, video_muted: true },
+            { user_id: 'u2', username: 'mysika', muted: false, video_muted: true },
+          ],
+          listeners: [{ user_id: 'u3', username: 'duty', raised_hand: true }],
+        },
+      });
+    }
+  };
+});
 await p.locator('.ch-vpj-join-btn').click();
 await p.waitForTimeout(800);
 const joined = await p.evaluate(() => window.__sent.filter((m) => m.type === 'voice_join').pop());
 check('вход в комнату ушёл в сеть', !!joined && joined.room_id === 'v1' && joined.space_id === 's2', JSON.stringify(joined));
-
-await p.evaluate(() => window.__recv({
-  type: 'voice_state', you_are: 'speaker',
-  room: {
-    speakers: [
-      { user_id: 'me', username: 'k4nev', muted: true, video_muted: true },
-      { user_id: 'u2', username: 'mysika', muted: false, video_muted: true },
-    ],
-    listeners: [{ user_id: 'u3', username: 'duty', raised_hand: true }],
-  },
-}));
-await p.waitForTimeout(500);
 check('плитки участников появились', await p.locator('.ch-va-tile').count() === 2);
 check('слушатели отдельной полосой', (await p.locator('.ch-va-listeners').textContent()).includes('Слушатели (1)'));
 check('поднятая рука видна', (await p.locator('.ch-va-listener').textContent()).includes('✋'));
@@ -353,6 +452,77 @@ check('говорящий подсвечен', await p.locator('.ch-va-tile.ch-v
 await p.evaluate(() => window.__recv({ type: 'voice_mute_update', user_id: 'u2', muted: true, video_muted: true }));
 await p.waitForTimeout(250);
 check('чужое приглушение видно на плитке', await p.locator('.ch-va-tile.ch-va-muted').count() >= 1);
+
+/* Сетка считает колонки от размера контейнера. Проверяем, что она правда
+   меняется с числом участников и с шириной, а плитка нигде не схлопывается
+   в нечитаемый прямоугольник. */
+const fill = (n) => p.evaluate((cnt) => window.__recv({
+  type: 'voice_state',
+  you_are: 'speaker',
+  room: {
+    speakers: Array.from({ length: cnt }, (_, i) => ({
+      user_id: i === 0 ? 'me' : 'p' + i, username: 'user' + i, muted: false, video_muted: true,
+    })),
+    listeners: [],
+  },
+}), n);
+const tileBox = () => p.evaluate(() => {
+  const t = document.querySelector('.ch-va-tile');
+  const g = document.querySelector('.ch-va-grid');
+  const r = t.getBoundingClientRect();
+  const cs = getComputedStyle(g);
+  return {
+    w: Math.round(r.width),
+    h: Math.round(r.height),
+    cols: cs.gridTemplateColumns.split(' ').length,
+    over: Math.round(g.scrollWidth - g.clientWidth),
+  };
+});
+
+const wide = {};
+for (const n of [1, 2, 4, 9]) { await fill(n); await p.waitForTimeout(350); wide[n] = await tileBox(); }
+check('на широком экране одна плитка занимает почти всё',
+  wide[1].cols === 1 && wide[1].w > 700, JSON.stringify(wide[1]));
+/* Колонок не становится меньше от прибавления людей, и на девятерых сетка
+   уходит вширь, а не в столбик из полосок. Вдвоём на почти квадратном поле
+   выгоднее два широких кадра друг под другом — это ожидаемо. */
+check('колонок не убывает с числом участников и на девятерых их несколько',
+  wide[1].cols <= wide[2].cols && wide[2].cols <= wide[4].cols
+    && wide[4].cols <= wide[9].cols && wide[9].cols >= 3,
+  [1, 2, 4, 9].map((n) => n + ':' + wide[n].cols).join(' '));
+check('плитка нигде не вытягивается в ленту',
+  Object.values(wide).every((b) => b.w / b.h < 2.6 && b.h / b.w < 2.6),
+  Object.entries(wide).map(([n, b]) => n + ':' + (b.w / b.h).toFixed(2)).join(' '));
+check('плитки на пк остаются крупными',
+  Object.values(wide).every((b) => b.w >= 220 && b.h >= 104),
+  Object.entries(wide).map(([n, b]) => n + ':' + b.w + 'x' + b.h).join(' '));
+
+await p.setViewportSize({ width: 390, height: 780 });
+await p.waitForTimeout(400);
+const narrow = {};
+for (const n of [2, 4, 6]) { await fill(n); await p.waitForTimeout(350); narrow[n] = await tileBox(); }
+check('на телефоне сетка сама переходит в одну-две колонки',
+  narrow[2].cols <= 2 && narrow[6].cols <= 2,
+  Object.entries(narrow).map(([n, b]) => n + ':' + b.cols).join(' '));
+check('на телефоне плитка не превращается в полоску',
+  Object.values(narrow).every((b) => b.w >= 150 && b.h >= 104),
+  Object.entries(narrow).map(([n, b]) => n + ':' + b.w + 'x' + b.h).join(' '));
+check('сетка не разъезжается вбок', Object.values(narrow).every((b) => b.over <= 0),
+  Object.values(narrow).map((b) => b.over).join(' '));
+check('когда ряды не влезли, сетка прокручивается',
+  await p.evaluate(() => {
+    const g = document.querySelector('.ch-va-grid');
+    return g.dataset.scroll !== '1' || g.scrollHeight > g.clientHeight;
+  }));
+check('аватар ужимается вместе с плиткой',
+  await p.evaluate(() => {
+    const v = getComputedStyle(document.querySelector('.ch-va-grid')).getPropertyValue('--va-av');
+    return parseInt(v, 10) >= 34 && parseInt(v, 10) <= 84;
+  }));
+await p.setViewportSize({ width: 1440, height: 900 });
+await p.waitForTimeout(400);
+await fill(2);
+await p.waitForTimeout(300);
 
 check('плашка комнаты появилась в каркасе',
   await p.evaluate(() => document.querySelector('#sidebarVoiceBar .sb-voice-bar-ico') !== null));
