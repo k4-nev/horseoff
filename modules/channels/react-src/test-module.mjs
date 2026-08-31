@@ -445,6 +445,40 @@ await p.waitForTimeout(400);
 const back = await grow();
 check('поле схлопнулось, лента по-прежнему внизу', back.below < 4 && back.gap >= 0, JSON.stringify(back));
 
+/* Доводка вниз обязана быть мгновенной. Со scroll-behavior:smooth на самой
+   ленте она превращалась в видимый проезд: своё сообщение — и чат на глазах
+   уезжает вверх на его высоту. Кнопка «вниз» и переход к найденному просят
+   плавность явным behavior, поэтому в стилях её быть не должно. */
+check('лента не проматывается с анимацией',
+  await p.evaluate(() => getComputedStyle(document.querySelector('.ch-messages')).scrollBehavior !== 'smooth'),
+  await p.evaluate(() => getComputedStyle(document.querySelector('.ch-messages')).scrollBehavior));
+
+/* Картинки и вложения досчитывают высоту уже после отрисовки. Пока лента
+   этого не замечала, конец переписки тихо уезжал за нижний край — и первое
+   своё сообщение возвращало его рывком. */
+await p.evaluate(() => { const el = document.querySelector('.ch-messages'); el.scrollTop = el.scrollHeight - 300; });
+await p.waitForTimeout(200);
+await p.evaluate(() => { const el = document.querySelector('.ch-messages'); el.scrollTop = el.scrollHeight; });
+await p.waitForTimeout(300);
+await p.evaluate(() => {
+  const box = document.createElement('div');
+  box.id = 'ho-late';
+  box.style.height = '260px';
+  document.querySelector('.ch-msg-flow').appendChild(box);
+});
+await p.waitForTimeout(400);
+check('доросшая позже картинка не уносит конец переписки за край',
+  await p.evaluate(() => {
+    const el = document.querySelector('.ch-messages');
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+  }),
+  await p.evaluate(() => {
+    const el = document.querySelector('.ch-messages');
+    return 'ниже края: ' + Math.round(el.scrollHeight - el.scrollTop - el.clientHeight);
+  }));
+await p.evaluate(() => { const n = document.getElementById('ho-late'); if (n) n.remove(); });
+await p.waitForTimeout(300);
+
 console.log('\n── Настройки устройств ──');
 /* Выбор в настройках раньше никуда не уходил: select ни к чему не привязан,
    при следующем открытии — снова первый пункт, и живая дорожка оставалась

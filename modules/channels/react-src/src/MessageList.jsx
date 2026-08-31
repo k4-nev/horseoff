@@ -172,14 +172,21 @@ export default function MessageList({
      scrollTop при таком сжатии не трогает, поэтому подтягиваем сами: если до
      изменения размера человек был внизу — остаётся внизу. */
   const pinned = useRef(true);
+  const lastH = useRef(0);
+  const flow = useRef(null);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(() => {
       if (!pinned.current) return;
       el.scrollTop = el.scrollHeight;
+      lastH.current = el.scrollHeight;
     });
     ro.observe(el);
+    // Второй наблюдатель — за содержимым ленты: картинки и вложения
+    // досчитывают высоту уже после отрисовки, и без этого конец переписки
+    // тихо уезжал за нижний край, а первое своё сообщение возвращало его рывком
+    if (flow.current) ro.observe(flow.current);
     return () => ro.disconnect();
   }, [scrollRef]);
 
@@ -197,6 +204,7 @@ export default function MessageList({
       prevLen.current = messages.length;
       pinned.current = true;
       el.scrollTop = el.scrollHeight;
+      lastH.current = el.scrollHeight;
       setUnreadBelow(0);
       return;
     }
@@ -213,9 +221,13 @@ export default function MessageList({
     if (!grew) return;
     const last = messages[messages.length - 1];
     if (atBottom() || (last && last.from === meId)) {
+      // Доводим сами — значит снова прижаты к низу; на событие прокрутки тут
+      // полагаться нельзя: если лента и так была внизу, оно не придёт
+      pinned.current = true;
       el.scrollTop = el.scrollHeight;
       setUnreadBelow(0);
     } else {
+      pinned.current = false;
       setUnreadBelow((n) => n + 1);
     }
   }, [messages, meId, scrollRef, channelId]);
@@ -240,7 +252,13 @@ export default function MessageList({
       onLoadMore();
     }
     const below = el.scrollHeight - el.scrollTop - el.clientHeight;
-    pinned.current = below < 24;
+    /* Прижатость меняем только по живой прокрутке. Когда лента выросла сама
+       (дорисовалась картинка, пришло сообщение), браузер тоже шлёт scroll —
+       и по нему выходило, что человек «ушёл вверх»: наблюдатель размера
+       после этого ленту уже не возвращал. */
+    const grownItself = el.scrollHeight !== lastH.current;
+    lastH.current = el.scrollHeight;
+    if (!grownItself) pinned.current = below < 24;
     if (below < 120) setUnreadBelow(0);
     setShowBtn(below > 120);
   };
@@ -264,17 +282,19 @@ export default function MessageList({
           </div>
         )}
 
-        {rows.map((row) => (
-          <div style={{ display: 'contents' }} key={row.m.id}>
-            {row.newHere && <div className="ch-new-sep"><span>новые сообщения</span></div>}
-            <Row
-              row={row} admin={admin} meId={meId} q={q} active={activeMatch === row.m.id}
-              onCtx={onCtx} onReply={onReply} onForward={onForward} onPin={onPin}
-              onEdit={onEdit} onDelete={onDelete} onReact={onReact}
-              onOpenMedia={onOpenMedia} onJump={onJump}
-            />
-          </div>
-        ))}
+        <div className="ch-msg-flow" ref={flow}>
+          {rows.map((row) => (
+            <div style={{ display: 'contents' }} key={row.m.id}>
+              {row.newHere && <div className="ch-new-sep"><span>новые сообщения</span></div>}
+              <Row
+                row={row} admin={admin} meId={meId} q={q} active={activeMatch === row.m.id}
+                onCtx={onCtx} onReply={onReply} onForward={onForward} onPin={onPin}
+                onEdit={onEdit} onDelete={onDelete} onReact={onReact}
+                onOpenMedia={onOpenMedia} onJump={onJump}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <button className={'ch-scroll-btn' + (showBtn ? ' visible' : '')} onClick={toBottom}>

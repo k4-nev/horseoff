@@ -951,6 +951,31 @@ await p.waitForTimeout(400);
 const backG = await geo();
 check('поле схлопнулось, лента по-прежнему внизу', backG.below < 4 && backG.gap >= 0, JSON.stringify(backG));
 
+/* Фото и вложения досчитывают высоту уже после отрисовки — пока лента этого
+   не замечала, конец переписки тихо уезжал за нижний край. */
+await p.evaluate(() => { const el = document.querySelector('.msg-messages'); el.scrollTop = el.scrollHeight - 300; });
+await p.waitForTimeout(200);
+await p.evaluate(() => { const el = document.querySelector('.msg-messages'); el.scrollTop = el.scrollHeight; });
+await p.waitForTimeout(300);
+await p.evaluate(() => {
+  const box = document.createElement('div');
+  box.id = 'ho-late';
+  box.style.height = '260px';
+  document.querySelector('.msg-flow').appendChild(box);
+});
+await p.waitForTimeout(400);
+check('доросшее позже вложение не уносит конец переписки за край',
+  await p.evaluate(() => {
+    const el = document.querySelector('.msg-messages');
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+  }),
+  await p.evaluate(() => {
+    const el = document.querySelector('.msg-messages');
+    return 'ниже края: ' + Math.round(el.scrollHeight - el.scrollTop - el.clientHeight);
+  }));
+await p.evaluate(() => { const n = document.getElementById('ho-late'); if (n) n.remove(); });
+await p.waitForTimeout(300);
+
 await p.screenshot({ path: 'shot-desktop.png' });
 await p.locator('.msg-chat-peer').click();
 await p.waitForTimeout(500);
