@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { EMOJIS, fmtDuration, fmtSize, mediaType, rejectFile, toast } from './lib.js';
 import useRecorder from '../../../../core/react-src/src/shared/chat/useRecorder.js';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
+import EmojiPicker from '../../../../core/react-src/src/shared/chat/EmojiPicker.jsx';
 
 /* Поле ввода со всем, что к нему прилипает: эмодзи, вложения, полоска
    ответа/пересылки/правки и запись голосового.
@@ -111,11 +112,10 @@ export default function Composer({
   return (
     <div className="msg-input-area" ref={rootRef}>
       {emojiOpen && (
-        <div className="msg-emoji-picker" style={{ display: 'grid' }} ref={emojiRef}>
-          {EMOJIS.map((e) => (
-            <div className="msg-emoji-item" key={e} onClick={() => { setText((t) => t + e); inputRef.current && inputRef.current.focus(); }}>{e}</div>
-          ))}
-        </div>
+        <EmojiPicker
+          emojis={EMOJIS} cls="msg-emoji-picker" itemCls="msg-emoji-item" innerRef={emojiRef}
+          onPick={(e) => { setText((t) => t + e); if (inputRef.current) inputRef.current.focus(); }}
+        />
       )}
 
       {files.length > 0 && (

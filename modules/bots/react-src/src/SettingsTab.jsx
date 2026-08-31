@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, buzz, compressImage, toast } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import RoleBadge from '../../../../core/react-src/src/shared/RoleBadge.jsx';
 
 /* Вкладка «Настройки»: фото, название, группа, API-ключ, доступ, удаление.
 
@@ -136,7 +137,7 @@ export default function SettingsTab({ bot, groups, onPatch, onDelete, onAccessOp
             <div className="bt-access-row" key={u.id}>
               <Avatar cls="bt-access-ava" src={u.avatar} name={u.display_name || u.username} />
               <div className="bt-access-name">{u.display_name || u.username}</div>
-              <span className={'role-badge ' + (u.role || 'common')}>{u.role || ''}</span>
+              <RoleBadge role={u.role || 'common'} />
               {u.is_owner
                 ? <span className="bt-access-owner-tag" title="Владелец — доступ по роли">по роли</span>
                 : (

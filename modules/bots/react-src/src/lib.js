@@ -102,22 +102,8 @@ export function applyLayout(controls, layout, cols) {
 /** base64 для UTF-8: данные заданий бывают кириллицей. */
 export const b64 = (str) => btoa(unescape(encodeURIComponent(str)));
 
-export function relTime(ts) {
-  const diff = Math.floor(Date.now() / 1000) - ts;
-  if (diff < 60) return 'только что';
-  if (diff < 3600) return Math.floor(diff / 60) + ' мин назад';
-  if (diff < 86400) return Math.floor(diff / 3600) + ' ч назад';
-  return Math.floor(diff / 86400) + ' дн назад';
-}
-
-export function plural(n, f1, f2, f5) {
-  const mod = n % 100;
-  if (mod >= 11 && mod <= 14) return f5;
-  const m = n % 10;
-  if (m === 1) return f1;
-  if (m >= 2 && m <= 4) return f2;
-  return f5;
-}
+/* Время и числительные — общие на всё приложение. */
+export { relTime, plural } from '../../../../core/react-src/src/shared/format.js';
 
 /** Аватар бота ужимаем до 96px — он уезжает в JSON бота на диске. */
 export function compressImage(dataURL, maxPx = 96) {

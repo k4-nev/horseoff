@@ -10,8 +10,9 @@ import DeleteModal from './DeleteModal.jsx';
 import { useMotionMode } from './motion.js';
 import './admin.css';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
+import RoleBadge from '../../../../core/react-src/src/shared/RoleBadge.jsx';
+import { ROLES_ASC } from '../../../../core/react-src/src/shared/roles.js';
 
-const TIER_ORDER = ['common', 'uncommon', 'rare', 'mythical', 'legendary', 'immortal', 'arcana'];
 
 export default function App() {
   const [users, setUsers] = useState([]);
@@ -133,9 +134,9 @@ export default function App() {
             <button className={'adm-dd-item' + (!filter ? ' on' : '')} onClick={() => { setFilter(null); setFilterOpen(false); }}>
               Все роли
             </button>
-            {TIER_ORDER.map((t) => (
+            {ROLES_ASC.map((t) => (
               <button key={t} className={'adm-dd-item' + (filter === t ? ' on' : '')} onClick={() => { setFilter(t); setFilterOpen(false); }}>
-                <span className={'role-badge ' + t}>{t.toUpperCase()}</span>
+                <RoleBadge role={t} />
               </button>
             ))}
           </div>

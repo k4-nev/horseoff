@@ -2,12 +2,12 @@ import Icon from './Icon.jsx';
 import { formatPresence } from './format.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 import Switch from '../../../../core/react-src/src/shared/Switch.jsx';
+import RoleBadge from '../../../../core/react-src/src/shared/RoleBadge.jsx';
+import { roleAtLeast } from '../../../../core/react-src/src/shared/roles.js';
 
-/* Та же лестница ролей, что на сервере (ROLE_RANK в core/server.py).
-   Модуль с min_role выше роли пользователя выдать нельзя: сервер его всё
-   равно не покажет, а тумблер бы врал. */
-const ROLE_RANK = { arcana: 7, immortal: 6, legendary: 5, mythical: 4, rare: 3, uncommon: 2, common: 1 };
-const roleAtLeast = (role, min) => !min || (ROLE_RANK[role] || 0) >= (ROLE_RANK[min] || 0);
+/* Модуль с min_role выше роли пользователя выдать нельзя: сервер его всё
+   равно не покажет, а тумблер бы врал. Лестница ролей — общая, она обязана
+   совпадать с ROLE_RANK в core/server.py. */
 
 const initials = (s) => (s || '').split(' ').filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
@@ -22,7 +22,7 @@ export default function UserRow({ user, allModules, expanded, onToggleExpand, on
       <span className={'adm-name' + (!displayName ? ' handle-only' : '')}>
         {displayName || '@' + u.username}
       </span>
-      <span className={'role-badge ' + u.role}>{u.role.toUpperCase()}</span>
+      <RoleBadge role={u.role} />
     </div>
   );
 

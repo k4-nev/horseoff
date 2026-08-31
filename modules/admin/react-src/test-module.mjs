@@ -138,6 +138,18 @@ try {
   check('логин пуст', (await p.locator('.adm-input').first().inputValue()) === '');
   check('ранг по умолчанию COMMON активен', await p.locator('.adm-tier-chip.on', { hasText: 'COMMON' }).count() === 1);
 
+  /* Лестница ролей общая на всё приложение и обязана совпадать с ROLE_RANK
+     в core/server.py. Копий было четыре, и они уже разъехались: в выборе
+     ранга ролей было шесть вместо семи. Здесь проверяем обе стороны:
+     выдать можно всё, кроме arcana (её даёт только первичная установка),
+     а в фильтре списка видны все семь. */
+  const chips = await p.evaluate(() => [...document.querySelectorAll('.adm-tier-chip .role-badge')]
+    .map((el) => el.textContent.trim().toLowerCase()));
+  check('в выборе ранга шесть ролей и среди них нет arcana',
+    chips.length === 6 && chips.indexOf('arcana') === -1, chips.join(','));
+  check('порядок рангов — от младшего к старшему',
+    chips.join(',') === 'common,uncommon,rare,mythical,legendary,immortal', chips.join(','));
+
   const xBox = await p.locator('.adm-x').boundingBox();
   const xIconBox = await p.locator('.adm-x .adm-ic').boundingBox();
   const xCenterX = xBox.x + xBox.width / 2, xCenterY = xBox.y + xBox.height / 2;

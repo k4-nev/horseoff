@@ -1,3 +1,4 @@
+import { relTime } from '../../../../core/react-src/src/shared/format.js';
 /* Токены времени продублированы из app.css: если задержки хореографии
    разъедутся с CSS, слои начнут исчезать раньше, чем закончится анимация. */
 export const T = { xs: 190, s: 300, m: 445, back: 520, l: 560, xl: 660 };
@@ -42,15 +43,7 @@ export function forWhom(name) {
   return n;
 }
 
-export function fmtTime(ts) {
-  if (!ts) return '';
-  const d = new Date(ts * 1000);
-  const diff = (Date.now() - d) / 1000;
-  if (diff < 60) return 'только что';
-  if (diff < 3600) return Math.floor(diff / 60) + ' мин назад';
-  if (diff < 86400) return Math.floor(diff / 3600) + ' ч назад';
-  if (diff < 86400 * 2) return 'вчера';
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-}
+/* «Только что», «5 мин назад», а после вчерашнего — дата. */
+export const fmtTime = (ts) => relTime(ts, { longAsDate: true });
 
 export const avatarSrc = (b64) => (b64 ? 'data:image/jpeg;base64,' + b64 : null);

@@ -8,11 +8,9 @@
 /* Мост к оболочке — общий на все модули. */
 export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
 
-export const ADMIN_ROLES = ['arcana', 'immortal', 'legendary'];
-export const isAdminRole = (role) => ADMIN_ROLES.indexOf(role) !== -1;
-
-/** Порядок ролей в списке участников — от старших к младшим. */
-export const ROLE_ORDER = ['arcana', 'immortal', 'legendary', 'mythical', 'rare', 'uncommon', 'common'];
+/* Роли общие на всё приложение: лестница обязана совпадать с ROLE_RANK
+   в core/server.py. ROLE_ORDER — порядок в списке участников, от старших. */
+export { ADMIN_ROLES, isAdminRole, ROLES_DESC as ROLE_ORDER } from '../../../../core/react-src/src/shared/roles.js';
 
 /* Группировка по-дискордовски: подряд идущие сообщения одного автора в
    пределах двух минут сливаются в одну «пачку» — аватар и шапка только у
@@ -30,19 +28,8 @@ export function layoutMessages(msgs, meId, lastRead) {
   });
 }
 
-export const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-
-export function fmtDay(ts) {
-  const d = new Date(ts * 1000);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return 'Сегодня';
-  const y = new Date(now.getTime() - 86400000);
-  if (d.toDateString() === y.toDateString()) return 'Вчера';
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-}
-
-export const displayName = (u) => (u ? u.display_name || u.username : '');
+/* Даты, время и числительные — общие на всё приложение. */
+export { fmtTime, fmtDay, displayName, plural } from '../../../../core/react-src/src/shared/format.js';
 
 export const EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '🤔', '😐', '😴', '😎', '🥳', '😢', '😭', '😡', '🤯', '🥶', '👍', '👎', '👏', '🙏', '💪', '🤝', '👀', '🔥', '💯', '✅', '❌', '⚡', '🎉', '🚀', '💡', '📌', '📎', '🔔', '⏰', '🎯', '🧠', '☕', '🍕', '🌙'];
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -53,15 +40,6 @@ export const CHANNEL_ICONS = [
   'channels', 'servers', 'messenger', 'users', 'settings', 'search', 'file', 'play',
   'bots', 'mp', 'pin', 'speaker', 'video', 'mic',
 ];
-
-export function plural(n, f1, f2, f5) {
-  const mod = n % 100;
-  if (mod >= 11 && mod <= 14) return f5;
-  const m = n % 10;
-  if (m === 1) return f1;
-  if (m >= 2 && m <= 4) return f2;
-  return f5;
-}
 
 /** Фото группы уезжает в JSON — ужимаем до 128px. */
 export function compressImage(dataURL, maxPx = 128) {

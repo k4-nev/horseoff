@@ -15,17 +15,10 @@ export const chatKey = (a, b) => [a, b].sort().join('_');
 /* Мост к оболочке — общий на все модули. */
 export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
 
-export const displayName = (c) => (c ? c.display_name || c.username : '');
-
-export const fmtTime = (t) =>
-  new Date(t * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-
-export const fmtDay = (t) =>
-  new Date(t * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-
-export const fmtDayFull = (t) =>
-  t ? new Date(t * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-    : 'Без даты';
+/* Даты, время и имя — общие на всё приложение. Разделитель дней здесь
+   именно дата, без «Сегодня»: она же служит ключом группировки. */
+export { fmtTime, fmtDate, fmtDateFull, displayName } from '../../../../core/react-src/src/shared/format.js';
+import { fmtDate, fmtDateFull } from '../../../../core/react-src/src/shared/format.js';
 
 /* Время в списке контактов: сегодня — часы, иначе дата */
 export function fmtContactTime(t) {
@@ -58,7 +51,7 @@ export const TWO_DAYS = 172800;
 export function layoutMessages(msgs, meId) {
   let lastDay = '';
   return msgs.map((m, i) => {
-    const day = fmtDay(m.time);
+    const day = fmtDate(m.time);
     const dayChanged = day !== lastDay;
     const prev = dayChanged ? null : msgs[i - 1];
     lastDay = day;
@@ -68,7 +61,7 @@ export function layoutMessages(msgs, meId) {
     const next = msgs[i + 1];
     const isEnd = !next
       || next.from !== m.from
-      || fmtDay(next.time) !== day
+      || fmtDate(next.time) !== day
       || next.time - m.time > GROUP_GAP;
 
     return { m, day: dayChanged ? day : null, isNew, isEnd, mine: m.from === meId };
@@ -78,7 +71,7 @@ export function layoutMessages(msgs, meId) {
 export function groupByDate(items) {
   const groups = new Map();
   items.forEach((a) => {
-    const d = fmtDayFull(a.time);
+    const d = fmtDateFull(a.time);
     if (!groups.has(d)) groups.set(d, []);
     groups.get(d).push(a);
   });

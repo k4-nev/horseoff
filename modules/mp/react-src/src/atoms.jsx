@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 import SharedEmpty from '../../../../core/react-src/src/shared/Empty.jsx';
+import { plural } from '../../../../core/react-src/src/shared/format.js';
 
 /* Общие атомы модуля: клиент, фото товара, статусы, пустое состояние.
    Раньше это были функции, склеивающие HTML-строки; здесь — компоненты,
@@ -37,13 +38,8 @@ export function Photo({ article, size, cls }) {
   );
 }
 
-export const plural = (n, one, few, many) => {
-  const a = n % 10;
-  const b = n % 100;
-  if (a === 1 && b !== 11) return one;
-  if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return few;
-  return many;
-};
+/* Реэкспорт для остального модуля плюс использование здесь же. */
+export { plural } from '../../../../core/react-src/src/shared/format.js';
 
 export const GenderAva = ({ g, sm }) => (
   <div className={'mp-ord-ava ' + g + (sm ? ' sm' : '')}>{g === 'f' ? 'Ж' : 'М'}</div>

@@ -3,6 +3,7 @@ import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { api, b64, buzz, compressImage, meId, toast } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 import ConfirmModal from '../../../../core/react-src/src/shared/ConfirmModal.jsx';
+import RoleBadge from '../../../../core/react-src/src/shared/RoleBadge.jsx';
 
 /* Окна поверх модуля: подтверждение, добавление бота, выдача доступа и
    редактор таблицы заданий. */
@@ -274,7 +275,7 @@ export function AccessModal({ open, bot, onClose, onGrant }) {
                   <div className="bt-access-name">{u.display_name || u.username}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{u.username}</div>
                 </div>
-                <span className={'role-badge ' + (u.role || 'common')} style={{ marginLeft: 'auto' }}>{u.role || ''}</span>
+                <RoleBadge role={u.role || 'common'} style={{ marginLeft: 'auto' }} />
                 {has && (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
                 )}

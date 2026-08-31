@@ -4,6 +4,7 @@ import { EMOJIS, buzz, displayName, toast } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 import useRecorder from '../../../../core/react-src/src/shared/chat/useRecorder.js';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
+import EmojiPicker from '../../../../core/react-src/src/shared/chat/EmojiPicker.jsx';
 
 /* Поле ввода канала: вложения, эмодзи, упоминания, ответ и правка, запись
    голосового. Упоминания — часть модели каналов: @ник и @all адресуют
@@ -169,11 +170,10 @@ export default function Composer({
       )}
 
       {emojiOpen && (
-        <div className="ch-emoji-picker" style={{ display: 'grid' }} ref={emojiRef}>
-          {EMOJIS.map((e) => (
-            <div className="ch-emoji-item" key={e} onClick={() => { setText((t) => t + e); inputRef.current && inputRef.current.focus(); }}>{e}</div>
-          ))}
-        </div>
+        <EmojiPicker
+          emojis={EMOJIS} cls="ch-emoji-picker" itemCls="ch-emoji-item" innerRef={emojiRef}
+          onPick={(e) => { setText((t) => t + e); if (inputRef.current) inputRef.current.focus(); }}
+        />
       )}
 
       <div className="ch-input-area" style={{ display: 'flex' }}>
