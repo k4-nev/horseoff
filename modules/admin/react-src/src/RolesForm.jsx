@@ -40,7 +40,10 @@ export default function RolesForm({ onClose, onApplied }) {
 
   if (!data) return <div className="adm-empty"><div className="spinner" /></div>;
 
-  const options = data.roles.map((r) => ({ value: r, label: r.toUpperCase() }));
+  /* Ступень в списке — той же плашкой, что и везде в приложении: цвет
+     ранга узнаётся быстрее, чем читается слово, а в фильтре ролей рядом
+     плашки уже стоят — разнобой был бы заметен. */
+  const options = data.roles.map((r) => ({ value: r, label: <RoleBadge role={r} /> }));
   const changed = data.actions.filter((a) => draft[a.id] !== a.role).length;
   const byDefault = data.actions.filter((a) => draft[a.id] !== a.default).length;
 

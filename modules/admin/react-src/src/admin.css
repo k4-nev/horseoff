@@ -688,7 +688,7 @@
 .adm-sel{position:relative;flex-shrink:0}
 .adm-sel-btn{display:flex;align-items:center;gap:6px;min-width:132px;justify-content:space-between;
   background:var(--adm-surface2);border:1px solid var(--adm-border);border-radius:9px;
-  padding:6px 10px;font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.04em;
+  padding:5px 8px 5px 10px;font:inherit;font-size:11.5px;
   color:var(--adm-text);cursor:pointer;transition:border-color var(--adm-t-xs) var(--adm-e)}
 .adm-sel-btn:hover,.adm-sel.open .adm-sel-btn{border-color:var(--adm-accent)}
 .adm-sel-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -698,11 +698,13 @@
   transform:translateY(-5px);transition:opacity var(--adm-t-xs) var(--adm-e),transform var(--adm-t-xs) var(--adm-e)}
 .adm-sel.open .adm-sel-menu{opacity:1;pointer-events:auto;transform:translateY(0)}
 .adm-sel.up .adm-sel-menu{top:auto;bottom:calc(100% + 5px)}
-.adm-sel-item{display:block;width:100%;text-align:left;background:none;border:none;
-  padding:8px 11px;font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.04em;
-  color:var(--adm-text);cursor:pointer}
+/* Внутри пункта — плашка роли: своё оформление у неё есть, поэтому здесь
+   только раскладка и подложка под наведением. */
+.adm-sel-item{display:flex;align-items:center;width:100%;text-align:left;background:none;border:none;
+  padding:6px 10px;font:inherit;font-size:11.5px;color:var(--adm-text);cursor:pointer}
 .adm-sel-item:hover,.adm-sel-item.cursor{background:var(--adm-surface2)}
-.adm-sel-item.on{color:var(--adm-accent)}
+.adm-sel-item.on{background:color-mix(in srgb,var(--adm-accent) 10%,transparent)}
+.adm-sel-val .role-badge{pointer-events:none}
 
 /* ─── Справка ─────────────────────────────────────────────────────────── */
 .adm-faq-modal{max-width:560px}

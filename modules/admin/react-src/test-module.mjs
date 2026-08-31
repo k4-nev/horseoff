@@ -238,10 +238,22 @@ try {
   /* Поднимаем порог «Читать каналы» до rare — и каналы должны отвалиться у
      ivan (common), которому они выданы. */
   const readRow = p.locator('.adm-roles-row', { hasText: 'Читать каналы' });
+  /* Ступени в списке — цветными плашками, как в фильтре ролей и в карточке
+     пользователя. Разнобой был бы заметен: плашки стоят рядом, в той же
+     панели. */
+  check('в закрытом списке ступень показана плашкой',
+    await readRow.locator('.adm-sel-btn .role-badge').count() === 1);
   await readRow.locator('.adm-sel-btn').click();
   await p.waitForTimeout(250);
+  const badges = await readRow.locator('.adm-sel-item .role-badge').count();
+  check('и в раскрытом — все семь плашек', badges === 7, String(badges));
+  const cls = await readRow.locator('.adm-sel-item .role-badge').first().getAttribute('class');
+  check('плашка несёт класс своей роли', cls.includes('common'), cls);
   await readRow.locator('.adm-sel-item', { hasText: 'RARE' }).click();
   await p.waitForTimeout(250);
+  check('после выбора плашка в кнопке сменилась',
+    (await readRow.locator('.adm-sel-btn .role-badge').getAttribute('class')).includes('rare'));
+
   check('строка помечена как изменённая',
     await readRow.locator('.adm-roles-moved').count() === 1,
     await readRow.locator('.adm-roles-moved').textContent().catch(() => '—'));
