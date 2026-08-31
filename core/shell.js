@@ -363,7 +363,11 @@ const Shell = {
   },
 
   async showApp() {
-    this._uiEmit({ booting: false, authed: true, pin: null, authError: '', user: this.user });
+    this._uiEmit({
+      booting: false, authed: true, pin: null, authError: '', user: this.user,
+      // Замок в кольце показываем только тем, у кого PIN вообще задан
+      pinEnabled: !!localStorage.getItem('ho_pin'),
+    });
     await this.loadModules();
     // Load version
     var v = await this.api('/api/version');
@@ -653,6 +657,20 @@ const Shell = {
     this._uiEmit({ pin: { mode: 'unlock', title: 'Введите PIN-код', len: 0, error: '' } });
   },
 
+  /* Запереть уже запущенное приложение. Экран PIN накрывает его целиком
+     (position:fixed поверх всего, непрозрачный фон), а само приложение под
+     ним продолжает жить: сокет не рвётся, модули не перезагружаются. Поэтому
+     разблокировка здесь только снимает экран — гонять showApp заново значило
+     бы открыть второй сокет и заново собрать все модули. */
+  lock() {
+    if (!localStorage.getItem('ho_pin')) {
+      this.toast('Сначала задайте PIN-код в профиле', 'error');
+      return;
+    }
+    this._pinLocked = true;
+    this._showPinScreen();
+  },
+
   _pinKey(key) {
     var st = this._uiState.pin;
     if (!st || key === '') return;
@@ -675,8 +693,11 @@ const Shell = {
 
     if (this._pinEntered === localStorage.getItem('ho_pin')) {
       this._pinEntered = '';
+      var wasLocked = this._pinLocked;
+      this._pinLocked = false;
       this._uiEmit({ pin: null });
-      this.showApp();
+      // Приложение всё это время работало под экраном — поднимать его заново незачем
+      if (!wasLocked) this.showApp();
       return;
     }
     this._pinAttempts = (this._pinAttempts || 0) + 1;

@@ -531,7 +531,66 @@ try {
   for (const d of ['1', '2', '3', '4']) await pn.locator('.ho-pin-key', { hasText: d }).first().click();
   await pn.waitForSelector('#appShell.active', { timeout: 8000 });
   check('верный PIN пустил в приложение', await pn.locator('.ho-pin-screen').count() === 0);
+
+  console.log('\n── Замок: запереть уже открытое приложение ──');
+  /* Замок не выкидывает из приложения, а накрывает его экраном PIN: сокет не
+     рвётся, открытый модуль остаётся открытым. Проверяем именно это — что
+     под экраном всё живо и после разблокировки на месте. */
+  await pn.waitForTimeout(600);
+  await openRing(pn);
+  check('шар замка появился, раз PIN задан',
+    await pn.locator('.ho-orb[title="Заблокировать"]').count() === 1);
+  /* Имя иконки подставляется в mask-image: выдуманное даёт пустой квадрат
+     и ни одной ошибки в консоли. */
+  const lockIco = await pn.evaluate(async () => {
+    const el = document.querySelector('.ho-orb[title="Заблокировать"] .ico');
+    const url = getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage;
+    const m = /url\("?([^")]+)"?\)/.exec(url);
+    if (!m) return { url: url, ok: false };
+    const r = await fetch(m[1]);
+    return { url: m[1], ok: r.ok, size: (await r.text()).length };
+  });
+  check('иконка замка есть на диске, а не только в классе',
+    lockIco.ok && lockIco.size > 80, JSON.stringify(lockIco));
+
+  const beforeLock = await pn.evaluate(() => ({
+    active: Shell._uiState.active,
+    stub: document.querySelector('#moduleContent .stub')
+      ? document.querySelector('#moduleContent .stub').dataset.stub : null,
+  }));
+  await clickOrb(pn, 'Заблокировать');
+  await pn.waitForSelector('.ho-pin-screen', { timeout: 5000 });
+  check('экран PIN закрыл приложение', await pn.locator('.ho-pin-screen').count() === 1);
+  check('само приложение под ним осталось', await pn.locator('#appShell').count() === 1);
+  check('экран непрозрачный и поверх всего', await pn.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('.ho-pin-screen'));
+    return cs.position === 'fixed' && Number(cs.zIndex) >= 1000
+      && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
+  }));
+
+  for (const d of ['1', '2', '3', '4']) await pn.locator('.ho-pin-key', { hasText: d }).first().click();
+  await pn.waitForTimeout(500);
+  check('верный PIN снял блокировку', await pn.locator('.ho-pin-screen').count() === 0);
+  const afterLock = await pn.evaluate(() => ({
+    active: Shell._uiState.active,
+    stub: document.querySelector('#moduleContent .stub')
+      ? document.querySelector('#moduleContent .stub').dataset.stub : null,
+  }));
+  check('модуль остался тем же, приложение не перезагрузилось',
+    afterLock.active === beforeLock.active && afterLock.stub === beforeLock.stub,
+    JSON.stringify(beforeLock) + ' → ' + JSON.stringify(afterLock));
   await pn.close();
+
+  /* Без заданного PIN замка в кольце нет: возвращаться было бы некуда. */
+  const pnl = await open();
+  await openRing(pnl);
+  check('без PIN замка в кольце нет',
+    await pnl.locator('.ho-orb[title="Заблокировать"]').count() === 0);
+  await pnl.evaluate(() => Shell.lock());
+  await pnl.waitForTimeout(300);
+  check('и программная блокировка без PIN не запирает',
+    await pnl.locator('.ho-pin-screen').count() === 0);
+  await pnl.close();
 
   console.log('\n── Выход и повторный вход ──');
   const p4 = await open();

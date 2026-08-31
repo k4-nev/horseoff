@@ -20,6 +20,7 @@ const TINT = {
 };
 const TINT_FALLBACK = '#4e5661';
 const PROFILE_TINT = '#4e5661';
+const LOCK_TINT = '#5c6470';
 
 /* Иконки берём из общей системы масок shell.css (.ico ico-18 ico-<name>) —
    отдельного набора у навигации нет и быть не должно. */
@@ -105,7 +106,9 @@ const VoiceSlot = memo(function VoiceSlot() {
   return <div id="sidebarVoiceBar" className="sb-voice-bar" style={{ display: 'none' }} />;
 });
 
-export default function SideNav({ modules, active, unread, valentine, avatar, user, immersive, notes, onRing }) {
+export default function SideNav({
+  modules, active, unread, valentine, avatar, user, immersive, notes, onRing, pinEnabled,
+}) {
   const isMobile = useMedia(MOBILE);
   const reduced = useMedia(REDUCED);
 
@@ -133,6 +136,10 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
     profile: true,
     tint: PROFILE_TINT,
   });
+  /* Замок — только когда PIN задан: без него возвращаться некуда. */
+  if (pinEnabled) {
+    items.push({ id: '__lock', name: 'Заблокировать', icon: 'lock', tint: LOCK_TINT });
+  }
 
   const timing = reduced
     ? { out: 300, back: 200, step: 14, drift: false }
@@ -253,6 +260,7 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
     closeTimer.current = setTimeout(() => {
       if (!pick) return;
       if (pick === '__profile') { if (window.Shell) window.Shell.openProfile(); return; }
+      if (pick === '__lock') { if (window.Shell) window.Shell.lock(); return; }
       if (window.Shell) window.Shell.switchModule(pick);
     }, span * 0.55);
   }, [items, timing]);

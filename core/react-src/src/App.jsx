@@ -96,6 +96,7 @@ export default function App() {
           user={st.user}
           immersive={st.immersive}
           notes={notes.length}
+          pinEnabled={st.pinEnabled}
           onRing={setRingOpen}
         />
       </div>
