@@ -531,6 +531,18 @@ def _h_json(handler, code, data):
     handler.end_headers()
     handler.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
+def _may(session, action):
+    """Общая лестница доступов — core/roles.py. Здесь стоял чёрный список
+    ролей: добавилась бы восьмая ступень — получила бы доступ молча."""
+    from server import may
+    return may(session, action)
+
+
+def _denied(handler, action):
+    import roles as roles_mod
+    return _h_json(handler, 403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role(action)})
+
+
 def handle_get(handler, session, path):
     if path == '/api/mod/servers/status':
         with data_lock: return _h_json(handler, 200, cached_data)
@@ -554,7 +566,7 @@ def handle_get(handler, session, path):
 
 def handle_post(handler, session, path, data):
     if path == '/api/mod/servers/add':
-        if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+        if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
         for f in ('name','ip'):
             if not data.get(f): return _h_json(handler, 400, {'error':f'Поле {f} обязательно'})
         srv = {'name':data['name'],'ip':data['ip'],'ssh_port':int(data.get('ssh_port',22)),
@@ -583,7 +595,7 @@ def handle_post(handler, session, path, data):
 
     # Create server (full provision)
     if path == '/api/mod/servers/create':
-        if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+        if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
         required = ('name', 'ip', 'ssh_password', 'proxy_user', 'proxy_pass')
         for f in required:
             if not data.get(f): return _h_json(handler, 400, {'error': f'Поле {f} обязательно'})
@@ -608,7 +620,7 @@ def handle_post(handler, session, path, data):
         return _h_json(handler, 200, {'status': 'provisioning', 'ip': ip})
 
     if path == '/api/mod/servers/apikeys':
-        if session['role'] not in ('arcana','immortal'): return _h_json(handler, 403, {'error':'Нет доступа'})
+        if not _may(session, 'servers.keys'): return _denied(handler, 'servers.keys')
         prov, key = data.get('provider',''), data.get('key','')
         keys = load_api_keys(); keys[prov] = key; save_api_keys(keys)
         if key: threading.Thread(target=refresh_ruvds, daemon=True).start()
@@ -618,7 +630,7 @@ def handle_post(handler, session, path, data):
         return _h_json(handler, 200, {'status':'ok'})
 
 def handle_put(handler, session, path, data):
-    if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+    if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
     if path.startswith('/api/mod/servers/update/'):
         oip = path.split('/api/mod/servers/update/')[1]
         with servers_lock:
@@ -636,7 +648,7 @@ def handle_put(handler, session, path, data):
         return _h_json(handler, 200, {'status':'ok'})
 
 def handle_delete(handler, session, path):
-    if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+    if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
     if path.startswith('/api/mod/servers/delete/'):
         ip = path.split('/api/mod/servers/delete/')[1]
         with servers_lock:

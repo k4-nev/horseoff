@@ -9,6 +9,8 @@ import json, time, threading, os, hashlib, secrets, base64, io, asyncio, re, sub
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import roles as roles_mod
 
 # Register this module so servers_api can import from it
 sys.modules['server'] = sys.modules[__name__]
@@ -854,12 +856,27 @@ def get_session_by_token(token):
     save_sessions()
     return s
 
-ROLE_RANK = {'arcana': 7, 'immortal': 6, 'legendary': 5, 'mythical': 4, 'rare': 3, 'uncommon': 2, 'common': 1}
+# Лестница живёт в core/roles.py — там же записано, что открывает каждая
+# ступень. Здесь только псевдонимы, чтобы старый код не переписывать целиком.
+ROLE_RANK = roles_mod.ROLE_RANK
+role_at_least = roles_mod.role_at_least
 
-def role_at_least(role, min_role):
-    """Пустой min_role — ограничения нет."""
-    if not min_role: return True
-    return ROLE_RANK.get(role, 0) >= ROLE_RANK.get(min_role, 0)
+
+def may(session, action):
+    """Тянет ли ступень человека это действие.
+
+    Роль берём из записи пользователя, а не из сессии: сессия помнит её с
+    момента входа, и понижение до сих пор вступало в силу только через
+    семь дней — на следующем входе."""
+    if not session: return False
+    u = find_user(session['username'])
+    role = (u or {}).get('role', session['role'])
+    return roles_mod.may(role, action)
+
+
+def live_role(session):
+    u = find_user(session['username']) if session else None
+    return (u or {}).get('role', (session or {}).get('role', 'common'))
 
 def require_role(handler, min_role):
     s = get_session(handler)
@@ -879,6 +896,10 @@ def discover_modules():
                 try:
                     with open(mf) as f: m = json.load(f)
                     m['path'] = str(d)
+                    # Порог берём из лестницы, а не из манифеста: он меняется
+                    # из админки, и манифест о правках не знает. В манифесте
+                    # он остаётся как значение по умолчанию для новых модулей.
+                    m['min_role'] = roles_mod.module_min_role(m['id'])
                     mods.append(m)
                 except: pass
     return mods
@@ -1535,7 +1556,7 @@ async def handle_ws(websocket):
                         await websocket.send(json.dumps({'type':'muted_list','muted':prefs['muted']}))
 
                 elif mt == 'set_interval':
-                    if s['role'] in ('arcana', 'immortal'):
+                    if may(s, 'servers.interval'):
                         interval = int(data.get('interval', 30))
                         if interval in (15, 30, 45, 60):
                             with _settings_lock:
@@ -1667,7 +1688,7 @@ async def handle_ws(websocket):
                             path = ch_mod.DATA_DIR / f'chan_{ch_id}.json'
                             msgs = ch_mod._load(path, [])
                             for m in msgs:
-                                if m['id'] == msg_id and (m.get('from') == s['id'] or s['role'] in ('arcana','immortal','legendary')):
+                                if m['id'] == msg_id and (m.get('from') == s['id'] or can_moderate_channel(s, ch_id)):
                                     m['text'] = text
                                     m['edited'] = True
                                     break
@@ -1688,7 +1709,7 @@ async def handle_ws(websocket):
                         if ch_mod:
                             path = ch_mod.DATA_DIR / f'chan_{ch_id}.json'
                             msgs = ch_mod._load(path, [])
-                            msgs = [m for m in msgs if not (m['id'] == msg_id and (m.get('from') == s['id'] or s['role'] in ('arcana','immortal','legendary')))]
+                            msgs = [m for m in msgs if not (m['id'] == msg_id and (m.get('from') == s['id'] or can_moderate_channel(s, ch_id)))]
                             ch_mod._save(path, msgs)
                             members = ch_mod.load_members(sp_id)
                             member_ids = set(m2['user_id'] for m2 in members)
@@ -1701,7 +1722,7 @@ async def handle_ws(websocket):
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     msg_id = data.get('msg_id', '')
-                    if ch_id and msg_id and s['role'] in ('arcana','immortal','legendary'):
+                    if ch_id and msg_id and can_moderate_channel(s, ch_id):
                         ch_mod = _loaded_modules.get('channels_api')
                         if ch_mod:
                             msgs = ch_mod._load(ch_mod.DATA_DIR / f'chan_{ch_id}.json', [])
@@ -1721,7 +1742,7 @@ async def handle_ws(websocket):
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     msg_id = data.get('msg_id', '')
-                    if ch_id and msg_id and s['role'] in ('arcana','immortal','legendary'):
+                    if ch_id and msg_id and can_moderate_channel(s, ch_id):
                         ch_mod = _loaded_modules.get('channels_api')
                         if ch_mod:
                             pins = ch_mod.load_pins(ch_id)
@@ -1740,7 +1761,7 @@ async def handle_ws(websocket):
                     kick_self = uid == s['id']
                     target_user = find_user_by_id(uid) if not kick_self else None
                     target_arcana = target_user and target_user.get('role') == 'arcana' if target_user else False
-                    can_kick = kick_self or (s['role'] in ('arcana','immortal','legendary') and not target_arcana)
+                    can_kick = kick_self or (can_moderate_space(s, sp_id) and not target_arcana)
                     if sp_id and uid and can_kick:
                         ch_mod = _loaded_modules.get('channels_api')
                         if ch_mod:
@@ -1854,7 +1875,7 @@ async def handle_ws(websocket):
                 elif mt == 'voice_kick':
                     room_id = data.get('room_id','')
                     target_uid = data.get('target_user_id','')
-                    if room_id and target_uid and s.get('role') in ['arcana','immortal','legendary']:
+                    if room_id and target_uid and may(s, 'voice.moderate'):
                         target_token = None
                         with voice_rooms_lock:
                             if room_id in voice_rooms:
@@ -1923,6 +1944,82 @@ MIME = {'.html':'text/html','.css':'text/css','.js':'application/javascript',
         '.ogg':'audio/ogg','.mp3':'audio/mpeg','.m4a':'audio/mp4',
         '.mp4':'video/mp4','.webm':'video/webm'}
 
+
+
+def can_moderate_channel(session, channel_id):
+    """Может ли человек модерировать этот канал.
+
+    Две ступени: legendary модерирует всё, mythical — только свои группы,
+    то есть созданные им либо те, где ему выдали «МОД». До этого роль
+    модератора в группе не проверялась нигде — её можно было назначить, и
+    она не значила ничего.
+    """
+    if may(session, 'channels.moderate'): return True
+    if not may(session, 'channels.moderate_own'): return False
+    ch_mod = _loaded_modules.get('channels_api')
+    if not ch_mod or not channel_id: return False
+    space = ch_mod.space_of_channel(channel_id)
+    return ch_mod.is_space_boss(space, session['id'])
+
+
+def can_moderate_space(session, space_id):
+    """То же, но когда речь про группу целиком (кик, состав участников)."""
+    if may(session, 'channels.moderate'): return True
+    if not may(session, 'channels.moderate_own') or not space_id: return False
+    ch_mod = _loaded_modules.get('channels_api')
+    if not ch_mod: return False
+    space = next((sp for sp in ch_mod.load_spaces() if sp['id'] == space_id), None)
+    return ch_mod.is_space_boss(space, session['id'])
+
+
+def _sync_module_grants():
+    """Порог подняли — выдача, которая перестала действовать, снимается.
+
+    Оставлять её висеть нельзя: в карточке пользователя тумблер был бы
+    включён, а раздел не работал бы — ровно то расхождение между «выдано» и
+    «можно», из-за которого лестницу и переделывали."""
+    dropped = []
+    users = load_users()
+    changed = False
+    for u in users:
+        if u.get('role') == 'arcana': continue
+        mods = u.get('modules') or []
+        keep = [m for m in mods if roles_mod.can_have_module(u.get('role', 'common'), m)]
+        if len(keep) != len(mods):
+            lost = [m for m in mods if m not in keep]
+            u['modules'] = keep
+            changed = True
+            dropped.append({'user': u['username'], 'modules': lost})
+    if changed:
+        save_users(users)
+        for u in users:
+            if any(d['user'] == u['username'] for d in dropped):
+                visible = [m['id'] for m in discover_modules()
+                           if m['id'] in (u.get('modules') or [])
+                           and roles_mod.can_have_module(u.get('role', 'common'), m['id'])]
+                _ws_broadcast_to_user(u['id'], {'type': 'modules_update', 'modules': visible})
+    return dropped
+
+
+def _module_gate(handler, session, prefix, method):
+    """Пускать ли в API раздела.
+
+    До этого здесь стояла только проверка сессии: выданные модули фильтровали
+    меню и больше нигде не спрашивались, поэтому любой вошедший дёргал API
+    чужого раздела напрямую. Теперь одно место решает за все модули — и за
+    те, о которых при добавлении никто не вспомнит."""
+    mod_id = prefix.rsplit('/', 1)[-1]
+    u = find_user(session['username'])
+    role = (u or {}).get('role', session['role'])
+    if role == 'arcana': return None
+    if not roles_mod.can_have_module(role, mod_id):
+        return {'error': 'Нет доступа', 'need_role': roles_mod.module_min_role(mod_id)}
+    granted = (u or {}).get('modules') or []
+    if mod_id not in granted:
+        return {'error': 'Раздел не выдан'}
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
@@ -1931,7 +2028,10 @@ class Handler(BaseHTTPRequestHandler):
             users = load_users()
             s = get_session(self)
             resp = {'setup_required': len(users) == 0}
-            if s: resp.update({'username': s['username'], 'role': s['role']})
+            if s:
+                role = live_role(s)
+                caps = [a for a in roles_mod.DEFAULTS if roles_mod.may(role, a)]
+                resp.update({'username': s['username'], 'role': role, 'caps': caps})
             return self._json(200, resp)
 
         if path == '/api/auth/sessions':
@@ -1979,9 +2079,17 @@ class Handler(BaseHTTPRequestHandler):
                 # min_role. Без второй половины модуль появлялся у того, кто им
                 # пользоваться не может. То же правило — в рассылке modules_update.
                 mods = [m for m in mods if m['id'] in user_modules
-                        and m.get('min_role') != 'arcana'
-                        and role_at_least(role, m.get('min_role'))]
+                        and roles_mod.can_have_module(role, m['id'])]
             return self._json(200, mods)
+
+        # Лестница доступов: её должен видеть каждый — по ней интерфейс
+        # рисует подсказки «нужна роль X». Секрета в порогах нет.
+        if path == '/api/roles':
+            s = get_session(self)
+            if not s: return self._json(401, {'error': 'Unauthorized'})
+            d = roles_mod.describe()
+            d['my_role'] = live_role(s)
+            return self._json(200, d)
 
         # All modules (unfiltered, for admin)
         if path == '/api/modules/all':
@@ -2010,6 +2118,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'key': key, 'available': HAS_PUSH and key is not None})
 
         # Default modules setting (god only)
+        # Пороги ступеней. Владелец и только он: редактор порогов закреплён
+        # за arcana намертво, иначе тот, кому его однажды открыли, поднимает
+        # себе любые права, включая управление пользователями.
+        if path == '/api/roles':
+            s = require_role(self, 'arcana')
+            if not s: return self._role_denied()
+            taken, refused = roles_mod.set_thresholds(data.get('actions'))
+            dropped = _sync_module_grants()
+            return self._json(200, {'status': 'ok', 'applied': taken,
+                                    'refused': refused, 'dropped': dropped,
+                                    'roles': roles_mod.describe()})
+
         if path == '/api/settings/default-modules':
             s = require_role(self, 'arcana')
             if not s: return self._role_denied()
@@ -2104,6 +2224,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith(prefix) and callable(handler_fn.get('GET')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'GET')
+                if denied: return self._json(403, denied)
                 return handler_fn['GET'](self, s, path)
 
         # SVG icons
@@ -2383,7 +2505,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/settings':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
-            if s['role'] not in ('arcana', 'immortal'): return self._json(403, {'error': 'Нет доступа'})
+            if not may(s, 'servers.interval'):
+                return self._json(403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role('servers.interval')})
             interval = int(data.get('poll_interval', 30))
             if interval in (15, 30, 45, 60):
                 with _settings_lock:
@@ -2554,6 +2677,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith(prefix) and callable(handler_fn.get('POST')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'POST')
+                if denied: return self._json(403, denied)
                 return handler_fn['POST'](self, s, path, data)
 
         self._json(404, {'error': 'Not found'})
@@ -2575,14 +2700,15 @@ class Handler(BaseHTTPRequestHandler):
                     user_mods = user.get('modules', ['messenger'])
                     all_mods = discover_modules()
                     visible = [m for m in all_mods if m['id'] in user_mods
-                               and m.get('min_role') != 'arcana'
-                               and role_at_least(user.get('role', 'common'), m.get('min_role'))]
+                               and roles_mod.can_have_module(user.get('role', 'common'), m['id'])]
                     _ws_broadcast_to_user(uid, {'type': 'modules_update', 'modules': [m['id'] for m in visible]})
             return self._json(200 if ok else 400, {'status':'ok'} if ok else {'error': msg})
         for prefix, handler_fn in module_apis.items():
             if path.startswith(prefix) and callable(handler_fn.get('PUT')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'PUT')
+                if denied: return self._json(403, denied)
                 return handler_fn['PUT'](self, s, path, data)
         self._json(404, {'error': 'Not found'})
 
@@ -2610,6 +2736,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith(prefix) and callable(handler_fn.get('DELETE')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'DELETE')
+                if denied: return self._json(403, denied)
                 return handler_fn['DELETE'](self, s, path)
         self._json(404, {'error': 'Not found'})
 
@@ -2695,12 +2823,17 @@ def main():
     migrate_user_roles()
     migrate_module_ids()
     migrate_vapid_keys()
+    roles_mod.init(DATA_DIR)
+    _sync_module_grants()
     users = load_users()
     modules = discover_modules()
     print(f"  Users:   {len(users)} ({'SETUP REQUIRED' if not users else ', '.join(u['username'] for u in users)})")
     print(f"  Modules: {', '.join(m['id'] for m in modules) or 'none'}")
     print(f"  Web UI:  http://0.0.0.0:{WEB_PORT}")
     print(f"  Session: {SESSION_TTL // 86400} days")
+    _rm = roles_mod.matrix()
+    _changed = sum(1 for k, v in _rm.items() if v != roles_mod.DEFAULTS.get(k))
+    print(f"  Roles:   {len(roles_mod.ACTIONS)} действий, порогов изменено: {_changed}")
     print(f"  Push:    {push_status()}")
     print("=" * 50)
 

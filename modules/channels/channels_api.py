@@ -7,7 +7,18 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SPACES_FILE = DATA_DIR / 'spaces.json'
 _lock = threading.Lock()  # guards spaces.json: callers wrap their own load+modify+save with it
-ADMIN_ROLES = ('arcana', 'immortal', 'legendary')
+def _may(session, action):
+    """Ступень человека против порога действия — общая лестница на всё
+    приложение (core/roles.py). Раньше здесь был свой ADMIN_ROLES, в ботах
+    свой _OWNER_ROLES, а в серверах чёрный список — три разных ответа на
+    вопрос «кто тут главный»."""
+    from server import may
+    return may(session, action)
+
+
+def _denied(handler, action):
+    import roles as roles_mod
+    return _json(handler, 403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role(action)})
 
 def _load(path, default=None):
     if default is None: default = []
@@ -112,6 +123,30 @@ def save_pins(channel_id, pins):
 
 def is_member(space_id, user_id):
     return any(m['user_id'] == user_id for m in load_members(space_id))
+
+def space_of_channel(channel_id):
+    """К какой группе относится канал.
+
+    Идентификатор группы приходит и в запросе, но верить ему нельзя: клиент
+    подставит чужой, и проверка прав уедет не в ту группу. Ищем сами."""
+    for sp in load_spaces():
+        for ch in load_channels(sp['id']):
+            if ch['id'] == channel_id:
+                return sp
+    return None
+
+def space_role(space_id, user_id):
+    """owner | moderator | member | None — роль человека в этой группе."""
+    for m in load_members(space_id):
+        if m['user_id'] == user_id:
+            return m.get('role', 'member')
+    return None
+
+def is_space_boss(space, user_id):
+    """Хозяин группы: создатель или назначенный модератор."""
+    if not space: return False
+    if space.get('owner_id') == user_id: return True
+    return space_role(space['id'], user_id) in ('owner', 'moderator')
 
 def _get_param(handler, key):
     from urllib.parse import urlparse, parse_qs
@@ -233,7 +268,7 @@ def handle_get(handler, session, path):
 
     # GET /api/mod/channels/users
     if p.endswith('/users'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+        if not _may(session, 'channels.userlist'): return _denied(handler, 'channels.userlist')
         from server import load_users, get_avatar_b64
         users = load_users()
         return _json(handler, 200, [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'avatar':get_avatar_b64(u['id'])} for u in users])
@@ -244,7 +279,7 @@ def handle_post(handler, session, path, data):
     p = path.split('?')[0]
     # POST /api/mod/channels/spaces (create or edit)
     if p.endswith('/spaces'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         name = data.get('name', '').strip()
         if not name or len(name) > 40: return _json(handler, 400, {'error': 'Название группы 1-40 символов'})
         photo_b64 = data.get('photo')
@@ -274,7 +309,7 @@ def handle_post(handler, session, path, data):
 
     # POST /api/mod/channels/channels (create or edit)
     if p.endswith('/channels'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         space_id = data.get('space_id', '')
         name = data.get('name', '').strip()
         icon = data.get('icon', 'channels')
@@ -301,7 +336,7 @@ def handle_post(handler, session, path, data):
 
     # POST /api/mod/channels/members
     if p.endswith('/members'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+        if not _may(session, 'channels.members'): return _denied(handler, 'channels.members')
         space_id = data.get('space_id', '')
         user_ids = data.get('user_ids', [])
         set_mod = data.get('set_moderator')  # {user_id, value}
@@ -330,7 +365,10 @@ def handle_post(handler, session, path, data):
 
 def handle_delete(handler, session, path):
     p = path.split('?')[0]
-    if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+    # У удаления группы, канала и участника пороги разные — общий вход
+    # пропускает того, кто тянет хотя бы одно, дальше проверяет каждая ветка.
+    if not (_may(session, 'channels.create') or _may(session, 'channels.members')):
+        return _denied(handler, 'channels.create')
     data = {}
     cl = int(handler.headers.get('Content-Length') or 0)
     if cl > 0:
@@ -345,6 +383,7 @@ def handle_delete(handler, session, path):
 
     # DELETE space
     if p.endswith('/spaces'):
+        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         space_id = data.get('space_id', '')
         with _lock:
             spaces = load_spaces()
@@ -356,6 +395,7 @@ def handle_delete(handler, session, path):
 
     # DELETE channel
     if p.endswith('/channels'):
+        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         space_id = data.get('space_id', '')
         channel_id = data.get('channel_id', '')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
@@ -367,6 +407,7 @@ def handle_delete(handler, session, path):
 
     # DELETE member
     if p.endswith('/members'):
+        if not _may(session, 'channels.members'): return _denied(handler, 'channels.members')
         space_id = data.get('space_id', '')
         user_id = data.get('user_id', '')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):

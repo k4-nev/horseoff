@@ -1,32 +1,31 @@
 # -*- coding: utf-8 -*-
-"""Лестница ролей на клиенте совпадает с серверной.
+"""Лестница доступов: ступени, пороги и выдача разделов.
 
-Роли решают, кто что видит и кому что можно выдать. Сервер держит их в
-ROLE_RANK (core/server.py), клиент — в core/react-src/src/shared/roles.js.
-Это два файла на разных языках, и синхронизировать их может только проверка.
+Роли решают, кто что видит и кому что можно выдать. До переделки лестница из
+семи ступеней работала как три: uncommon, rare и mythical не открывали ровным
+счётом ничего, а «кто тут главный» было записано в коде трижды и по-разному —
+ADMIN_ROLES в каналах, _OWNER_ROLES в ботах, чёрный список в серверах.
 
-Разойтись они уже успевали: копий лестницы на клиенте было четыре, и в одной
-из них — в выборе ранга при создании пользователя — ролей было шесть вместо
-семи, arcana потерялась. Внешне ничего не ломалось: список просто не
-предлагал роль, которую всё равно нельзя выдать. Но именно так расхождения и
-живут годами.
-
-Проверяется три вещи:
-  1. состав и веса ролей совпадают в обе стороны;
-  2. порядки ROLES_ASC и ROLES_DESC согласованы с весами;
-  3. arcana не попадает в список назначаемых — её выдаёт только первичная
-     установка (create_user при setup), из интерфейса назначить нельзя.
+Здесь стережём четыре вещи:
+  1. каждая ступень что-то добавляет — иначе она бессмысленна;
+  2. лестница накопительная: старший может всё, что может младший;
+  3. порог редактора порогов не двигается ничем — иначе тот, кому его
+     однажды открыли, поднимает себе права до владельца;
+  4. раздел можно выдать только тому, чья ступень его тянет, и при подъёме
+     порога выдача, переставшая действовать, снимается.
 
 Запуск:  python core/test_roles.py
 """
 import io
-import re
+import json
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 CORE = Path(__file__).resolve().parent
-SERVER = CORE / 'server.py'
-ROLES_JS = CORE / 'react-src' / 'src' / 'shared' / 'roles.js'
+sys.path.insert(0, str(CORE))
+import roles as R  # noqa: E402
 
 failed = []
 
@@ -37,56 +36,76 @@ def check(name, ok, extra=''):
         failed.append(name)
 
 
-def read(path):
-    return io.open(path, encoding='utf-8').read()
+tmp = Path(tempfile.mkdtemp(prefix='ho_roles_'))
+R.init(tmp)
 
+print('\n── Ступени ──')
+by_role = {}
+for a, r, _s, _t in R.ACTIONS:
+    by_role.setdefault(r, []).append(a)
+empty = [r for r in R.ROLES_ASC if r != 'common' and not by_role.get(r)]
+check('каждая ступень выше common что-то открывает',
+      not empty, 'пустые: ' + (', '.join(empty) or 'нет'))
+check('все семь ступеней использованы',
+      len({r for _a, r, _s, _t in R.ACTIONS}) >= 6,
+      ', '.join(sorted(by_role, key=R.ROLES_ASC.index)))
 
-def parse_rank(text, pattern):
-    """Из «arcana: 7, immortal: 6, …» делаем словарь."""
-    body = re.search(pattern, text).group(1)
-    out = {}
-    for pair in re.findall(r"['\"]?([a-z_]+)['\"]?\s*:\s*(\d+)", body):
-        out[pair[0]] = int(pair[1])
-    return out
+print('\n── Накопительность ──')
+broken = []
+for a in R.DEFAULTS:
+    need = R.min_role(a)
+    for role in R.ROLES_ASC[R.ROLES_ASC.index(need):]:
+        if not R.may(role, a):
+            broken.append(role + ' не тянет ' + a)
+check('старшая ступень тянет всё, что тянет младшая', not broken, '; '.join(broken[:3]))
+check('common не тянет ничего сверх базового',
+      not [a for a in R.DEFAULTS if R.min_role(a) != 'common' and R.may('common', a)])
+check('arcana тянет всё', all(R.may('arcana', a) for a in R.DEFAULTS))
 
+print('\n── Разделы выдаются по ступени ──')
+check('серверы — с той же ступени, что и право их видеть',
+      R.module_min_role('servers') == R.min_role('servers.view'),
+      R.module_min_role('servers'))
+check('uncommon серверы выдать нельзя, rare — можно',
+      not R.can_have_module('uncommon', 'servers') and R.can_have_module('rare', 'servers'))
+check('админку нельзя выдать никому, кроме владельца',
+      not any(R.can_have_module(r, 'admin') for r in R.ROLES_ASC if r != 'arcana'))
 
-def parse_list(text, name):
-    body = re.search(r'export const ' + name + r' = \[(.*?)\];', text, re.S).group(1)
-    return re.findall(r"'([a-z_]+)'", body)
+print('\n── Правка порогов ──')
+taken, refused = R.set_thresholds({'servers.view': 'uncommon'})
+check('порог опускается', R.min_role('servers.view') == 'uncommon', str(taken))
+check('вместе с ним едет и выдача раздела',
+      R.can_have_module('uncommon', 'servers'))
+taken, refused = R.set_thresholds({'roles.edit': 'immortal'})
+check('порог редактора порогов не сдвинуть',
+      R.min_role('roles.edit') == 'arcana' and 'roles.edit' in refused,
+      str(refused))
+taken, refused = R.set_thresholds({'выдуманное': 'rare', 'servers.view': 'богоподобный'})
+check('мусор в правке отвергается', len(refused) == 2 and not taken, str(refused))
 
+print('\n── Правки переживают перезапуск ──')
+R.set_thresholds({'servers.view': 'mythical'})
+R.init(tmp)
+check('порог поднялся и сохранился', R.min_role('servers.view') == 'mythical')
+saved = json.loads((tmp / 'roles.json').read_text(encoding='utf-8'))
+check('в файле только правки, без умолчаний',
+      set(saved['actions']) <= set(R.DEFAULTS) and 'roles.edit' not in saved['actions'],
+      ', '.join(saved['actions']))
 
-srv = read(SERVER)
-js = read(ROLES_JS)
+print('\n── Согласие с сервером ──')
+srv = io.open(CORE / 'server.py', encoding='utf-8').read()
+check('ядро больше не держит свою копию лестницы',
+      'ROLE_RANK = roles_mod.ROLE_RANK' in srv)
+check('в ядре есть общая проверка may()', 'def may(session, action):' in srv)
+check('роль для проверки берётся из записи, а не из сессии',
+      "u = find_user(session['username'])" in srv.split('def may(session, action):')[1][:400])
+mods = io.open(CORE.parent / 'modules' / 'channels' / 'channels_api.py', encoding='utf-8').read()
+check('в каналах не осталось своего набора админов',
+      "session['role'] not in ADMIN_ROLES" not in mods)
+srvs = io.open(CORE.parent / 'modules' / 'servers' / 'servers_api.py', encoding='utf-8').read()
+check('в серверах не осталось чёрного списка ролей',
+      "in ('common','uncommon','rare','mythical','legendary')" not in srvs)
 
-server_rank = parse_rank(srv, r'ROLE_RANK = \{([^}]+)\}')
-client_rank = parse_rank(js, r'export const ROLE_RANK = \{([^}]+)\}')
-
-print('\n── Лестница ролей ──')
-check('состав ролей совпадает с сервером',
-      sorted(server_rank) == sorted(client_rank),
-      'сервер: ' + ','.join(sorted(server_rank)) + ' / клиент: ' + ','.join(sorted(client_rank)))
-check('веса ролей совпадают с сервером', server_rank == client_rank,
-      'разница: ' + str({k: (server_rank.get(k), client_rank.get(k))
-                         for k in set(server_rank) | set(client_rank)
-                         if server_rank.get(k) != client_rank.get(k)}))
-
-asc = parse_list(js, 'ROLES_ASC')
-check('ROLES_ASC перечисляет все роли от младшей к старшей',
-      asc == sorted(client_rank, key=lambda r: client_rank[r]), ','.join(asc))
-
-assignable = re.search(r"export const ASSIGNABLE_ROLES = ROLES_ASC\.filter\(\(r\) => r !== '([a-z]+)'\);", js)
-check('из интерфейса нельзя выдать роль владельца',
-      bool(assignable) and assignable.group(1) == 'arcana',
-      assignable.group(1) if assignable else 'фильтра нет')
-
-# Роль владельца на сервере действительно ставится только при установке
-setup_only = re.search(r"create_user\(u, p, 'arcana'\)", srv)
-check('на сервере arcana выдаёт только первичная установка', bool(setup_only))
-
-admin_roles = parse_list(js, 'ADMIN_ROLES')
-check('администраторские роли — три старших',
-      admin_roles == asc[-3:][::-1] or sorted(admin_roles) == sorted(asc[-3:]),
-      ','.join(admin_roles))
-
+shutil.rmtree(tmp, ignore_errors=True)
 print('\n' + (str(len(failed)) + ' проверок провалено' if failed else 'Все проверки прошли'))
 sys.exit(1 if failed else 0)

@@ -7,7 +7,18 @@ BOTS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 BOTS_INDEX = BOTS_DATA_DIR / 'index.json'
 print(f"  [BOTS] data dir: {BOTS_DATA_DIR}")
 
-_OWNER_ROLES = {'arcana', 'immortal'}
+_OWNER_ROLES = {'arcana', 'immortal'}   # для рассылки уведомлений владельцам
+
+
+def _may(session, action):
+    """Общая лестница доступов — core/roles.py."""
+    from server import may
+    return may(session, action)
+
+
+def _denied(handler, action):
+    import roles as roles_mod
+    return _json(handler, 403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role(action)})
 
 # ── Bot WebSocket connections (bot_id → websocket) ───────────────────────────
 bot_ws_connections = {}
@@ -120,7 +131,9 @@ def _reset_all_offline():
 _reset_all_offline()
 
 def _can_access(session, bot):
-    if session['role'] in _OWNER_ROLES: return True
+    """Кто видит бота: тот, кто управляет ботами вообще, плюс те, кому его
+    выдали лично. Личная выдача — не про ступень, она остаётся как была."""
+    if _may(session, 'bots.manage'): return True
     return session['id'] in (bot.get('access_ids') or [])
 
 def _bot_summary(bot):
@@ -160,7 +173,7 @@ def _bot_detail(bot, session):
     access_users.sort(key=lambda x: (not x['is_owner']))
     return {
         **_bot_summary(bot),
-        'api_key': bot.get('api_key', '') if session['role'] in _OWNER_ROLES else '',
+        'api_key': bot.get('api_key', '') if _may(session, 'bots.manage') else '',
         'controls': bot.get('controls'),
         'tabs': bot.get('tabs'),
         'stats': bot.get('stats'),
@@ -215,8 +228,8 @@ def handle_post(handler, session, path, data=None):
 
     # POST /api/mod/bots/create
     if p.endswith('/create'):
-        if session['role'] not in _OWNER_ROLES:
-            return _json(handler, 403, {'error': 'Forbidden'})
+        if not _may(session, 'bots.manage'):
+            return _denied(handler, 'bots.manage')
         name = (data.get('name') or '').strip()
         if not name: return _json(handler, 400, {'error': 'Name required'})
         api_key = _gen_key()
@@ -241,8 +254,8 @@ def handle_post(handler, session, path, data=None):
 
     # POST /api/mod/bots/group/rename — rename a group across all its bots
     if p.endswith('/group/rename'):
-        if session['role'] not in _OWNER_ROLES:
-            return _json(handler, 403, {'error': 'Forbidden'})
+        if not _may(session, 'bots.manage'):
+            return _denied(handler, 'bots.manage')
         old = (data.get('old') or '').strip()
         new = (data.get('new') or '').strip()
         if not old or not new:
@@ -304,8 +317,8 @@ def handle_post(handler, session, path, data=None):
 
             # POST /api/mod/bots/:id/regen_key
             if sub == 'regen_key':
-                if session['role'] not in _OWNER_ROLES:
-                    return _json(handler, 403, {'error': 'Forbidden'})
+                if not _may(session, 'bots.manage'):
+                    return _denied(handler, 'bots.manage')
                 new_key = _gen_key()
                 bot['api_key'] = new_key
                 bot['api_key_hint'] = new_key[-6:]
@@ -403,8 +416,8 @@ def handle_delete(handler, session, path):
 
             # DELETE /api/mod/bots/:id
             if not sub:
-                if session['role'] not in _OWNER_ROLES and session['id'] != bot.get('owner_id'):
-                    return _json(handler, 403, {'error': 'Forbidden'})
+                if not _may(session, 'bots.access') and session['id'] != bot.get('owner_id'):
+                    return _denied(handler, 'bots.access')
                 _bot_path(bot_id).unlink(missing_ok=True)
                 with _index_lock:
                     _save_index([e for e in _load_index() if e['id'] != bot_id])
