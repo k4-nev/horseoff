@@ -3,28 +3,11 @@ import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { CHANNEL_ICONS, api, compressImage, displayName } from './lib.js';
 import * as voice from './voice.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import Modal from '../../../../core/react-src/src/shared/Modal.jsx';
+import ConfirmShared from '../../../../core/react-src/src/shared/ConfirmModal.jsx';
 
 /* Окна модуля: группа, канал, подтверждение удаления, добавление участников,
    настройки голоса и два предупреждения перед включением камеры и экрана. */
-
-function Modal({ title, onClose, children, wide }) {
-  useEffect(() => {
-    const key = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [onClose]);
-  return (
-    <div className="modal-overlay active" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={'modal' + (wide ? ' ch-vs-modal' : '')}>
-        <div className="modal-header">
-          <div className="modal-title">{title}</div>
-          <button className="modal-close" onClick={onClose}><span className="ico ico-18 ico-close" /></button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 export function SpaceModal({ open, onClose, onSave }) {
   const [name, setName] = useState('');
@@ -153,13 +136,10 @@ export function ChannelModal({ open, onClose, onSave }) {
 export function ConfirmModal({ open, onClose, onConfirm }) {
   if (!open) return null;
   return (
-    <Modal title={open.title} onClose={onClose}>
-      <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>{open.text}</div>
-      <div className="modal-actions">
-        <button className="btn btn-secondary" onClick={onClose}>Отмена</button>
-        <button className="btn btn-danger" onClick={onConfirm}>{open.okLabel || 'Удалить'}</button>
-      </div>
-    </Modal>
+    <ConfirmShared
+      title={open.title} text={open.text} okLabel={open.okLabel}
+      onClose={onClose} onConfirm={onConfirm}
+    />
   );
 }
 
@@ -288,7 +268,7 @@ export function VoiceSettingsModal({ open, onClose }) {
   const sinkOk = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
 
   return (
-    <Modal title="⚙️ Настройки голоса" onClose={() => { stopTest(); onClose(); }} wide>
+    <Modal title="⚙️ Настройки голоса" onClose={() => { stopTest(); onClose(); }} boxCls="ch-vs-modal">
       <div className="form-group">
         <label className="form-label">Микрофон</label>
         <select className="form-input" data-kind="mic" value={picked.mic} onChange={(e) => choose('mic', e.target.value)}>

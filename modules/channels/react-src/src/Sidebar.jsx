@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { buzz } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
 
 /* Левая колонка: группы, внутри — текстовые каналы и голосовые комнаты.
 
@@ -47,6 +48,7 @@ export default function Sidebar({
 }) {
   const [collapsed, setCollapsed] = useState({});
   const [ctx, setCtx] = useState(null);
+  const [ctxRef, ctxPos] = useMenuFit(ctx);
 
   if (!spaces.length) {
     return (
@@ -139,7 +141,7 @@ export default function Sidebar({
       {ctx && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setCtx(null)} onContextMenu={(e) => { e.preventDefault(); setCtx(null); }} />
-          <div className="ch-ctx" style={{ display: 'block', left: Math.min(ctx.x, window.innerWidth - 200), top: Math.min(ctx.y, window.innerHeight - 160), zIndex: 200 }}>
+          <div className="ch-ctx" ref={ctxRef} style={{ display: 'block', zIndex: 200, ...ctxPos }}>
             <div className="ch-ctx-item" onClick={() => { onCreateChannel(ctx.spaceId); setCtx(null); }}>
               <span className="ico ico-14 ico-plus" /> Создать канал
             </div>

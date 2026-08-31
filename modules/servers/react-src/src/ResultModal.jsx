@@ -1,5 +1,6 @@
-import useEscape from '../../../../core/react-src/src/shared/useEscape.js';
+import Modal from '../../../../core/react-src/src/shared/Modal.jsx';
 
+/* Строка копируется по клику: подсветка рамки плюс тост. */
 function copyRow(e) {
   const val = e.currentTarget.querySelector('.srv-result-value');
   if (!val) return;
@@ -22,27 +23,18 @@ function copyRow(e) {
 }
 
 export default function ResultModal({ open, result, onClose }) {
-  useEscape(open, onClose);
   return (
-    <div className={'modal-overlay' + (open ? ' active' : '')} id="srvResultModal">
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Сервер готов</div>
-          <button className="modal-close" onClick={onClose}>
-            <span className="ico ico-18 ico-close" />
-          </button>
-        </div>
-        <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>Прокси настроены и работают:</div>
-        <div className="srv-result-row" onClick={copyRow}>
-          <div className="srv-result-label">HTTP</div>
-          <div className="srv-result-value">{(result && result.http_proxy) || '—'}</div>
-        </div>
-        <div className="srv-result-row" onClick={copyRow}>
-          <div className="srv-result-label">SOCKS5</div>
-          <div className="srv-result-value">{(result && result.socks_proxy) || '—'}</div>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>Нажмите на строку для копирования</div>
+    <Modal open={open} keepMounted id="srvResultModal" title="Сервер готов" onClose={onClose}>
+      <div className="modal-sub">Прокси настроены и работают:</div>
+      <div className="srv-result-row" onClick={copyRow}>
+        <div className="srv-result-label">HTTP</div>
+        <div className="srv-result-value">{(result && result.http_proxy) || '—'}</div>
       </div>
-    </div>
+      <div className="srv-result-row" onClick={copyRow}>
+        <div className="srv-result-label">SOCKS5</div>
+        <div className="srv-result-value">{(result && result.socks_proxy) || '—'}</div>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>Нажмите на строку для копирования</div>
+    </Modal>
   );
 }

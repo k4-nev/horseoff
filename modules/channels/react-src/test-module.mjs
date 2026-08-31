@@ -326,6 +326,25 @@ check('меню участника открылось', await p.locator('.ch-ctx
 check('можно написать в личку', (await p.locator('.ch-ctx-item').allTextContents()).some((t) => t.includes('Написать')));
 check('над arcana модератором не назначают',
   !(await p.locator('.ch-ctx-item').allTextContents()).some((t) => t.includes('модератор')));
+
+/* Меню у самого края не должно вылезать за экран. Раньше размер меню был
+   вписан числом (190×200), и любое изменение состава пунктов ломало отступ:
+   теперь меню измеряется по-настоящему. */
+const memberBox = await p.locator('.ch-member').nth(1).boundingBox();
+await p.mouse.click(memberBox.x + memberBox.width - 3, memberBox.y + memberBox.height - 3, { button: 'right' });
+await p.waitForTimeout(350);
+const ctxFit = await p.evaluate(() => {
+  const el = document.querySelector('.ch-ctx');
+  const r = el.getBoundingClientRect();
+  return {
+    right: Math.round(r.right), bottom: Math.round(r.bottom),
+    w: Math.round(r.width), h: Math.round(r.height),
+    winW: window.innerWidth, winH: window.innerHeight,
+  };
+});
+check('меню целиком помещается в окно',
+  ctxFit.right <= ctxFit.winW && ctxFit.bottom <= ctxFit.winH && ctxFit.w > 0,
+  JSON.stringify(ctxFit));
 await p.keyboard.press('Escape');
 await p.locator('.ch-ctx-item').first().click({ position: { x: -50, y: -50 } }).catch(() => {});
 await p.mouse.click(700, 500);

@@ -169,13 +169,9 @@ export default function App({ registerHandlers }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [servers]);
 
+  // Размер меню больше не угадываем: его измеряет useMenuFit внутри ContextMenu
   function openContextMenuAt(clientX, clientY, ip) {
-    let x = clientX, y = clientY;
-    if (x + 200 > window.innerWidth) x = window.innerWidth - 208;
-    if (y + 100 > window.innerHeight) y = y - 100;
-    if (x < 8) x = 8;
-    if (y < 8) y = 8;
-    setContextMenu({ x, y, ip });
+    setContextMenu({ x: clientX, y: clientY, ip });
   }
 
   function handleContextMenu(e, ip) {

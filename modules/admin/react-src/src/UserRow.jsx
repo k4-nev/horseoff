@@ -1,6 +1,7 @@
 import Icon from './Icon.jsx';
 import { formatPresence } from './format.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import Switch from '../../../../core/react-src/src/shared/Switch.jsx';
 
 /* Та же лестница ролей, что на сервере (ROLE_RANK в core/server.py).
    Модуль с min_role выше роли пользователя выдать нельзя: сервер его всё
@@ -73,15 +74,12 @@ export default function UserRow({ user, allModules, expanded, onToggleExpand, on
                     {m.name}
                     {!allowed && <em className="adm-tog-why">нужна роль {m.min_role}</em>}
                   </span>
-                  <button
-                    className={'adm-switch' + (on ? ' on' : '') + (isGod || !allowed ? ' disabled' : '')}
-                    role="switch"
-                    aria-checked={on}
+                  <Switch
+                    on={on}
                     disabled={isGod || !allowed}
-                    onClick={() => onToggleModule(u.id, m.id, !on)}
-                  >
-                    <span className="adm-switch-knob" />
-                  </button>
+                    label={m.name}
+                    onChange={(next) => onToggleModule(u.id, m.id, next)}
+                  />
                 </div>
               );
             })}

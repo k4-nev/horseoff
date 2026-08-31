@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api.js';
+import Switch from '../../../../core/react-src/src/shared/Switch.jsx';
 
 export default function DefaultsForm({ allModules, onClose }) {
   const [selected, setSelected] = useState(null); // null = ещё грузится
@@ -37,14 +38,7 @@ export default function DefaultsForm({ allModules, onClose }) {
           allModules.map((m) => (
             <div className="adm-tog-row" key={m.id}>
               <span>{m.name}</span>
-              <button
-                className={'adm-switch' + (selected.has(m.id) ? ' on' : '')}
-                role="switch"
-                aria-checked={selected.has(m.id)}
-                onClick={() => toggle(m.id)}
-              >
-                <span className="adm-switch-knob" />
-              </button>
+              <Switch on={selected.has(m.id)} label={m.name} onChange={() => toggle(m.id)} />
             </div>
           ))}
       </div>

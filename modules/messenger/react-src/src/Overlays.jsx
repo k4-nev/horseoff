@@ -1,6 +1,7 @@
 export { default as Gallery } from '../../../../core/react-src/src/shared/chat/Gallery.jsx';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EMOJIS, TOP_REACTIONS, TWO_DAYS } from './lib.js';
+import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
 
 /* Всплывающее поверх чата: меню сообщения, палитра реакций, подтверждение,
    просмотрщик. Раньше каждое создавалось через createElement + innerHTML и
@@ -23,21 +24,9 @@ function useDocEvent(active, type, handler, opts) {
   }, [active, type]);
 }
 
-/** Меню держим в границах экрана: у длинного списка иначе уезжает низ. */
-function useFit(open) {
-  const ref = useRef(null);
-  const [pos, setPos] = useState(null);
-  useLayoutEffect(() => {
-    if (!open || !ref.current) return;
-    const el = ref.current;
-    let x = open.x;
-    let y = open.y + 30;
-    if (x + el.offsetWidth > window.innerWidth) x = window.innerWidth - el.offsetWidth - 8;
-    if (y + el.offsetHeight > window.innerHeight) y = y - el.offsetHeight - 60;
-    setPos({ left: Math.max(8, x), top: Math.max(8, y) });
-  }, [open]);
-  return [ref, pos];
-}
+/* Меню держим в границах экрана: у длинного списка иначе уезжает низ.
+   Сдвиг вниз на 30 — чтобы меню не оказалось прямо под пальцем. */
+const useFit = (open) => useMenuFit(open, { offsetY: 30, flipY: 60 });
 
 export function MsgMenu({ open, meId, onClose, onAction, onMore }) {
   const [ref, pos] = useFit(open);
@@ -63,7 +52,7 @@ export function MsgMenu({ open, meId, onClose, onAction, onMore }) {
   );
 
   return (
-    <div className="msg-ctx-menu" ref={ref} style={pos ? { left: pos.left, top: pos.top } : { opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+    <div className="msg-ctx-menu" ref={ref} style={pos} onClick={(e) => e.stopPropagation()}>
       <div className="msg-ctx-reactions">
         {TOP_REACTIONS.map((em) => (
           <span className="msg-ctx-react-btn" key={em} onClick={() => { onAction('react', m, em); onClose(); }}>{em}</span>

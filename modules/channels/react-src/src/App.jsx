@@ -14,6 +14,8 @@ import {
 } from './Modals.jsx';
 import { api, buzz, isAdminRole, me, toast, wsSend } from './lib.js';
 import * as voice from './voice.js';
+import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
+import Empty from '../../../../core/react-src/src/shared/Empty.jsx';
 
 /* Модуль «Каналы».
 
@@ -26,6 +28,8 @@ import * as voice from './voice.js';
    переживают перерисовку, React их только показывает. */
 
 const PAGE = 50;
+
+const CH_EMPTY = { wrap: 'ch-empty-chat', title: '' };
 
 export default function App({ registerBridge }) {
   const user = me();
@@ -52,6 +56,7 @@ export default function App({ registerBridge }) {
   const [files, setFiles] = useState([]);
   const [gallery, setGallery] = useState(null);
   const [ctx, setCtx] = useState(null);
+  const [ctxRef, ctxPos] = useMenuFit(ctx);
   const [vs, setVs] = useState(voice.getVoiceState());
   const [modal, setModal] = useState(null);      // {kind, ...}
   const [mediaConfirm, setMediaConfirm] = useState(null);
@@ -498,10 +503,11 @@ export default function App({ registerBridge }) {
 
         {!chan && (
           <div className="ch-messages">
-            <div className="ch-empty-chat">
-              <span className="ico ico-24 ico-channels" style={{ opacity: 0.15 }} />
-              <p>Выберите канал для общения</p>
-            </div>
+            <Empty
+              classes={CH_EMPTY}
+              icon={<span className="ico ico-24 ico-channels" style={{ opacity: 0.15 }} />}
+              title="Выберите канал для общения"
+            />
           </div>
         )}
 
@@ -615,7 +621,7 @@ export default function App({ registerBridge }) {
       {ctx && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setCtx(null)} onContextMenu={(e) => { e.preventDefault(); setCtx(null); }} />
-          <div className="ch-ctx" style={{ display: 'block', left: Math.min(ctx.x, window.innerWidth - 190), top: Math.min(ctx.y, window.innerHeight - 200), zIndex: 200 }}>
+          <div className="ch-ctx" ref={ctxRef} style={{ display: 'block', zIndex: 200, ...ctxPos }}>
             <div className="ch-ctx-item" onClick={() => { setReply(ctx.m); setCtx(null); }}><span className="ico ico-14 ico-reply" /> Ответить</div>
             <div className="ch-ctx-item" onClick={() => { if (navigator.clipboard) navigator.clipboard.writeText(ctx.m.text || '').then(() => toast('Скопировано')); setCtx(null); }}>
               <span className="ico ico-14 ico-copy" /> Копировать

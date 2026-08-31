@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { buzz } from './lib.js';
+import Toggle from './Toggle.jsx';
 
 /* Вкладка «Лог». Уровни фильтруются на лету, авто-скролл держит хвост.
 
@@ -36,14 +37,11 @@ export default function LogTab({ lines, hidden, setHidden, autoScroll, setAutoSc
           ))}
         </div>
         <div className="bt-log-actions">
-          <label className="bt-autoscroll-toggle">
-            <input
-              type="checkbox" checked={autoScroll}
-              onChange={(e) => { buzz(15); setAutoScroll(e.target.checked); }}
-            />
-            <span className="bt-toggle-track"><span className="bt-toggle-thumb" /></span>
-            <span className="bt-toggle-label">Авто-скролл</span>
-          </label>
+          <Toggle
+            on={autoScroll} label="Авто-скролл"
+            cls="bt-autoscroll-toggle" textCls="bt-toggle-label"
+            onChange={setAutoScroll}
+          />
           <button className="bt-log-clear-btn" onClick={onClear}>Очистить</button>
         </div>
       </div>

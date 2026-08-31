@@ -1,29 +1,18 @@
-import useEscape from '../../../../core/react-src/src/shared/useEscape.js';
+import ConfirmModal from '../../../../core/react-src/src/shared/ConfirmModal.jsx';
 
 export default function DeleteModal({ open, target, onClose, onConfirm }) {
-  useEscape(open, onClose);
   return (
-    <div
-      className={'modal-overlay' + (open ? ' active' : '')}
+    <ConfirmModal
+      open={open}
       id="srvDelModal"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      title="Удалить сервер?"
+      text="Сервер будет удалён из мониторинга."
+      onClose={onClose}
+      onConfirm={onConfirm}
     >
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Удалить сервер?</div>
-          <button className="modal-close" onClick={onClose}>
-            <span className="ico ico-18 ico-close" />
-          </button>
-        </div>
-        <div style={{ color: 'var(--text-dim)', fontSize: 14, marginBottom: 8 }}>Сервер будет удалён из мониторинга.</div>
-        <div className="form-input" style={{ marginBottom: 12 }}>
-          {target ? target.name + ' — ' + target.ip : '--'}
-        </div>
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onClose}>Отмена</button>
-          <button className="btn btn-danger" onClick={onConfirm}>Удалить</button>
-        </div>
+      <div className="form-input" style={{ marginBottom: 12 }}>
+        {target ? target.name + ' — ' + target.ip : '--'}
       </div>
-    </div>
+    </ConfirmModal>
   );
 }

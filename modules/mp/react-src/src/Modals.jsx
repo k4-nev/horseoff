@@ -1,27 +1,23 @@
 import { useEffect, useState } from 'react';
 import { PLATFORMS } from './mock.js';
 import { Dropdown, fmtCode, qrDataUri, stub } from './atoms.jsx';
+import Shared from '../../../../core/react-src/src/shared/Modal.jsx';
 
 /* Оболочка модалки: одна на все виды, Escape и клик по фону закрывают. */
-export function Modal({ open, width, title, children, onClose }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+/* Оформление у модуля своё, поведение — общее (см. shared/Modal.jsx). */
+const MP_MODAL = {
+  ov: 'mp-modal-ov open', box: 'mp-modal', head: 'mp-modal-h', title: '', close: 'mp-modal-close',
+};
 
-  if (!open) return null;
+export function Modal({ open, width, title, children, onClose }) {
   return (
-    <div className="mp-modal-ov open" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="mp-modal" style={{ width: width || 560 }}>
-        <div className="mp-modal-h">
-          <h3>{title}</h3>
-          <button className="mp-modal-close" onClick={onClose}>×</button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Shared
+      open={open} title={title} onClose={onClose}
+      classes={MP_MODAL} titleTag="h3" closeIcon="×"
+      boxStyle={{ width: width || 560 }}
+    >
+      {children}
+    </Shared>
   );
 }
 

@@ -2,32 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { api, b64, buzz, compressImage, meId, toast } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import ConfirmModal from '../../../../core/react-src/src/shared/ConfirmModal.jsx';
 
 /* Окна поверх модуля: подтверждение, добавление бота, выдача доступа и
    редактор таблицы заданий. */
 
+/* Оформление подтверждений у «Ботов» своё — плотная карточка без крестика. */
+const BT_CONFIRM = {
+  ov: 'bt-confirm-overlay', box: 'bt-confirm-box',
+  title: 'bt-confirm-title', sub: 'bt-confirm-sub', actions: 'bt-confirm-actions',
+};
+
 export function Confirm({ open, onClose }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    buzz([8, 40, 8]);
-    const key = (e) => { if (e.key === 'Escape') onClose(false); };
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [open, onClose]);
+  // Короткая вибрация на появление — у «Ботов» так во всех подтверждениях
+  useEffect(() => { if (open) buzz([8, 40, 8]); }, [open]);
   if (!open) return null;
   return (
-    <div className="bt-confirm-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(false); }}>
-      <div className="bt-confirm-box">
-        <div className="bt-confirm-title">{open.title}</div>
-        <div className="bt-confirm-sub">{open.sub}</div>
-        <div className="bt-confirm-actions">
-          <button className="btn btn-secondary" onClick={() => onClose(false)}>{open.cancelLabel || 'Отмена'}</button>
-          <button className={'btn ' + (open.danger === false ? 'btn-primary' : 'btn-danger')} onClick={() => onClose(true)}>
-            {open.okLabel || 'OK'}
-          </button>
-        </div>
-      </div>
-    </div>
+    <ConfirmModal
+      bare classes={BT_CONFIRM}
+      title={open.title} text={open.sub}
+      okLabel={open.okLabel || 'OK'} cancelLabel={open.cancelLabel || 'Отмена'}
+      danger={open.danger !== false}
+      onClose={() => onClose(false)} onConfirm={() => onClose(true)}
+    />
   );
 }
 

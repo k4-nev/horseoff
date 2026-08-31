@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ROLE_ORDER, displayName } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
 
 /* Правая колонка: участники группы. Онлайн выше оффлайна, внутри — по роли.
    В голосовом канале сверху отдельной группой те, кто сейчас в комнате: это
@@ -31,6 +32,7 @@ export default function Members({
   onWrite, onInvite, onKickVoice, onSetModerator, onKick,
 }) {
   const [ctx, setCtx] = useState(null);
+  const [ctxRef, ctxPos] = useMenuFit(ctx);
 
   const byRole = (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role);
   const roomIds = new Set(
@@ -90,7 +92,7 @@ export default function Members({
       {ctx && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }} />
-          <div className="ch-ctx" style={{ display: 'block', left: Math.min(ctx.x, window.innerWidth - 200), top: Math.min(ctx.y, window.innerHeight - 180), zIndex: 200 }}>
+          <div className="ch-ctx" ref={ctxRef} style={{ display: 'block', zIndex: 200, ...ctxPos }}>
             {!isMe && (
               <div className="ch-ctx-item" onClick={() => { onWrite(target.user_id); close(); }}>
                 <span className="ico ico-14 ico-messenger" /> Написать

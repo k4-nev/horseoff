@@ -10,6 +10,7 @@ import {
   api, applyLayout, buzz, defH, defW, flattenControls, gridCols, groupControls,
   plural, relTime, toast,
 } from './lib.js';
+import Empty from '../../../../core/react-src/src/shared/Empty.jsx';
 
 /* Модуль «Боты»: список ботов слева, рабочая область справа.
 
@@ -30,6 +31,10 @@ const TABS = [
   { id: 'params', label: 'Параметры' },
   { id: 'settings', label: 'Настройки' },
 ];
+
+const BT_EMPTY = {
+  wrap: 'bt-empty', icon: 'bt-empty-ico', title: 'bt-empty-text', sub: 'bt-empty-sub',
+};
 
 export default function App({ registerBridge }) {
   const [bots, setBots] = useState([]);
@@ -424,13 +429,12 @@ export default function App({ registerBridge }) {
 
       <div className="bt-main">
         {!bot && (
-          <div className="bt-empty" style={{ display: 'flex' }}>
-            <div className="bt-empty-ico">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.25"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1" fill="currentColor" /></svg>
-            </div>
-            <div className="bt-empty-text">Выберите бота</div>
-            <div className="bt-empty-sub">или добавьте нового через кнопку «+»</div>
-          </div>
+          <Empty
+            classes={BT_EMPTY}
+            icon={<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.25"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1" fill="currentColor" /></svg>}
+            title="Выберите бота"
+            sub="или добавьте нового через кнопку «+»"
+          />
         )}
 
         {bot && (

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Schedule from './Schedule.jsx';
 import { buzz, relTime, toast } from './lib.js';
-import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
+import Switch from './Toggle.jsx';
+import SharedSelect from '../../../../core/react-src/src/shared/Select.jsx';
 
 /* Карточки контролов. Состав приходит из манифеста бота, поэтому здесь
    ровно один компонент на тип и ни одной сборки HTML строками: значения
@@ -147,47 +148,40 @@ function Toggle({ ctrl, send }) {
   const [on, setOn] = useState(!!ctrl.value);
   useEffect(() => { if (ctrl.value !== undefined) setOn(!!ctrl.value); }, [ctrl.value]);
   return (
-    <label className="bt-toggle-wrap">
-      <input
-        type="checkbox" checked={on}
-        onChange={(e) => { buzz(18); setOn(e.target.checked); send(ctrl.id, 'set', e.target.checked); }}
-      />
-      <div className="bt-toggle-track"><div className="bt-toggle-thumb" /></div>
-      <span className="bt-toggle-text">{ctrl.label}</span>
-    </label>
+    <Switch
+      on={on} label={ctrl.label}
+      onChange={(next) => { setOn(next); send(ctrl.id, 'set', next); }}
+    />
   );
 }
 
-/* ── Выпадающий список ────────────────────────────────────────────────── */
+/* ── Выпадающий список ──────────────────────────────────────────────────
+   Оформление своё, поведение общее: клавиатура и роль listbox достались
+   бесплатно — раньше их здесь не было вовсе. */
+const BT_SELECT = {
+  wrap: 'bt-cs', btn: 'bt-cs-trigger', val: 'bt-cs-label',
+  menu: 'bt-cs-drop', item: 'bt-cs-opt', on: 'selected',
+};
+const BT_CARET = (
+  <svg className="bt-cs-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+);
+
 function Select({ ctrl, send }) {
   const options = ctrl.options || [];
   const [value, setValue] = useState(ctrl.value);
-  const [open, setOpen] = useState(false);
-  const ref = useOutside(open, () => setOpen(false), { capture: true });
   useEffect(() => { if (ctrl.value !== undefined) setValue(ctrl.value); }, [ctrl.value]);
 
-  const sel = options.find((o) => o.value === value) || options[0] || { label: '', value: '' };
   return (
     <>
       <Label>{ctrl.label}</Label>
-      <div className={'bt-cs' + (open ? ' open' : '')} ref={ref}>
-        <div className="bt-cs-trigger" onClick={() => setOpen((v) => !v)}>
-          <span className="bt-cs-label">{sel.label}</span>
-          <svg className="bt-cs-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-        </div>
-        <div className="bt-cs-drop">
-          {options.map((o) => (
-            <div
-              key={o.value}
-              className={'bt-cs-opt' + (o.value === value ? ' selected' : '')}
-              data-value={o.value}
-              onClick={() => { setValue(o.value); setOpen(false); send(ctrl.id, 'set', o.value); }}
-            >
-              {o.label}
-            </div>
-          ))}
-        </div>
-      </div>
+      <SharedSelect
+        value={value === undefined && options[0] ? options[0].value : value}
+        options={options}
+        classes={BT_SELECT}
+        caret={BT_CARET}
+        flip={false}
+        onChange={(v) => { setValue(v); send(ctrl.id, 'set', v); }}
+      />
     </>
   );
 }

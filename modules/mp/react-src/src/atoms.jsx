@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
+import SharedEmpty from '../../../../core/react-src/src/shared/Empty.jsx';
 
 /* Общие атомы модуля: клиент, фото товара, статусы, пустое состояние.
    Раньше это были функции, склеивающие HTML-строки; здесь — компоненты,
@@ -237,16 +238,15 @@ export function Dropdown({ value, options, onPick, width, minWidth }) {
   );
 }
 
+const EMPTY_ICO = (
+  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <rect x="2" y="7" width="20" height="14" rx="2" />
+    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+  </svg>
+);
+
 export const Empty = ({ title, sub, action }) => (
-  <div className="mp-empty">
-    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <rect x="2" y="7" width="20" height="14" rx="2" />
-      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-    </svg>
-    <div className="mp-empty-title">{title}</div>
-    {sub && <div>{sub}</div>}
-    {action && <div style={{ marginTop: 6 }}>{action}</div>}
-  </div>
+  <SharedEmpty icon={EMPTY_ICO} title={title} sub={sub} action={action} />
 );
 
 export const EmptyRow = ({ children }) => (
