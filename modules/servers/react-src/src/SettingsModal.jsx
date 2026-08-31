@@ -8,7 +8,7 @@ const INTERVALS = [15000, 30000, 45000, 60000];
    «добавить» и «редактировать»: одна оболочка Drawer, одна раскладка полей
    (.srv-field / .srv-input / .srv-drawer-actions) — отдельная центральная
    модалка на телефоне снова упиралась бы в вьюпорт. */
-export default function SettingsModal({ open, onClose, currentInterval, onSetInterval, canManage, apiKeyStatus, onSaveApiKey }) {
+export default function SettingsModal({ open, onClose, currentInterval, onSetInterval, canManage, keysAllowed, keysNeed, apiKeyStatus, onSaveApiKey }) {
   const [key, setKey] = useState('');
 
   // Оригинал перечитывает ключ с сервера при каждом openSettings() и
@@ -51,17 +51,23 @@ export default function SettingsModal({ open, onClose, currentInterval, onSetInt
           placeholder="API key..."
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          disabled={!canManage}
+          disabled={!keysAllowed}
         />
         <div className="srv-key-row">
           <span className={'srv-key-state' + (apiKeyStatus?.has_key ? ' on' : '')}>
             {apiKeyStatus ? (apiKeyStatus.has_key ? 'Ключ сохранён' : 'Ключ не задан') : 'Проверка…'}
           </span>
-          <button className="btn btn-secondary" type="button" onClick={() => onSaveApiKey(key)} disabled={!canManage}>
+          <button className="btn btn-secondary" type="button" onClick={() => onSaveApiKey(key)} disabled={!keysAllowed}>
             Сохранить
           </button>
         </div>
-        {!canManage && <div className="srv-key-note">Менять ключ может только администратор.</div>}
+        {/* Поле видно, но заперто — значит объясняем, чего не хватает.
+            Ступень берём живую: подвинули порог в админке — подпись поедет. */}
+        {!keysAllowed && (
+          <div className="srv-key-note">
+            Менять ключ нельзя{keysNeed ? ': нужна роль ' + keysNeed.toUpperCase() : ''}
+          </div>
+        )}
       </div>
 
       <div className="srv-about">

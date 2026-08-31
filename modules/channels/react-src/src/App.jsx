@@ -16,6 +16,7 @@ import { api, buzz, isAdminRole, me, toast, wsSend } from './lib.js';
 import * as voice from './voice.js';
 import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
 import Empty from '../../../../core/react-src/src/shared/Empty.jsx';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
 
 /* Модуль «Каналы».
 
@@ -34,7 +35,12 @@ const CH_EMPTY = { wrap: 'ch-empty-chat', title: '' };
 export default function App({ registerBridge }) {
   const user = me();
   const meId = user.id || null;
-  const admin = isAdminRole(user.role);
+  /* Права спрашиваем у сервера, а не выводим из названия роли: пороги
+     правятся в админке, и «кто тут модератор» больше не константа.
+     mythical модерирует свои группы, legendary — все; кнопки, которых
+     ступень не тянет, просто не рисуются, поэтому подписи тут не нужны. */
+  const access = useAccess();
+  const admin = access.may('channels.moderate') || access.may('channels.moderate_own');
 
   const [spaces, setSpaces] = useState([]);
   const [channelsBySpace, setChannelsBySpace] = useState({});

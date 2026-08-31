@@ -277,3 +277,9 @@ body.theme-light h2{color:#5a6373;font-weight:600}
 
 /* ─── PIN CODE ─── */
 .pin-dot{width:14px;height:14px;border-radius:50%;background:var(--border);transition:background 0.15s}
+
+/* Запертый элемент: виден, но нажать нельзя — и написано, чего не хватает.
+   Там, где элемент из-за роли не показывают вовсе, подписи нет: человеку
+   незачем знать о том, чего для него не существует. */
+.ho-locked{display:inline-flex;flex-direction:column;gap:2px;opacity:.6}
+.ho-locked-why{font-size:10.5px;color:var(--text-dim);letter-spacing:.01em}

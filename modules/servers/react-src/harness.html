@@ -129,6 +129,19 @@ window.Shell = {
     }
   },
   api: async (path, opts) => {
+    if (path === '/api/roles') {
+      // Та же лестница, что в core/roles.py — стенду нужны только пороги
+      const ACT = {
+        'servers.view':'rare', 'servers.manage':'immortal',
+        'servers.keys':'immortal', 'servers.interval':'immortal',
+      };
+      return {
+        roles: ['common','uncommon','rare','mythical','legendary','immortal','arcana'],
+        my_role: ROLE,
+        modules: {servers: ACT['servers.view']},
+        actions: Object.entries(ACT).map(([id, role]) => ({id, role, title:id, section:'servers', default:role, locked:false})),
+      };
+    }
     const method = (opts && opts.method) || 'GET';
     await new Promise((r) => setTimeout(r, 20));
     const body = opts && opts.body ? JSON.parse(opts.body) : undefined;

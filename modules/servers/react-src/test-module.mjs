@@ -284,6 +284,15 @@ try {
   check('Escape ничего не удалил', afterEsc === 1, 'DELETE всего: ' + afterEsc);
   await p8.close();
 
+  /* Где кнопка видна, но нажать нельзя, — написано, чего не хватает; где
+     элемента не видно вовсе, подписи нет. Проверяем обе половины правила. */
+  const pk = await open(BASE + '?role=legendary');
+  check('legendary кнопку настроек не видит вовсе',
+    await pk.locator('button.srv-settings-btn').count() === 0);
+  check('и подписи «нужна роль» при этом нет',
+    (await pk.locator('.srv-key-note').count()) === 0);
+  await pk.close();
+
   console.log('\n── Настройки → API-ключ VDS ──');
   const p9 = await open(BASE);
   await p9.locator('button.srv-settings-btn').click();

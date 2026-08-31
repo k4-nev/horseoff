@@ -115,6 +115,22 @@ await p.route('**/api/**', (route) => {
   if (u.includes('/api/mod/channels/members')) return j(MEMBERS);
   if (u.includes('/api/mod/channels/pins')) return j([{ id: 'm1', from_name: 'Мысика', text: 'Прокси на втором лежит' }]);
   if (u.includes('/api/mod/channels/users')) return j([{ id: 'u9', username: 'new', display_name: 'Новичок', role: 'common' }]);
+  if (u.includes('/api/roles')) {
+    // Пороги те же, что в core/roles.py: интерфейс спрашивает их у сервера,
+    // а не выводит из названия роли
+    const ACT = {
+      'channels.read': 'common', 'channels.post': 'uncommon', 'channels.attach': 'uncommon',
+      'voice.join': 'uncommon', 'channels.create': 'mythical', 'channels.moderate_own': 'mythical',
+      'channels.moderate': 'legendary', 'channels.members': 'legendary',
+      'channels.userlist': 'legendary', 'voice.moderate': 'legendary',
+    };
+    return j({
+      roles: ['common', 'uncommon', 'rare', 'mythical', 'legendary', 'immortal', 'arcana'],
+      my_role: 'arcana',
+      modules: { channels: 'common' },
+      actions: Object.entries(ACT).map(([id, role]) => ({ id, role, title: id, section: 'channels', default: role, locked: false })),
+    });
+  }
   return j({ ok: true });
 });
 

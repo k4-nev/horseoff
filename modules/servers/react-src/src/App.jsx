@@ -10,6 +10,7 @@ import ProgressModal from './ProgressModal.jsx';
 import ResultModal from './ResultModal.jsx';
 import SettingsModal from './SettingsModal.jsx';
 import './servers.css';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
 
 const SORT_ORDER = { host: 0, proxy: 1, client: 2 };
 const HIST_MAX = 20;
@@ -47,8 +48,11 @@ export default function App({ registerHandlers }) {
   const metricRefs = useRef({});
 
   const Shell = window.Shell;
-  const role = Shell?.user?.role;
-  const canManage = role === 'immortal' || role === 'arcana';
+  /* Пороги берём с сервера, а не описываем своими словами: раньше здесь
+     стояло role==='immortal'||role==='arcana', и стоило подвинуть порог на
+     сервере — интерфейс об этом не узнавал. */
+  const access = useAccess();
+  const canManage = access.may('servers.manage');
 
   const addHistory = useCallback((ip, cpu, ram) => {
     const h = historyRef.current[ip] || (historyRef.current[ip] = { cpu: [], ram: [] });
@@ -487,6 +491,8 @@ export default function App({ registerHandlers }) {
         currentInterval={currentInterval}
         onSetInterval={setInterval_}
         canManage={canManage}
+        keysAllowed={access.may('servers.keys')}
+        keysNeed={access.need('servers.keys')}
         apiKeyStatus={apiKeyStatus}
         onSaveApiKey={saveApiKey}
       />
