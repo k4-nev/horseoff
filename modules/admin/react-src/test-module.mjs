@@ -194,6 +194,22 @@ try {
   const noDeleteCall = await p.evaluate(() => window.__calls.some((c) => c.method === 'DELETE'));
   check('отмена не отправила DELETE', noDeleteCall === false);
 
+  /* Escape и клик по фону закрывают окно по-настоящему. Раньше этим ведал
+     глобальный слушатель в ядре: он снимал класс active с React-овской
+     разметки — окно пропадало с экрана, но модуль считал его открытым. */
+  await annaRow2.locator('[aria-label="Удалить"]').click();
+  await p.waitForTimeout(120);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(150);
+  check('Escape закрыл окно удаления', await p.locator('.modal-overlay.active').count() === 0);
+  await annaRow2.locator('[aria-label="Удалить"]').click();
+  await p.waitForTimeout(120);
+  await p.locator('.modal-overlay.active').click({ position: { x: 6, y: 6 } });
+  await p.waitForTimeout(150);
+  check('клик по фону закрыл окно удаления', await p.locator('.modal-overlay.active').count() === 0);
+  check('за закрытия ничего не удалилось',
+    await p.evaluate(() => window.__calls.every((c) => c.method !== 'DELETE')));
+
   await annaRow2.locator('[aria-label="Удалить"]').click();
   await p.waitForTimeout(120);
   await p.evaluate(() => { window.__calls.length = 0; });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Drawer from './Drawer.jsx';
+import Secret from './Secret.jsx';
 
 const INTERVALS = [15000, 30000, 45000, 60000];
 
@@ -46,19 +47,12 @@ export default function SettingsModal({ open, onClose, currentInterval, onSetInt
 
       <div className="srv-field">
         <span>API-ключ VDS · ruvds</span>
-        <div className="srv-eye">
-          <input
-            className="srv-input"
-            type="password"
-            placeholder="API key..."
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            disabled={!canManage}
-          />
-          <button className="srv-eye-btn" type="button" onClick={(e) => window.Shell.toggleEye(e.currentTarget)}>
-            <span className="ico ico-16 ico-eye-open" />
-          </button>
-        </div>
+        <Secret
+          placeholder="API key..."
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          disabled={!canManage}
+        />
         <div className="srv-key-row">
           <span className={'srv-key-state' + (apiKeyStatus?.has_key ? ' on' : '')}>
             {apiKeyStatus ? (apiKeyStatus.has_key ? 'Ключ сохранён' : 'Ключ не задан') : 'Проверка…'}

@@ -1,6 +1,9 @@
+import useEscape from '../../../../core/react-src/src/shared/useEscape.js';
+
 export default function DeleteModal({ user, onClose, onConfirm }) {
+  useEscape(true, onClose);
   return (
-    <div className="modal-overlay active">
+    <div className="modal-overlay active" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal">
         <div className="modal-header">
           <div className="modal-title">Удалить пользователя?</div>

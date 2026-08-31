@@ -749,36 +749,6 @@ const Shell = {
     });
   },
 
-  _relTime(ts) {
-    var diff = Math.floor(Date.now()/1000 - ts);
-    if (diff < 60) return 'только что';
-    if (diff < 3600) return Math.floor(diff/60) + ' мин. назад';
-    if (diff < 86400) return Math.floor(diff/3600) + ' ч. назад';
-    return Math.floor(diff/86400) + ' дн. назад';
-  },
-
-  _deviceName(ua) {
-    if (!ua) return '💻 Устройство';
-    // iOS devices
-    if (/iPhone/.test(ua)) {
-      var m = ua.match(/iPhone OS ([\d_]+)/); var v = m ? ' ' + m[1].replace(/_/g,'.') : '';
-      return '📱 iPhone' + v;
-    }
-    if (/iPad/.test(ua)) return '📱 iPad';
-    // Android
-    if (/Android/.test(ua)) {
-      var m2 = ua.match(/Android [^;]+;\s*([^)]+)/); var model = m2 ? m2[1].trim() : 'Android';
-      if (model.length > 28) model = model.slice(0,28) + '…';
-      return '📱 ' + model;
-    }
-    // Desktop OS
-    if (/Windows NT 10/.test(ua)) return '💻 Windows 10/11';
-    if (/Windows NT 6/.test(ua)) return '💻 Windows';
-    if (/Macintosh/.test(ua)) { var mv = ua.match(/Mac OS X ([\d_]+)/); return '💻 macOS' + (mv ? ' ' + mv[1].replace(/_/g,'.') : ''); }
-    if (/Linux/.test(ua)) return '💻 Linux';
-    return '💻 Устройство';
-  },
-
   async _revokeSession(hint) {
     await this.api('/api/auth/revoke_session', {method:'POST', body:JSON.stringify({token_hint: hint})});
     this._loadSessionsTab();
@@ -806,17 +776,6 @@ const Shell = {
 
 
 
-  toggleEye(btn) {
-    var input = btn.parentNode.querySelector('input');
-    if (input.type === 'password') {
-      input.type = 'text';
-      btn.innerHTML = '<span class="ico ico-16 ico-eye-closed"></span>';
-    } else {
-      input.type = 'password';
-      btn.innerHTML = '<span class="ico ico-16 ico-eye-open"></span>';
-    }
-  },
-
   // Avatar
   /* Файл приходит из <input> внутри React-модалки. */
   async uploadAvatar(file) {
@@ -841,14 +800,6 @@ const Shell = {
     var d = await this.api('/api/profile');
     if (!d) return;
     this._uiEmit({ avatar: d.avatar || null, user: { username: d.username, display_name: d.display_name, role: d.role, id: d.id } });
-  },
-
-  /* Модалки модулей по-прежнему обычная разметка — этот метод для них.
-     Профиль каркаса закрывается через closeProfile(). */
-  closeModal(id) {
-    if (id === 'profileModal') { this.closeProfile(); return; }
-    var el = document.getElementById(id);
-    if (el) el.classList.remove('active');
   },
 
   onModulesUpdate(newModuleIds) {
@@ -945,9 +896,11 @@ const Shell = {
   }
 };
 
-// Close modals
-document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); }));
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); });
+/* Закрытие окон по фону и Escape живёт в самих компонентах (общий хук
+   core/react-src/src/shared/useEscape.js). Раньше здесь висели два
+   глобальных слушателя: они снимали класс active со всех .modal-overlay —
+   то есть гасили React-овскую разметку мимо состояния. Окно исчезало, а
+   модуль считал его открытым, и следующая перерисовка возвращала его. */
 
 window.Shell = Shell;
 Shell.init();

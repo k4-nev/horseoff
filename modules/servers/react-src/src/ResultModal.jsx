@@ -1,3 +1,5 @@
+import useEscape from '../../../../core/react-src/src/shared/useEscape.js';
+
 function copyRow(e) {
   const val = e.currentTarget.querySelector('.srv-result-value');
   if (!val) return;
@@ -20,6 +22,7 @@ function copyRow(e) {
 }
 
 export default function ResultModal({ open, result, onClose }) {
+  useEscape(open, onClose);
   return (
     <div className={'modal-overlay' + (open ? ' active' : '')} id="srvResultModal">
       <div className="modal">

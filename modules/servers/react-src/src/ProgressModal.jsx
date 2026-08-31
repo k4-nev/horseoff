@@ -1,3 +1,5 @@
+import useEscape from '../../../../core/react-src/src/shared/useEscape.js';
+
 function StepIcon({ status }) {
   if (status === 'pending') return <span style={{ color: 'var(--text-dim)' }}>○</span>;
   if (status === 'running') return <div className="srv-prov-spinner" />;
@@ -7,6 +9,8 @@ function StepIcon({ status }) {
 }
 
 export default function ProgressModal({ open, steps, error, onClose }) {
+  // Пока идёт установка, закрывать нечего — Escape работает только на ошибке
+  useEscape(open && !!error, onClose);
   return (
     <div className={'modal-overlay' + (open ? ' active' : '')} id="srvProgressModal">
       <div className="modal">

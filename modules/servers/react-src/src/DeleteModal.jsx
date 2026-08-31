@@ -1,6 +1,13 @@
+import useEscape from '../../../../core/react-src/src/shared/useEscape.js';
+
 export default function DeleteModal({ open, target, onClose, onConfirm }) {
+  useEscape(open, onClose);
   return (
-    <div className={'modal-overlay' + (open ? ' active' : '')} id="srvDelModal">
+    <div
+      className={'modal-overlay' + (open ? ' active' : '')}
+      id="srvDelModal"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="modal">
         <div className="modal-header">
           <div className="modal-title">Удалить сервер?</div>

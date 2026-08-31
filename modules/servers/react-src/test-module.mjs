@@ -265,6 +265,23 @@ try {
   check('подтверждение отправило DELETE на верный ip', calls.length === 1 && calls[0].path.endsWith('7.7.7.7'), JSON.stringify(calls));
   const goneRow = await p8.locator('.srv-row[data-srvip="7.7.7.7"]').count();
   check('удалённый сервер пропал из списка', goneRow === 0);
+
+  /* Escape закрывает окно по-настоящему. Раньше это делал глобальный
+     слушатель в ядре: он снимал класс active с разметки, которую рисует
+     React, — окно пропадало с экрана, но модуль считал его открытым, и
+     следующая же перерисовка возвращала его обратно. */
+  await p8.locator('.srv-row[data-srvip="5.5.5.5"] .btn-icon.del').click();
+  await p8.waitForTimeout(80);
+  check('окно удаления открылось', await p8.locator('#srvDelModal.active').count() === 1);
+  await p8.keyboard.press('Escape');
+  await p8.waitForTimeout(150);
+  check('Escape закрыл окно удаления', await p8.locator('#srvDelModal.active').count() === 0);
+  await p8.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await p8.waitForTimeout(200);
+  check('закрытое окно не возвращается на перерисовке',
+    await p8.locator('#srvDelModal.active').count() === 0);
+  const afterEsc = await p8.evaluate(() => window.__calls.filter((c) => c.method === 'DELETE').length);
+  check('Escape ничего не удалил', afterEsc === 1, 'DELETE всего: ' + afterEsc);
   await p8.close();
 
   console.log('\n── Настройки → API-ключ VDS ──');
@@ -280,6 +297,24 @@ try {
   check('сохранение ключа -> toast "API-ключ сохранён"', toasts.some((t) => t.msg === 'API-ключ сохранён'));
   const statusAfter = await p9.locator('.srv-key-state').textContent();
   check('после сохранения ключ отмечен как сохранённый', statusAfter === 'Ключ сохранён', statusAfter);
+
+  /* Глазок у пароля — обычное состояние React. Раньше он звал Shell.toggleEye,
+     который лез к соседнему input через parentNode и переписывал innerHTML
+     кнопки, то есть правил разметку под React мимо React. */
+  const keyField = '#srvSettingsModal input[placeholder="API key..."]';
+  check('ключ скрыт по умолчанию',
+    await p9.getAttribute(keyField, 'type') === 'password');
+  await p9.locator('#srvSettingsModal .srv-eye-btn').click();
+  await p9.waitForTimeout(80);
+  check('глазок открыл ключ', await p9.getAttribute(keyField, 'type') === 'text');
+  check('значение не потерялось', await p9.inputValue(keyField) === 'ruvds-secret-key');
+  await p9.locator('#srvSettingsModal .srv-eye-btn').click();
+  await p9.waitForTimeout(80);
+  check('глазок снова прячет ключ', await p9.getAttribute(keyField, 'type') === 'password');
+  check('иконка глазка сменилась',
+    await p9.locator('#srvSettingsModal .srv-eye-btn .ico-eye-open').count() === 1);
+  check('ядро больше не отдаёт императивный toggleEye',
+    await p9.evaluate(() => typeof window.Shell.toggleEye === 'undefined'));
   check('состояние подсвечено, а не только подписано',
     (await p9.locator('.srv-key-state').getAttribute('class')).includes('on'));
   await p9.close();

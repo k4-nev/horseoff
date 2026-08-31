@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Drawer from './Drawer.jsx';
+import Secret from './Secret.jsx';
 import Select from './Select.jsx';
 
 const DEFAULTS = {
@@ -69,12 +70,7 @@ export default function AddModal({ open, onClose, onSubmit }) {
       </div>
       <label className="srv-field">
         <span>SSH пароль (для копирования ключа)</span>
-        <div className="srv-eye">
-          <input className="srv-input" type="password" placeholder="Необязательно" value={f.ssh_pass} onChange={set('ssh_pass')} />
-          <button className="srv-eye-btn" type="button" onClick={(e) => window.Shell.toggleEye(e.currentTarget)}>
-            <span className="ico ico-16 ico-eye-open" />
-          </button>
-        </div>
+        <Secret placeholder="Необязательно" value={f.ssh_pass} onChange={set('ssh_pass')} />
         <div className="srv-hint">Если SSH-ключ уже настроен — оставьте пустым</div>
       </label>
       <div className="srv-field">

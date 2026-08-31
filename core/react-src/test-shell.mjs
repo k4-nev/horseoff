@@ -544,6 +544,31 @@ try {
   await p4.waitForTimeout(600);
   check('после повторного входа каркас вернулся', await p4.locator('#appShell.active').count() === 1);
   check('модули снова на месте', await p4.evaluate(() => Shell._uiState.modules.length) === MODULES.length);
+
+  /* Хвосты прежней ванильной оболочки. Каждый из них правил разметку мимо
+     React: toggleEye лез к соседнему input через parentNode, closeModal и
+     два глобальных слушателя снимали класс active с окон, которые рисует
+     React. Модули должны закрывать свои окна сами. */
+  const ghosts = await p4.evaluate(() => ({
+    toggleEye: typeof window.Shell.toggleEye,
+    closeModal: typeof window.Shell.closeModal,
+    relTime: typeof window.Shell._relTime,
+    deviceName: typeof window.Shell._deviceName,
+  }));
+  check('ядро не отдаёт императивных остатков старой оболочки',
+    Object.values(ghosts).every((t) => t === 'undefined'), JSON.stringify(ghosts));
+
+  const stray = await p4.evaluate(() => {
+    const box = document.createElement('div');
+    box.className = 'modal-overlay active';
+    box.id = 'ho-probe-modal';
+    document.body.appendChild(box);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const still = box.classList.contains('active');
+    box.remove();
+    return still;
+  });
+  check('Escape не гасит чужие окна за спиной у модулей', stray === true);
   await p4.close();
 } finally {
   await browser.close();

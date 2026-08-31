@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Drawer from './Drawer.jsx';
+import Secret from './Secret.jsx';
 import Select from './Select.jsx';
 
 const DEFAULTS = {
@@ -75,12 +76,7 @@ export default function CreateModal({ open, onClose, onSubmit }) {
       </div>
       <label className="srv-field">
         <span>SSH пароль</span>
-        <div className="srv-eye">
-          <input className="srv-input" type="password" placeholder="••••••" value={f.ssh_pass} onChange={set('ssh_pass')} />
-          <button className="srv-eye-btn" type="button" onClick={(e) => window.Shell.toggleEye(e.currentTarget)}>
-            <span className="ico ico-16 ico-eye-open" />
-          </button>
-        </div>
+        <Secret placeholder="••••••" value={f.ssh_pass} onChange={set('ssh_pass')} />
       </label>
       <div className="srv-field-row">
         <label className="srv-field">
@@ -99,12 +95,7 @@ export default function CreateModal({ open, onClose, onSubmit }) {
         </label>
         <label className="srv-field">
           <span>Proxy пароль</span>
-          <div className="srv-eye">
-            <input className="srv-input" type="password" placeholder="••••••" value={f.proxy_pass} onChange={set('proxy_pass')} />
-            <button className="srv-eye-btn" type="button" onClick={(e) => window.Shell.toggleEye(e.currentTarget)}>
-              <span className="ico ico-16 ico-eye-open" />
-            </button>
-          </div>
+          <Secret placeholder="••••••" value={f.proxy_pass} onChange={set('proxy_pass')} />
         </label>
       </div>
       <div className="srv-field-row">

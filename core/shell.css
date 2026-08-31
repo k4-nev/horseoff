@@ -61,11 +61,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:border-color 0.2s}
 .form-input:focus{border-color:var(--text-dim);box-shadow:0 2px 8px rgba(0,0,0,0.08)}
 .form-input::placeholder{color:var(--text-dim);opacity:0.5}
-.form-select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;appearance:none;cursor:pointer}
-.form-select:focus{border-color:var(--text-dim)}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .form-hint{font-size:11px;color:var(--text-dim);margin-top:4px}
-.form-divider{border-top:1px solid var(--border);margin:16px 0}
 
 /* BUTTONS */
 .btn{border:1px solid var(--border);color:var(--text);padding:0 20px;height:40px;min-height:40px;border-radius:12px;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;transition:all 0.2s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center;box-sizing:border-box;flex-shrink:0}
@@ -99,11 +95,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .modal::-webkit-scrollbar-track{background:transparent}
 .modal::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:3px}
 .modal::-webkit-scrollbar-thumb:hover{background:var(--scrollbar)}
-.modal-wide{max-width:560px}
 @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .modal-title{font-size:18px;font-weight:700}
-.modal-subtitle{font-size:14px;font-weight:600;margin-bottom:12px}
 .modal-close{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:22px;padding:4px;line-height:1}
 .modal-close:hover{color:var(--text)}
 .modal-actions{display:flex;gap:10px;margin-top:20px}
@@ -156,17 +150,6 @@ body.theme-light .prof-pin-row{background:linear-gradient(180deg,rgb(255,255,255
 .prof-pin-info{flex:1;min-width:0}
 .prof-pin-sub{font-size:11px;color:var(--text-dim);margin-top:1px}
 
-/* USERS LIST */
-.user-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
-.user-row:last-child{border-bottom:none}
-.user-name{font-weight:600;font-size:13px;flex:1}
-.user-role{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px}
-.user-role.god{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
-.user-role.admin{background:rgba(255,170,34,0.15);color:var(--warning)}
-.user-role.user{background:rgba(106,106,128,0.15);color:var(--text-dim)}
-.user-del{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:4px}
-.user-del:hover{color:var(--danger)}
-
 /* LOADING */
 .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim)}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px}
@@ -182,15 +165,12 @@ body.theme-light .prof-pin-row{background:linear-gradient(180deg,rgb(255,255,255
 
 
 /* AVATAR */
-.profile-avatar-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:16px}
 .profile-avatar{width:72px;height:72px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;transition:border-color 0.2s}
 .profile-avatar:hover{border-color:var(--accent)}
 .profile-avatar-letter{font-size:28px;font-weight:700;color:var(--text-dim)}
 .profile-avatar-img{width:100%;height:100%;object-fit:cover;border-radius:50%;position:absolute;top:0;left:0}
 .profile-avatar-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);color:#fff;font-size:12px;text-align:center;padding:2px 0;opacity:0;transition:opacity 0.2s}
 .profile-avatar:hover .profile-avatar-overlay{opacity:1}
-.profile-avatar-remove{background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer;margin-top:6px;padding:2px 8px}
-.profile-avatar-remove:hover{color:var(--danger)}
 
 
 /* MSG NOTIFICATION */
@@ -268,19 +248,13 @@ body.theme-light .btn-secondary:active{box-shadow:inset 0 2px 4px rgba(23,33,54,
 /* Плашка голосовой комнаты — содержимое пишет модуль «Каналы»,
    раскладку задаёт shell.ui.css (теперь она у кромки, а не в столбце). */
 .sb-voice-bar{display:flex;cursor:pointer;transition:opacity 0.2s,transform 0.2s}
-.sb-voice-bar.sb-vb-enter{animation:sbVbIn 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards}
-.sb-voice-bar.sb-vb-exit{animation:sbVbOut 0.2s ease-in forwards}
 .sb-vb-btn{background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
 .sb-vb-leave{color:rgba(231,76,60,0.7)}
 .sb-vb-leave:hover{color:#e74c3c;background:rgba(231,76,60,0.15)}
-@keyframes sbVbIn{from{opacity:0;transform:translateY(10px) scale(0.85)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes sbVbOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.8)}}
 
-.srv-hidden{display:none !important}
-
-/* Live pulse */
+/* Пульс живого индикатора — сам класс держат модули, здесь только анимация
+   и её скорость: ей пользуются «Админка», «Каналы», «Сообщения», «Серверы». */
 @keyframes live-pulse{0%,100%{box-shadow:0 0 0 0 var(--success)}70%{box-shadow:0 0 0 4px transparent}}
-.live-dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:live-pulse var(--pulse-speed) infinite}
 
 /* ─── THEME SWITCH ─── */
 .theme-seg{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:4px;gap:4px}
@@ -291,13 +265,11 @@ body.theme-light .btn-secondary:active{box-shadow:inset 0 2px 4px rgba(23,33,54,
 /* ─── LIGHT THEME NOTIFICATIONS ─── */
 /* Channels notify */
 body.theme-light .ch-notify{background:rgba(255,255,255,0.97);border-color:rgba(0,0,0,0.07);box-shadow:0 8px 28px rgba(0,0,0,0.1)}
-body.theme-light .ch-notify-author{color:#252a35}
 body.theme-light .ch-notify-text{color:#737a88}
 body.theme-light .ch-notify-close{color:rgba(0,0,0,0.3)}
 
 /* ─── LIGHT THEME MODAL / HEADING SOFTENING — muted slate, not near-black ─── */
 body.theme-light .modal-title{color:#5a6373;font-weight:600}
-body.theme-light .modal-subtitle{color:#6b7484}
 body.theme-light h2{color:#5a6373;font-weight:600}
 
 /* ─── PIN CODE ─── */
