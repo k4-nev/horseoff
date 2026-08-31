@@ -208,6 +208,10 @@ try {
   await p.locator('.adm-btn', { hasText: 'Доступы ролей' }).click();
   await p.waitForTimeout(500);
   check('редактор открылся', await p.locator('.adm-roles').count() === 1);
+  /* Панель ролей шире обычной: в строке должны помещаться название действия
+     и выбор ступени. Меряем на экране — ширина задаётся классом панели. */
+  const drawerW = (pg) => pg.evaluate(() => Math.round(document.querySelector('.adm-drawer').getBoundingClientRect().width));
+  check('панель доступов не уже 560', await drawerW(p) >= 560, (await drawerW(p)) + 'px');
   const rows = await p.locator('.adm-roles-row').count();
   check('в редакторе все действия', rows >= 20, String(rows));
 
@@ -367,10 +371,23 @@ try {
   check('крестик очищает поиск', (await ps.locator('.adm-search input').inputValue()) === '');
   await ps.close();
 
-  for (const width of [1280, 474, 473, 375]) {
+  for (const width of [1280, 820, 474, 473, 375]) {
     const pm = await open(BASE, { width, height: 860 });
     const overflow = await pm.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check(`width=${width}: нет горизонтального overflow`, overflow <= 1, 'overflow=' + overflow);
+
+    /* Панель доступов: на пк и планшете не уже 560, на телефоне — во всю
+       ширину, как остальные панели. Правило у общей .adm-drawer слабее по
+       весу, поэтому телефонное исключение прописано отдельно — проверяем,
+       что оно и правда срабатывает. */
+    await pm.locator('.adm-btn', { hasText: 'Доступы ролей' }).click();
+    await pm.waitForTimeout(500);
+    const dw = await pm.evaluate(() => Math.round(document.querySelector('.adm-drawer').getBoundingClientRect().width));
+    check(`width=${width}: панель доступов ` + (width >= 640 ? 'не уже 560' : 'во всю ширину'),
+      width >= 640 ? dw >= 560 : dw >= width - 1, dw + 'px');
+    await pm.keyboard.press('Escape');
+    await pm.waitForTimeout(400);
+
     if (width <= 473) {
       check(`width=${width}: подписи кнопок скрыты`, await pm.locator('.adm-btn-label').first().isVisible() === false);
       const searchBox = await pm.locator('.adm-search').boundingBox();

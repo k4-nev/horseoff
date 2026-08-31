@@ -200,7 +200,11 @@ export default function App() {
         </div>
       )}
 
-      <Drawer open={drawerOpen} title={drawerTitle} subtitle={drawerSub} onClose={() => setDrawer(null)} reduced={motion.reduced}>
+      <Drawer
+        open={drawerOpen} title={drawerTitle} subtitle={drawerSub}
+        wide={drawer?.mode === 'roles'}
+        onClose={() => setDrawer(null)} reduced={motion.reduced}
+      >
         {drawer?.mode === 'roles' ? (
           <RolesForm onClose={() => setDrawer(null)} onApplied={reloadAccess} />
         ) : drawer?.mode === 'defaults' ? (

@@ -24,6 +24,7 @@ export default function Drawer({
   reduced,          // короткое закрытие при prefers-reduced-motion
   id,
   cls = 'adm',      // приставка классов модуля: adm-drawer, srv-drawer…
+  panelCls,         // добавка к классу самой панели (например, широкая)
   closeIcon,
   bodyCls,          // содержимое в своей обёртке (нужно «Серверам» для прокрутки)
   escape = true,
@@ -53,7 +54,10 @@ export default function Drawer({
   return (
     <div className={cls + '-drawer-overlay' + (visible ? ' visible' : '')} id={id}>
       <div className={cls + '-scrim'} onClick={onClose} />
-      <div className={cls + '-drawer'} role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className={cls + '-drawer' + (panelCls ? ' ' + panelCls : '')}
+        role="dialog" aria-modal="true" aria-label={title}
+      >
         <div className={cls + '-drawer-head'}>
           <span className={cls + '-drawer-title'}>{title}</span>
           <button className={cls + '-x'} type="button" onClick={onClose} aria-label="Закрыть">
