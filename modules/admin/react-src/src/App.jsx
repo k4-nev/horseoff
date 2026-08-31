@@ -6,6 +6,7 @@ import UserRow from './UserRow.jsx';
 import Drawer from './Drawer.jsx';
 import UserForm from './UserForm.jsx';
 import DefaultsForm from './DefaultsForm.jsx';
+import RolesForm from './RolesForm.jsx';
 import DeleteModal from './DeleteModal.jsx';
 import { useMotionMode } from './motion.js';
 import './admin.css';
@@ -34,13 +35,13 @@ export default function App() {
     setUsersLoaded(true);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      const mods = await api.getAllModules();
-      if (mods) setAllModules(mods.filter((m) => m.min_role !== 'arcana'));
-      await loadUsers();
-    })();
+  const reloadAccess = useCallback(async () => {
+    const mods = await api.getAllModules();
+    if (mods) setAllModules(mods.filter((m) => m.min_role !== 'arcana'));
+    await loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => { reloadAccess(); }, [reloadAccess]);
 
   useEffect(() => {
     if (usersLoaded && expandedId && !users.some((u) => u.id === expandedId)) setExpandedId(null);
@@ -107,9 +108,14 @@ export default function App() {
 
   const filterLabel = filter ? filter.toUpperCase() : 'Все роли';
   const drawerOpen = !!drawer;
-  const drawerTitle = drawer?.mode === 'edit' ? 'Редактировать' : drawer?.mode === 'defaults' ? 'Модули по умолчанию' : 'Добавить пользователя';
+  const drawerTitle = drawer?.mode === 'edit' ? 'Редактировать'
+    : drawer?.mode === 'defaults' ? 'Модули по умолчанию'
+    : drawer?.mode === 'roles' ? 'Доступы ролей'
+    : 'Добавить пользователя';
   const drawerSub =
-    drawer?.mode === 'edit'
+    drawer?.mode === 'roles'
+      ? 'С какой ступени открывается каждое действие'
+      : drawer?.mode === 'edit'
       ? 'Та же панель, что и «Добавить» — просто заполнена'
       : drawer?.mode === 'add'
       ? 'Логин и пароль обязательны, остальное можно позже'
@@ -142,6 +148,10 @@ export default function App() {
           </div>
         </div>
         <div className="adm-tray">
+          <button className="adm-btn" title="Доступы ролей" onClick={() => setDrawer({ mode: 'roles' })}>
+            <Icon name="shield" />
+            <span className="adm-btn-label">Доступы ролей</span>
+          </button>
           <button className="adm-btn" title="Модули по умолчанию" onClick={() => setDrawer({ mode: 'defaults' })}>
             <Icon name="gear" />
             <span className="adm-btn-label">Модули по умолчанию</span>
@@ -191,10 +201,15 @@ export default function App() {
       )}
 
       <Drawer open={drawerOpen} title={drawerTitle} subtitle={drawerSub} onClose={() => setDrawer(null)} reduced={motion.reduced}>
-        {drawer?.mode === 'defaults' ? (
+        {drawer?.mode === 'roles' ? (
+          <RolesForm onClose={() => setDrawer(null)} onApplied={reloadAccess} />
+        ) : drawer?.mode === 'defaults' ? (
           <DefaultsForm allModules={allModules} onClose={() => setDrawer(null)} />
         ) : drawer ? (
-          <UserForm mode={drawer.mode} user={drawer.user} onSave={saveUser} onCancel={() => setDrawer(null)} />
+          <UserForm
+            mode={drawer.mode} user={drawer.user} allModules={allModules}
+            onSave={saveUser} onCancel={() => setDrawer(null)}
+          />
         ) : null}
       </Drawer>
 

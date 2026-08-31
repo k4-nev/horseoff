@@ -137,6 +137,11 @@ try {
   check('drawer открыт с заголовком «Добавить пользователя»', (await p.locator('.adm-drawer-head span').textContent()) === 'Добавить пользователя');
   check('логин пуст', (await p.locator('.adm-input').first().inputValue()) === '');
   check('ранг по умолчанию COMMON активен', await p.locator('.adm-tier-chip.on', { hasText: 'COMMON' }).count() === 1);
+  /* Рядом с рангом сказано, что он даёт: список выводится из живых порогов,
+     а не написан руками, поэтому правка в «Доступах ролей» его меняет. */
+  const gives = (await p.locator('.adm-role-gives').textContent()).trim();
+  check('под рангом написано, какие разделы ему можно выдать',
+    gives.includes('Мессенджер') && gives.includes('Каналы') && !gives.includes('Пользователи'), gives);
 
   /* Лестница ролей общая на всё приложение и обязана совпадать с ROLE_RANK
      в core/server.py. Копий было четыре, и они уже разъехались: в выборе
@@ -197,6 +202,62 @@ try {
   await p.waitForTimeout(450);
   check('drawer закрылся по крестику', await p.locator('.adm-drawer-overlay').count() === 0);
 
+  console.log('\n── Доступы ролей ──');
+  /* Лестница правится отсюда, и правка должна доехать до всего: до запретов
+     на сервере, до порога выдачи раздела и до подписей в карточке. */
+  await p.locator('.adm-btn', { hasText: 'Доступы ролей' }).click();
+  await p.waitForTimeout(500);
+  check('редактор открылся', await p.locator('.adm-roles').count() === 1);
+  const rows = await p.locator('.adm-roles-row').count();
+  check('в редакторе все действия', rows >= 20, String(rows));
+
+  /* Строка редактора порогов закреплена: если её можно подвинуть, тот, кому
+     редактор однажды открыли, поднимет себе права до владельца. */
+  const lockedRow = p.locator('.adm-roles-row.locked');
+  check('строка «Настройки доступов ролей» заперта', await lockedRow.count() === 1);
+  check('у запертой строки нет выбора ступени',
+    await lockedRow.locator('.adm-sel').count() === 0);
+  check('и написано почему', (await lockedRow.locator('.adm-tog-why').textContent()).includes('владельц'));
+
+  /* F.A.Q. собирается из живых порогов, а не написан руками. */
+  await p.locator('.adm-faq-btn').click();
+  await p.waitForTimeout(400);
+  check('справка открылась', await p.locator('.adm-faq').count() === 1);
+  const faqSteps = await p.locator('.adm-faq-step').count();
+  check('в справке все семь ступеней', faqSteps === 7, String(faqSteps));
+  const faqText = await p.locator('.adm-faq').textContent();
+  check('справка объясняет связку ранга и раздела',
+    faqText.includes('Ранг и раздел') && faqText.includes('накопительны'));
+  await p.locator('.modal-close').click();
+  await p.waitForTimeout(300);
+
+  /* Поднимаем порог «Читать каналы» до rare — и каналы должны отвалиться у
+     ivan (common), которому они выданы. */
+  const readRow = p.locator('.adm-roles-row', { hasText: 'Читать каналы' });
+  await readRow.locator('.adm-sel-btn').click();
+  await p.waitForTimeout(250);
+  await readRow.locator('.adm-sel-item', { hasText: 'RARE' }).click();
+  await p.waitForTimeout(250);
+  check('строка помечена как изменённая',
+    await readRow.locator('.adm-roles-moved').count() === 1,
+    await readRow.locator('.adm-roles-moved').textContent().catch(() => '—'));
+  await p.locator('.adm-btn-primary', { hasText: 'Применить' }).click();
+  await p.waitForTimeout(600);
+  const droppedText = await p.locator('.adm-roles-dropped').textContent().catch(() => '');
+  check('сказано, у кого снялся раздел', droppedText.includes('ivan') && droppedText.includes('channels'),
+    droppedText.trim().slice(0, 80));
+
+  await p.locator('.adm-btn', { hasText: 'Закрыть' }).click();
+  await p.waitForTimeout(500);
+  /* Порог уехал — подпись у тумблера обязана поехать за ним. */
+  const ivanRow3 = p.locator('.adm-row-wrap', { hasText: 'Иван' });
+  if (await ivanRow3.locator('.adm-chevron').count()) {
+    await ivanRow3.locator('.adm-row').click();
+    await p.waitForTimeout(400);
+  }
+  const why = await ivanRow3.locator('.adm-tog-row', { hasText: 'Каналы' }).locator('.adm-tog-why').textContent().catch(() => '');
+  check('подсказка у тумблера догнала новый порог', why.includes('rare'), why || '(подсказки нет)');
+
   console.log('\n── Удаление: подтверждение и отмена ──');
   await annaRow2.locator('[aria-label="Удалить"]').click();
   await p.waitForTimeout(120);
@@ -248,7 +309,8 @@ try {
     JSON.stringify(defaultsCall));
   check('drawer дефолтов закрылся после сохранения', await p.locator('.adm-drawer-overlay').count() === 0);
 
-  await p.screenshot({ path: 'shot-final.png' });
+  // Путь от самого набора: запущенный из корня, снимок иначе падает мимо .gitignore
+  await p.screenshot({ path: HERE + '/shot-final.png' });
   await p.close();
 
   console.log('\n── Пустой список пользователей ──');
@@ -310,7 +372,7 @@ try {
     const overflow = await pm.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check(`width=${width}: нет горизонтального overflow`, overflow <= 1, 'overflow=' + overflow);
     if (width <= 473) {
-      check(`width=${width}: подпись "Модули по умолчанию" скрыта`, await pm.locator('.adm-btn-label').isVisible() === false);
+      check(`width=${width}: подписи кнопок скрыты`, await pm.locator('.adm-btn-label').first().isVisible() === false);
       const searchBox = await pm.locator('.adm-search').boundingBox();
       const ddBox = await pm.locator('.adm-dd-btn').boundingBox();
       const trayBox = await pm.locator('.adm-toolbar .adm-tray').boundingBox();
@@ -320,7 +382,9 @@ try {
       const ddText = (await pm.locator('.adm-dd-btn').textContent()).trim();
       check(`width=${width}: текст фильтра не обрезан`, ddText.startsWith('ВСЕ РОЛИ') || ddText.startsWith('Все роли'), ddText);
     } else {
-      check(`width=${width}: подпись "Модули по умолчанию" видна`, await pm.locator('.adm-btn-label').isVisible() === true);
+      check(`width=${width}: подписи кнопок видны`,
+        await pm.locator('.adm-btn-label', { hasText: 'Модули по умолчанию' }).isVisible() === true
+        && await pm.locator('.adm-btn-label', { hasText: 'Доступы ролей' }).isVisible() === true);
     }
     await pm.close();
   }

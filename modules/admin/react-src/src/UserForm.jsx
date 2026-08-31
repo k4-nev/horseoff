@@ -1,12 +1,24 @@
 import { useState } from 'react';
+import { roleAtLeast } from '../../../../core/react-src/src/shared/roles.js';
 import TierChips from './TierChips.jsx';
 
-export default function UserForm({ mode, user, onSave, onCancel }) {
+export default function UserForm({ mode, user, onSave, onCancel, allModules }) {
   const isEdit = mode === 'edit';
   const [username, setUsername] = useState(isEdit ? user.username : '');
   const [displayName, setDisplayName] = useState(isEdit ? user.display_name || '' : '');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState(isEdit ? user.role : 'common');
+
+  const AllowedModules = ({ role: r, allModules: mods }) => {
+    const list = (mods || []).filter((m) => roleAtLeast(r, m.min_role));
+    return (
+      <div className="adm-role-gives">
+        {list.length
+          ? 'На этой ступени можно выдать: ' + list.map((m) => m.name).join(', ')
+          : 'На этой ступени разделы выдать нельзя'}
+      </div>
+    );
+  };
 
   function submit() {
     if (isEdit) {
@@ -51,6 +63,9 @@ export default function UserForm({ mode, user, onSave, onCancel }) {
       <label className="adm-field">
         <span>Ранг</span>
         <TierChips value={role} onChange={setRole} />
+        {/* Что даёт выбранная ступень — тут же, рядом с ней. Пороги живые:
+            подвинули их в «Доступах ролей» — поедет и эта строка. */}
+        <AllowedModules role={role} allModules={allModules} />
       </label>
       <div className="adm-drawer-actions">
         <button className="adm-btn" onClick={onCancel}>Отмена</button>

@@ -656,3 +656,65 @@
    иначе админ щёлкает, а модуль всё равно не появляется. */
 .adm-tog-row.locked > span{color:var(--adm-faint)}
 .adm-tog-why{display:block;font-style:normal;font-size:10.5px;color:var(--adm-faint);margin-top:1px}
+
+/* ─── Доступы ролей ────────────────────────────────────────────────────
+   Редактор лестницы: с какой ступени открывается каждое действие. Правки
+   тут меняют и запреты на сервере, и подсказки во всех модулях, поэтому
+   строка, отличающаяся от умолчания, помечена — чтобы отличие не потерялось
+   среди двух десятков одинаковых строк. */
+.adm-roles{display:flex;flex-direction:column;gap:14px}
+.adm-roles-head{display:flex;align-items:flex-start;gap:10px}
+.adm-roles-lead{flex:1;font-size:12.5px;line-height:1.45;color:var(--adm-dim);margin:0}
+.adm-faq-btn{width:30px;height:30px;flex-shrink:0;border:1px solid var(--adm-border);border-radius:50%;
+  background:var(--adm-surface2);color:var(--adm-dim);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:color var(--adm-t-xs) var(--adm-e),border-color var(--adm-t-xs) var(--adm-e)}
+.adm-faq-btn:hover{color:var(--adm-accent);border-color:var(--adm-accent)}
+.adm-roles-group{display:flex;flex-direction:column;gap:2px}
+.adm-roles-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--adm-faint);margin:6px 0 4px}
+.adm-roles-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:7px 0;border-bottom:1px solid var(--adm-border)}
+.adm-roles-row:last-child{border-bottom:none}
+.adm-roles-row.locked{opacity:.72}
+.adm-roles-name{font-size:13px;color:var(--adm-text);min-width:0}
+.adm-roles-moved{display:block;font-style:normal;font-size:10.5px;color:var(--adm-accent);margin-top:1px}
+.adm-roles-note{font-size:11.5px;color:var(--adm-faint)}
+.adm-roles-dropped{font-size:12px;line-height:1.5;color:var(--adm-danger);
+  background:color-mix(in srgb,var(--adm-danger) 8%,transparent);
+  border:1px solid color-mix(in srgb,var(--adm-danger) 22%,transparent);
+  border-radius:10px;padding:10px 12px}
+
+/* Список ступеней — общий компонент, оформление своё */
+.adm-sel{position:relative;flex-shrink:0}
+.adm-sel-btn{display:flex;align-items:center;gap:6px;min-width:132px;justify-content:space-between;
+  background:var(--adm-surface2);border:1px solid var(--adm-border);border-radius:9px;
+  padding:6px 10px;font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.04em;
+  color:var(--adm-text);cursor:pointer;transition:border-color var(--adm-t-xs) var(--adm-e)}
+.adm-sel-btn:hover,.adm-sel.open .adm-sel-btn{border-color:var(--adm-accent)}
+.adm-sel-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-sel-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:60;
+  background:#fff;border:1px solid var(--adm-border);border-radius:10px;overflow:hidden;
+  box-shadow:0 10px 30px rgba(45,30,70,.16);opacity:0;pointer-events:none;
+  transform:translateY(-5px);transition:opacity var(--adm-t-xs) var(--adm-e),transform var(--adm-t-xs) var(--adm-e)}
+.adm-sel.open .adm-sel-menu{opacity:1;pointer-events:auto;transform:translateY(0)}
+.adm-sel.up .adm-sel-menu{top:auto;bottom:calc(100% + 5px)}
+.adm-sel-item{display:block;width:100%;text-align:left;background:none;border:none;
+  padding:8px 11px;font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.04em;
+  color:var(--adm-text);cursor:pointer}
+.adm-sel-item:hover,.adm-sel-item.cursor{background:var(--adm-surface2)}
+.adm-sel-item.on{color:var(--adm-accent)}
+
+/* ─── Справка ─────────────────────────────────────────────────────────── */
+.adm-faq-modal{max-width:560px}
+.adm-faq{display:flex;flex-direction:column;gap:11px;font-size:13px;line-height:1.5;color:var(--adm-dim)}
+.adm-faq b{color:var(--adm-text)}
+.adm-faq p{margin:0}
+.adm-faq-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--adm-faint);margin-top:6px}
+.adm-faq-step{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.4}
+.adm-faq-step > span{flex:1;min-width:0}
+.adm-faq-mods{display:flex;flex-direction:column;gap:5px;font-size:12px}
+.adm-faq-mods > div{display:flex;align-items:center;gap:7px}
+/* Что даёт выбранная ступень — сразу под чипсами ранга. Строка живая:
+   пороги правятся в «Доступах ролей», и она едет за ними. */
+.adm-role-gives{font-size:11px;line-height:1.4;color:var(--adm-faint);margin-top:6px}

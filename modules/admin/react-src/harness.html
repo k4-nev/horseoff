@@ -81,11 +81,69 @@ let users = EMPTY ? [] : PRESENCE ? [
 ];
 
 const allModulesRaw = [
-  {id:'messenger', name:'Мессенджер', min_role:'common'},
-  {id:'channels', name:'Каналы', min_role:'common'},
-  {id:'valentine', name:'Признания', min_role:'common'},
-  {id:'admin', name:'Пользователи', min_role:'arcana'},
+  {id:'messenger', name:'Мессенджер'},
+  {id:'channels', name:'Каналы'},
+  {id:'valentine', name:'Признания'},
+  {id:'admin', name:'Пользователи'},
 ];
+
+
+/* Лестница доступов — тот же вид, что отдаёт core/roles.py. Пороги живут
+   здесь же: правка через /api/roles должна их менять, а вслед за ними —
+   и порог выдачи раздела, и подписи. */
+const roleOrder = ['common','uncommon','rare','mythical','legendary','immortal','arcana'];
+let actionRoles = {
+  'msg.attach': 'uncommon', 'msg.clear': 'mythical',
+  'channels.read': 'common', 'channels.post': 'uncommon', 'channels.attach': 'uncommon',
+  'voice.join': 'uncommon', 'channels.create': 'mythical', 'channels.moderate_own': 'mythical',
+  'channels.moderate': 'legendary', 'channels.members': 'legendary',
+  'channels.userlist': 'legendary', 'voice.moderate': 'legendary',
+  'servers.view': 'rare', 'servers.manage': 'immortal', 'servers.keys': 'immortal',
+  'servers.interval': 'immortal',
+  'bots.view': 'rare', 'bots.control': 'mythical', 'bots.manage': 'immortal', 'bots.access': 'immortal',
+  'mp.view': 'immortal',
+  'users.manage': 'arcana', 'modules.grant': 'arcana', 'push.test': 'arcana', 'roles.edit': 'arcana',
+};
+const actionMeta = {
+  'msg.attach': ['Файлы в личных сообщениях', 'messenger'],
+  'msg.clear': ['Очистка переписки', 'messenger'],
+  'channels.read': ['Читать каналы', 'channels'],
+  'channels.post': ['Писать в каналы', 'channels'],
+  'channels.attach': ['Файлы в каналах', 'channels'],
+  'voice.join': ['Входить в голосовую комнату', 'channels'],
+  'channels.create': ['Создавать группы и каналы', 'channels'],
+  'channels.moderate_own': ['Модерация своих групп', 'channels'],
+  'channels.moderate': ['Модерация всех каналов', 'channels'],
+  'channels.members': ['Состав участников групп', 'channels'],
+  'channels.userlist': ['Список пользователей для добавления', 'channels'],
+  'voice.moderate': ['Модерация голосовой комнаты', 'channels'],
+  'servers.view': ['Видеть серверы и метрики', 'servers'],
+  'servers.manage': ['Добавлять и удалять серверы', 'servers'],
+  'servers.keys': ['Ключи VDS', 'servers'],
+  'servers.interval': ['Интервал опроса', 'servers'],
+  'bots.view': ['Видеть выданных ботов', 'bots'],
+  'bots.control': ['Управлять ботом', 'bots'],
+  'bots.manage': ['Создавать ботов и ключи', 'bots'],
+  'bots.access': ['Выдавать доступ к боту', 'bots'],
+  'mp.view': ['Раздел MP продвижения', 'mp'],
+  'users.manage': ['Пользователи: создание и правка', 'admin'],
+  'modules.grant': ['Выдача модулей', 'admin'],
+  'push.test': ['Тестовое уведомление', 'admin'],
+  'roles.edit': ['Настройки доступов ролей', 'admin'],
+};
+const defaultRoles = {...actionRoles};
+const MODULE_VIEW = {channels:'channels.read', servers:'servers.view', bots:'bots.view', mp:'mp.view', admin:'users.manage'};
+const moduleMin = (id) => (MODULE_VIEW[id] ? actionRoles[MODULE_VIEW[id]] : 'common');
+const atLeast = (role, need) => roleOrder.indexOf(role) >= roleOrder.indexOf(need);
+const describeRoles = () => ({
+  roles: roleOrder,
+  fixed: ['roles.edit'],
+  actions: Object.keys(actionMeta).map((id) => ({
+    id, title: actionMeta[id][0], section: actionMeta[id][1],
+    role: actionRoles[id], default: defaultRoles[id], locked: id === 'roles.edit',
+  })),
+  modules: Object.fromEntries(Object.keys(MODULE_VIEW).map((m) => [m, moduleMin(m)])),
+});
 
 let defaultModules = ['messenger'];
 
@@ -102,7 +160,7 @@ window.Shell = {
     await new Promise(r => setTimeout(r, 30)); // сеть не мгновенна
     window.__calls.push({path, method, body: opts && opts.body ? JSON.parse(opts.body) : undefined});
 
-    if (path === '/api/modules/all') return allModulesRaw;
+    if (path === '/api/modules/all') return allModulesRaw.map((m) => ({...m, min_role: moduleMin(m.id)}));
     if (path === '/api/users' && method === 'GET') return users;
     if (path === '/api/users' && method === 'POST') {
       const body = JSON.parse(opts.body);
@@ -120,6 +178,27 @@ window.Shell = {
       const id = path.split('/api/users/')[1];
       users = users.filter(u => u.id !== id);
       return {status:'ok'};
+    }
+    if (path === '/api/roles' && method === 'GET') return describeRoles();
+    if (path === '/api/roles' && method === 'POST') {
+      const changes = JSON.parse(opts.body).actions || {};
+      const refused = {};
+      Object.entries(changes).forEach(([a, r]) => {
+        if (a === 'roles.edit') refused[a] = 'порог закреплён за владельцем';
+        else if (actionRoles[a] && roleOrder.includes(r)) actionRoles[a] = r;
+        else refused[a] = 'неизвестное действие';
+      });
+      // Поднятый порог отбирает раздел у тех, кто перестал его тянуть
+      const dropped = [];
+      users.forEach((u) => {
+        if (u.role === 'arcana') return;
+        const keep = (u.modules || []).filter((m) => atLeast(u.role, moduleMin(m)));
+        if (keep.length !== (u.modules || []).length) {
+          dropped.push({user: u.username, modules: u.modules.filter((m) => !keep.includes(m))});
+          u.modules = keep;
+        }
+      });
+      return {status:'ok', refused, dropped, roles: describeRoles()};
     }
     if (path === '/api/settings/default-modules' && method === 'GET') return {modules: defaultModules};
     if (path === '/api/settings/default-modules' && method === 'POST') {

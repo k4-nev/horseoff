@@ -5,5 +5,7 @@ export const getUsers = () => api('/api/users');
 export const createUser = (body) => api('/api/users', { method: 'POST', body: JSON.stringify(body) });
 export const updateUser = (id, body) => api('/api/users/' + id, { method: 'PUT', body: JSON.stringify(body) });
 export const deleteUser = (id) => api('/api/users/' + id, { method: 'DELETE' });
+export const getRoles = () => api('/api/roles');
+export const setRoles = (actions) => api('/api/roles', { method: 'POST', body: JSON.stringify({ actions }) });
 export const getDefaultModules = () => api('/api/settings/default-modules');
 export const setDefaultModules = (modules) => api('/api/settings/default-modules', { method: 'POST', body: JSON.stringify({ modules }) });
