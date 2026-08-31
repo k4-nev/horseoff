@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Schedule from './Schedule.jsx';
 import { buzz, relTime, toast } from './lib.js';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Карточки контролов. Состав приходит из манифеста бота, поэтому здесь
    ровно один компонент на тип и ни одной сборки HTML строками: значения
@@ -162,14 +163,8 @@ function Select({ ctrl, send }) {
   const options = ctrl.options || [];
   const [value, setValue] = useState(ctrl.value);
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useOutside(open, () => setOpen(false), { capture: true });
   useEffect(() => { if (ctrl.value !== undefined) setValue(ctrl.value); }, [ctrl.value]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const out = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('click', out, true);
-    return () => document.removeEventListener('click', out, true);
-  }, [open]);
 
   const sel = options.find((o) => o.value === value) || options[0] || { label: '', value: '' };
   return (

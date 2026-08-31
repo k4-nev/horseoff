@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ROLE_ORDER, displayName } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Правая колонка: участники группы. Онлайн выше оффлайна, внутри — по роли.
    В голосовом канале сверху отдельной группой те, кто сейчас в комнате: это
@@ -11,9 +12,7 @@ function Row({ m, offline, inRoom, muted, onCtx }) {
       className={'ch-member' + (offline ? ' offline' : '') + (m.space_role === 'moderator' ? ' moderator' : '') + (inRoom ? ' in-voice' : '')}
       onContextMenu={(e) => { e.preventDefault(); onCtx(e, m); }}
     >
-      <div className="ch-member-ava">
-        {m.avatar ? <img src={'data:image/jpeg;base64,' + m.avatar} alt="" /> : displayName(m).charAt(0).toUpperCase()}
-      </div>
+      <Avatar cls="ch-member-ava" src={m.avatar} name={displayName(m)} />
       <span className="ch-member-name">{displayName(m)}</span>
       {inRoom && (
         <span className="ch-member-voice-ico">

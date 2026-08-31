@@ -4,8 +4,6 @@
    функций возвращала строку HTML и обязана была звать escapeHtml. Теперь всё
    выводится React'ом как текст, и забыть про экранирование невозможно. */
 
-export const S = () => window.Shell;
-
 /* Вложения, звук и разбор текста общие с «Каналами» — они живут в каркасе.
    Реэкспорт оставлен, чтобы остальной модуль не знал, откуда они приходят. */
 export {
@@ -14,13 +12,8 @@ export {
 
 export const chatKey = (a, b) => [a, b].sort().join('_');
 
-/* Только через обёртки: Shell.api внутри читает this.headers(), и оторванная
-   от объекта ссылка (const api = Shell.api) молча падает в catch и возвращает
-   null — так пропали вложения в панели профиля. */
-export const api = (url, opts) => { const s = S(); return s && s.api ? s.api(url, opts) : Promise.resolve(null); };
-export const wsSend = (m) => { const s = S(); if (s && s.wsSend) s.wsSend(m); };
-export const toast = (t, type) => { const s = S(); if (s && s.toast) s.toast(t, type); };
-export const buzz = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
+/* Мост к оболочке — общий на все модули. */
+export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
 
 export const displayName = (c) => (c ? c.display_name || c.username : '');
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as api from './api.js';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import Icon from './Icon.jsx';
@@ -9,6 +9,7 @@ import DefaultsForm from './DefaultsForm.jsx';
 import DeleteModal from './DeleteModal.jsx';
 import { useMotionMode } from './motion.js';
 import './admin.css';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 const TIER_ORDER = ['common', 'uncommon', 'rare', 'mythical', 'legendary', 'immortal', 'arcana'];
 
@@ -22,7 +23,7 @@ export default function App() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [drawer, setDrawer] = useState(null); // null | {mode:'add'} | {mode:'edit', user} | {mode:'defaults'}
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const filterRef = useRef(null);
+  const filterRef = useOutside(filterOpen, () => setFilterOpen(false));
   const motion = useMotionMode();
 
   const loadUsers = useCallback(async () => {
@@ -43,15 +44,6 @@ export default function App() {
   useEffect(() => {
     if (usersLoaded && expandedId && !users.some((u) => u.id === expandedId)) setExpandedId(null);
   }, [users, usersLoaded, expandedId]);
-
-  useEffect(() => {
-    if (!filterOpen) return undefined;
-    const onDocClick = (e) => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false);
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, [filterOpen]);
 
   async function toggleModule(uid, modId, enabled) {
     const u = users.find((x) => x.id === uid);

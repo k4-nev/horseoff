@@ -1,5 +1,6 @@
 import Icon from './Icon.jsx';
 import { formatPresence } from './format.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Та же лестница ролей, что на сервере (ROLE_RANK в core/server.py).
    Модуль с min_role выше роли пользователя выдать нельзя: сервер его всё
@@ -31,13 +32,7 @@ export default function UserRow({ user, allModules, expanded, onToggleExpand, on
           <Icon name="chevron" />
         </button>
         <div className="adm-user">
-          <div className="adm-ava">
-            {u.avatar ? (
-              <img src={'data:image/jpeg;base64,' + u.avatar} alt="" />
-            ) : (
-              initials(displayName || u.username)
-            )}
-          </div>
+          <Avatar cls="adm-ava" src={u.avatar} letter={initials(displayName || u.username)} />
           <div className="adm-meta">
             {nameLine}
             {displayName && <div className="adm-handle">@{u.username}</div>}

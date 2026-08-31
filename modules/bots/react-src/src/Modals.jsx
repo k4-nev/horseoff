@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { api, b64, buzz, compressImage, meId, toast } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Окна поверх модуля: подтверждение, добавление бота, выдача доступа и
    редактор таблицы заданий. */
@@ -271,9 +272,7 @@ export function AccessModal({ open, bot, onClose, onGrant }) {
             const has = existing.includes(u.id);
             return (
               <div className={'bt-access-user-item' + (has ? ' already' : '')} key={u.id} onClick={() => onGrant(u.id)}>
-                <div className="bt-access-ava">
-                  {u.avatar ? <img src={'data:image/jpeg;base64,' + u.avatar} alt="" /> : (u.display_name || u.username || '?').charAt(0).toUpperCase()}
-                </div>
+                <Avatar cls="bt-access-ava" src={u.avatar} name={u.display_name || u.username} />
                 <div>
                   <div className="bt-access-name">{u.display_name || u.username}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{u.username}</div>

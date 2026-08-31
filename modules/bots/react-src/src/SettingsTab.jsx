@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, buzz, compressImage, toast } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Вкладка «Настройки»: фото, название, группа, API-ключ, доступ, удаление.
 
@@ -133,9 +134,7 @@ export default function SettingsTab({ bot, groups, onPatch, onDelete, onAccessOp
         <div className="bt-access-list">
           {access.length ? access.map((u) => (
             <div className="bt-access-row" key={u.id}>
-              <div className="bt-access-ava">
-                {u.avatar ? <img src={'data:image/jpeg;base64,' + u.avatar} alt="" /> : (u.display_name || u.username || '?').charAt(0).toUpperCase()}
-              </div>
+              <Avatar cls="bt-access-ava" src={u.avatar} name={u.display_name || u.username} />
               <div className="bt-access-name">{u.display_name || u.username}</div>
               <span className={'role-badge ' + (u.role || 'common')}>{u.role || ''}</span>
               {u.is_owner

@@ -5,16 +5,8 @@
    Поэтому от «Сообщений» переиспользуются детали сообщения — вложения, звук,
    просмотрщик, фон, — но не устройство ленты. */
 
-export const S = () => window.Shell;
-
-export const api = (url, opts) => {
-  const s = S();
-  return s && s.api ? s.api(url, opts) : Promise.resolve(null);
-};
-export const wsSend = (m) => { const s = S(); if (s && s.wsSend) s.wsSend(m); };
-export const toast = (t, type) => { const s = S(); if (s && s.toast) s.toast(t, type); };
-export const buzz = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
-export const me = () => { const s = S(); return (s && s.user) || {}; };
+/* Мост к оболочке — общий на все модули. */
+export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
 
 export const ADMIN_ROLES = ['arcana', 'immortal', 'legendary'];
 export const isAdminRole = (role) => ADMIN_ROLES.indexOf(role) !== -1;

@@ -2,6 +2,8 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Attachments from '../../../../core/react-src/src/shared/chat/Attachments.jsx';
 import { linkify } from '../../../../core/react-src/src/shared/chat/media.js';
 import { QUICK_REACTIONS, fmtTime, layoutMessages } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import useStickToBottom from '../../../../core/react-src/src/shared/chat/useStickToBottom.js';
 
 /* Лента канала. Строки, а не облака: у Discord сообщение — запись в общем
    потоке с автором и ролью, а не реплика в диалоге. Подряд идущие сообщения
@@ -88,9 +90,7 @@ const Row = memo(function Row({
       onContextMenu={(e) => { e.preventDefault(); onCtx(e, m); }}
     >
       {grouped && <span className="ch-msg-gtime">{t}</span>}
-      <div className="ch-msg-ava">
-        {m.avatar ? <img src={'data:image/jpeg;base64,' + m.avatar} alt="" /> : (m.from_name || '?').charAt(0).toUpperCase()}
-      </div>
+      <Avatar cls="ch-msg-ava" src={m.avatar} name={m.from_name} />
       <div className="ch-msg-body">
         <div className="ch-msg-header">
           <span className={'ch-msg-author' + (mine ? ' me' : '')}>{m.from_name || m.from}</span>
@@ -165,30 +165,7 @@ export default function MessageList({
     return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
 
-  /* Поле ввода растёт вместе с набранным текстом (а на телефоне ещё и
-     клавиатура, полоска ответа, превью вложений) — лента при этом ужимается,
-     и последние сообщения уезжают под ввод: набрал длинное — переписка
-     «поднялась», отправил и поле схлопнулось — «опустилась». Браузер
-     scrollTop при таком сжатии не трогает, поэтому подтягиваем сами: если до
-     изменения размера человек был внизу — остаётся внизу. */
-  const pinned = useRef(true);
-  const lastH = useRef(0);
-  const flow = useRef(null);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(() => {
-      if (!pinned.current) return;
-      el.scrollTop = el.scrollHeight;
-      lastH.current = el.scrollHeight;
-    });
-    ro.observe(el);
-    // Второй наблюдатель — за содержимым ленты: картинки и вложения
-    // досчитывают высоту уже после отрисовки, и без этого конец переписки
-    // тихо уезжал за нижний край, а первое своё сообщение возвращало его рывком
-    if (flow.current) ro.observe(flow.current);
-    return () => ro.disconnect();
-  }, [scrollRef]);
+  const stick = useStickToBottom(scrollRef);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -202,9 +179,7 @@ export default function MessageList({
       if (!messages.length) return;
       booted.current = channelId;
       prevLen.current = messages.length;
-      pinned.current = true;
-      el.scrollTop = el.scrollHeight;
-      lastH.current = el.scrollHeight;
+      stick.toBottom();
       setUnreadBelow(0);
       return;
     }
@@ -221,13 +196,10 @@ export default function MessageList({
     if (!grew) return;
     const last = messages[messages.length - 1];
     if (atBottom() || (last && last.from === meId)) {
-      // Доводим сами — значит снова прижаты к низу; на событие прокрутки тут
-      // полагаться нельзя: если лента и так была внизу, оно не придёт
-      pinned.current = true;
-      el.scrollTop = el.scrollHeight;
+      stick.toBottom();
       setUnreadBelow(0);
     } else {
-      pinned.current = false;
+      stick.release();
       setUnreadBelow((n) => n + 1);
     }
   }, [messages, meId, scrollRef, channelId]);
@@ -251,14 +223,7 @@ export default function MessageList({
       keep.current = el.scrollHeight - el.scrollTop;
       onLoadMore();
     }
-    const below = el.scrollHeight - el.scrollTop - el.clientHeight;
-    /* Прижатость меняем только по живой прокрутке. Когда лента выросла сама
-       (дорисовалась картинка, пришло сообщение), браузер тоже шлёт scroll —
-       и по нему выходило, что человек «ушёл вверх»: наблюдатель размера
-       после этого ленту уже не возвращал. */
-    const grownItself = el.scrollHeight !== lastH.current;
-    lastH.current = el.scrollHeight;
-    if (!grownItself) pinned.current = below < 24;
+    const below = stick.noteScroll();
     if (below < 120) setUnreadBelow(0);
     setShowBtn(below > 120);
   };
@@ -282,7 +247,7 @@ export default function MessageList({
           </div>
         )}
 
-        <div className="ch-msg-flow" ref={flow}>
+        <div className="ch-msg-flow" ref={stick.flowRef}>
           {rows.map((row) => (
             <div style={{ display: 'contents' }} key={row.m.id}>
               {row.newHere && <div className="ch-new-sep"><span>новые сообщения</span></div>}

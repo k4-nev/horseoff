@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { CHANNEL_ICONS, api, compressImage, displayName } from './lib.js';
 import * as voice from './voice.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Окна модуля: группа, канал, подтверждение удаления, добавление участников,
    настройки голоса и два предупреждения перед включением камеры и экрана. */
@@ -198,9 +199,7 @@ export function AddMembersModal({ open, members, onClose, onAdd }) {
             key={u.id}
             onClick={() => setPicked((p) => (p.includes(u.id) ? p.filter((x) => x !== u.id) : p.concat(u.id)))}
           >
-            <div className="ch-member-pick-ava">
-              {u.avatar ? <img src={'data:image/jpeg;base64,' + u.avatar} alt="" /> : displayName(u).charAt(0).toUpperCase()}
-            </div>
+            <Avatar cls="ch-member-pick-ava" src={u.avatar} name={displayName(u)} />
             <span className="ch-member-name">{displayName(u)}</span>
             <span className={'role-badge ' + u.role} style={{ fontSize: 8, padding: '1px 4px' }}>{(u.role || '').toUpperCase()}</span>
           </div>

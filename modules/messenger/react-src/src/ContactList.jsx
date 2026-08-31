@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
 import { displayName, fmtContactTime, lastPreview } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Список контактов. Поиск фильтрует список, а не прячет строки классом —
    раньше filterContacts бегал по DOM и вешал .hidden, из-за чего счётчики и
@@ -9,9 +10,7 @@ import { displayName, fmtContactTime, lastPreview } from './lib.js';
 function Ava({ c }) {
   const dn = displayName(c);
   return (
-    <div className="msg-contact-ava">
-      {c.avatar ? <img src={'data:image/jpeg;base64,' + c.avatar} alt="" /> : dn.charAt(0).toUpperCase()}
-    </div>
+    <Avatar cls="msg-contact-ava" src={c.avatar} name={dn} />
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Общие атомы модуля: клиент, фото товара, статусы, пустое состояние.
    Раньше это были функции, склеивающие HTML-строки; здесь — компоненты,
@@ -134,19 +135,7 @@ export function qrDataUri(code) {
 }
 
 /* ── Поповеры товаров и адреса ────────────────────────────────────────
-   Открытый поповер закрывается кликом мимо и по Escape. */
-function useOutside(open, close) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) close(); };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
-    document.addEventListener('click', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [open, close]);
-  return ref;
-}
+   Закрытие кликом мимо — общее на всё приложение. */
 
 export function OrderItems({ items }) {
   const [open, setOpen] = useState(false);

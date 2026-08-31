@@ -9,6 +9,7 @@ import { markLive, markReact, resetLive } from './live.js';
 import { Confirm, ContactMenu, Gallery, MsgMenu, ReactionPicker } from './Overlays.jsx';
 import { setAudioErrorHandler, stopAudio } from '../../../../core/react-src/src/shared/chat/audio.js';
 import { S, chatKey, displayName, toast, wsSend, buzz } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Корень модуля: всё состояние переписки живёт здесь, а не в DOM.
 
@@ -525,9 +526,7 @@ export default function App({ registerBridge }) {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
               <button className="msg-chat-peer" onClick={() => setProfileOpen(true)} title="Информация о собеседнике">
-                <div className="msg-chat-header-ava">
-                  {contact.avatar ? <img src={'data:image/jpeg;base64,' + contact.avatar} alt="" /> : displayName(contact).charAt(0).toUpperCase()}
-                </div>
+                <Avatar cls="msg-chat-header-ava" src={contact.avatar} name={displayName(contact)} />
                 <div className="msg-chat-header-info">
                   <div className="msg-chat-name">
                     {displayName(contact)}

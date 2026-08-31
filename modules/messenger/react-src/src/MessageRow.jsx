@@ -2,17 +2,14 @@ import { memo } from 'react';
 import Attachments from '../../../../core/react-src/src/shared/chat/Attachments.jsx';
 import { clearLive, clearReact, isLive, isReact } from './live.js';
 import { linkify } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Одно сообщение. Раньше строка собиралась склейкой HTML вместе с
    oncontextmenu, куда текст сообщения подставлялся через escapeAttr —
    экранирование внутри строки внутри атрибута. Здесь обработчик обычный. */
 
 function Ava({ src, letter, hidden }) {
-  return (
-    <div className={'msg-row-ava' + (hidden ? ' hidden' : '')}>
-      {src ? <img src={'data:image/jpeg;base64,' + src} alt="" /> : letter}
-    </div>
-  );
+  return <Avatar cls={'msg-row-ava' + (hidden ? ' hidden' : '')} src={src} letter={letter} />;
 }
 
 const Reactions = memo(function Reactions({ reactions, side, meId, avaOf, onToggle, animate, onAnimEnd }) {
@@ -32,9 +29,7 @@ const Reactions = memo(function Reactions({ reactions, side, meId, avaOf, onTogg
             onClick={mine ? (e) => { e.stopPropagation(); onToggle(emoji); } : undefined}
           >
             <span className="msg-reaction-emoji">{emoji}</span>
-            <div className="msg-reaction-ava">
-              {ava.src ? <img src={'data:image/jpeg;base64,' + ava.src} alt="" /> : <span>{ava.letter}</span>}
-            </div>
+            <Avatar cls="msg-reaction-ava" src={ava.src} letter={ava.letter} letterCls="" />
           </div>
         );
       })}

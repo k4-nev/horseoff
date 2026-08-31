@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { plural } from './lib.js';
 import * as voice from './voice.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Голосовая комната: экран перед входом и сама комната.
 
@@ -23,12 +24,6 @@ function Video({ userId, version, muted, hidden, vref }) {
     voice.attachSink(el);
   }, [userId, version, hidden]);
   return <video className="ch-va-video" ref={ref} autoPlay playsInline muted={muted} style={{ display: hidden ? 'none' : 'block' }} />;
-}
-
-function Avatar({ p, cls }) {
-  return p.avatar
-    ? <img className={cls} src={'data:image/png;base64,' + p.avatar} alt="" />
-    : <div className={cls + ' ' + cls + '-empty'}>{(p.username || '?')[0].toUpperCase()}</div>;
 }
 
 export function PreJoin({ name, room, onJoin, onSettings, joining }) {
@@ -121,14 +116,14 @@ function Expanded({ p, isMe, st, onClose, onMic, onCam, onScreen, onLeave, hasDi
       <Video userId={p.user_id} version={st.streamsVersion} muted={isMe} hidden={p.video_muted} vref={vid} />
       {p.video_muted && (
         <div className="ch-va-ov-av">
-          <Avatar p={p} cls="ch-va-ov-avimg" />
+          <Avatar bare cls="ch-va-ov-avimg" mime="png" src={p.avatar} name={p.username} />
           <div className="ch-va-ov-name">{p.username}</div>
         </div>
       )}
       <button className="ch-va-ov-close" onClick={onClose}>✕</button>
       <div className="ch-va-ov-bar">
         <div className="ch-va-ov-capsule">
-          <div className="ch-va-ov-who"><Avatar p={p} cls="ch-va-ov-mini" /><span>{p.username}</span></div>
+          <div className="ch-va-ov-who"><Avatar bare cls="ch-va-ov-mini" mime="png" src={p.avatar} name={p.username} /><span>{p.username}</span></div>
           <button className="ch-va-ov-btn" onClick={onMic}>
             <span className={'ico ico-20 ' + (st.muted ? 'ico-mic-off' : 'ico-mic')} />
           </button>
@@ -250,7 +245,7 @@ export function ActiveRoom({ st, admin, onSettings, onLeave, onCam, onScreen }) 
               onClick={() => setExpanded(p.user_id)}
             >
               <Video userId={p.user_id} version={st.streamsVersion} muted={isMe} hidden={p.video_muted} />
-              {p.video_muted && <div className="ch-va-av-wrap"><Avatar p={p} cls="ch-va-av" /></div>}
+              {p.video_muted && <div className="ch-va-av-wrap"><Avatar bare cls="ch-va-av" mime="png" src={p.avatar} name={p.username} /></div>}
               <div className="ch-va-tile-name">
                 {p.username}
                 {p.muted && <span className="ch-va-tile-mico"><span className="ico ico-14 ico-mic-off" /></span>}
@@ -265,7 +260,7 @@ export function ActiveRoom({ st, admin, onSettings, onLeave, onCam, onScreen }) 
           <span className="ch-va-lst-title">Слушатели ({listeners.length})</span>
           {listeners.map((p) => (
             <div className="ch-va-listener" key={p.user_id}>
-              <Avatar p={p} cls="ch-va-lst-av" />
+              <Avatar bare cls="ch-va-lst-av" mime="png" src={p.avatar} name={p.username} />
               <span>{p.username}{p.raised_hand ? ' ✋' : ''}</span>
               {admin && p.raised_hand && speakers.length < 6 && (
                 <button className="ch-vp-promote-btn" onClick={() => voice.allowSpeak(p.user_id)}>Дать слово</button>

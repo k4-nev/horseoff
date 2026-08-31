@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { buyRows } from './mock.js';
 import { EmptyRow, SearchIcon, buzz } from './atoms.jsx';
 import DayStrip, { Calendar } from './DayStrip.jsx';
 import OrderRow from './OrderRow.jsx';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Группы идут по осмысленному порядку, а не по алфавиту: сначала то, что
    происходит прямо сейчас, в конце — уже сделанное. */
@@ -24,7 +25,7 @@ export default function TabPurchases({ server, day, setDay, onModal }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState({ scheduled: true, in_progress: true, paid: true, error: true });
   const [calOpen, setCalOpen] = useState(false);
-  const calRef = useRef(null);
+  const calRef = useOutside(calOpen, () => setCalOpen(false));
 
   const all = useMemo(() => buyRows(server), [server]);
 
@@ -39,15 +40,6 @@ export default function TabPurchases({ server, day, setDay, onModal }) {
     ...p,
     [id]: { ...p[id], ...(typeof upd === 'function' ? upd(p[id]) : upd) },
   }));
-
-  useEffect(() => {
-    if (!calOpen) return undefined;
-    const onDoc = (e) => { if (calRef.current && !calRef.current.contains(e.target)) setCalOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setCalOpen(false); };
-    document.addEventListener('click', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [calOpen]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();

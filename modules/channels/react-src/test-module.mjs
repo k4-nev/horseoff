@@ -339,6 +339,32 @@ check('назначение модератора ушло на сервер',
   posted.some((r) => r.url.includes('/channels/members') && r.body.set_moderator && r.body.set_moderator.value === true),
   JSON.stringify(posted.filter((r) => r.url.includes('/channels/members')).pop()));
 
+console.log('\n── Общие элементы каркаса ──');
+/* Пикер эмодзи закрывается кликом мимо и своей же кнопкой. Второе — не
+   придирка: кнопка лежит СНАРУЖИ поповера, и если слушать mousedown с
+   перехватом, закрытие успевает сработать до клика — кнопка тут же
+   открывает поповер обратно, и закрыть его ею становится невозможно. */
+await p.locator('.ch-emoji-btn').click();
+await p.waitForTimeout(200);
+check('пикер эмодзи открылся', await p.locator('.ch-emoji-picker').count() === 1);
+await p.locator('.ch-emoji-btn').click();
+await p.waitForTimeout(250);
+check('своя же кнопка закрывает пикер', await p.locator('.ch-emoji-picker').count() === 0);
+await p.locator('.ch-emoji-btn').click();
+await p.waitForTimeout(200);
+await p.locator('.ch-messages').click({ position: { x: 20, y: 20 } });
+await p.waitForTimeout(250);
+check('клик мимо закрывает пикер', await p.locator('.ch-emoji-picker').count() === 0);
+
+/* Аватар теперь общий на всё приложение: заглушка — одна заглавная буква,
+   а на пустом имени «?» вместо падения. */
+const avaLetters = await p.evaluate(() => [...document.querySelectorAll('.ch-msg-ava')]
+  .filter((el) => !el.querySelector('img'))
+  .map((el) => el.textContent.trim()));
+check('заглушка аватара — одна заглавная буква',
+  avaLetters.every((t) => t.length === 1 && t === t.toUpperCase()),
+  avaLetters.join(',') || 'все с картинками');
+
 console.log('\n── Лента не подпрыгивает ──');
 /* Своё же сообщение доводит ленту до низа. Когда переписка чуть длиннее
    экрана, scrollTop после этого всего пара десятков пикселей — и лента

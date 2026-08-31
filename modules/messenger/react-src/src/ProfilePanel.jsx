@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toggleAudio } from '../../../../core/react-src/src/shared/chat/audio.js';
 import { api, attUrl, chatKey, displayName, fmtDuration, fmtSize, groupByDate } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Панель профиля собеседника — выезжает справа поверх чата, тем же приёмом,
    что «Создать сервер» в модуле «Серверы». */
@@ -66,9 +67,7 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
 
           <div className="msg-profile-content">
             <div className="msg-profile-ava-frame">
-              <div className="msg-profile-ava">
-                {contact.avatar ? <img src={'data:image/jpeg;base64,' + contact.avatar} alt="" /> : dn.charAt(0).toUpperCase()}
-              </div>
+              <Avatar cls="msg-profile-ava" src={contact.avatar} name={dn} />
             </div>
             <div className="msg-profile-name">{dn}</div>
             <div className="msg-profile-username">@{contact.username}</div>

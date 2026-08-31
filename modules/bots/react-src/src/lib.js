@@ -4,15 +4,8 @@
    (см. ZennoPoster.md): состав контролов заранее неизвестен, поэтому всё
    здесь — про то, как разложить произвольный набор карточек по сетке. */
 
-export const S = () => window.Shell;
-
-export const api = (url, opts) => {
-  const s = S();
-  return s && s.api ? s.api(url, opts) : Promise.resolve(null);
-};
-export const toast = (t, type) => { const s = S(); if (s && s.toast) s.toast(t, type); };
-export const buzz = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
-export const meId = () => { const s = S(); return s && s.user ? s.user.id : null; };
+/* Мост к оболочке — общий на все модули. */
+export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
 
 /* ── Сетка раскладки ───────────────────────────────────────────────────
    Восемь колонок на десктопе, две на телефоне. Высота строки в пикселях

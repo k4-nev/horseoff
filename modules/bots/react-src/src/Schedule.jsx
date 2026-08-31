@@ -3,6 +3,7 @@ import {
   DOW, MONTHS, b64, buzz, fmtSchedDt, fmtSchedDtDisplay, fmtSchedTime,
   pad2, parseSchedDt, parseSchedTime, toast,
 } from './lib.js';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Пикер расписания: часы-минуты, для datetime — ещё и календарь.
 
@@ -66,7 +67,7 @@ export default function Schedule({ ctrl, send }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => (isDt ? parseSchedDt(ctrl.value) : parseSchedTime(ctrl.value)));
   const [shown, setShown] = useState(ctrl.value || '');
-  const ref = useRef(null);
+  const ref = useOutside(open, () => setOpen(false), { capture: true });
 
   /* Значение с бота принимаем, только когда пикер закрыт И оно действительно
      новое. Иначе закрытие пикера после «Сохранить» тут же возвращало на экран
@@ -78,13 +79,6 @@ export default function Schedule({ ctrl, send }) {
     setShown(ctrl.value || '');
     setDraft(isDt ? parseSchedDt(ctrl.value) : parseSchedTime(ctrl.value));
   }, [ctrl.value, open, isDt]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const out = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('click', out, true);
-    return () => document.removeEventListener('click', out, true);
-  }, [open]);
 
   const empty = !shown || !String(shown).trim();
   let display = '—';

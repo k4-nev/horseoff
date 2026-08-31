@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { buzz } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 
 /* Левая колонка: группы, внутри — текстовые каналы и голосовые комнаты.
 
@@ -20,9 +21,9 @@ function VoiceRoomRow({ ch, room, active, inRoom, admin, onOpen, onEdit, onDelet
       <span className="ch-vr-name">{ch.name}</span>
       {(room.total || 0) > 0 && (
         <div className="ch-vr-meta">
-          {speakers.slice(0, 3).map((p) => (p.avatar
-            ? <img className="ch-vr-av" src={'data:image/png;base64,' + p.avatar} alt="" key={p.user_id} />
-            : <div className="ch-vr-av ch-vr-av-empty" key={p.user_id}>{(p.username || '?')[0]}</div>))}
+          {speakers.slice(0, 3).map((p) => (
+            <Avatar bare cls="ch-vr-av" mime="png" src={p.avatar} name={p.username} key={p.user_id} />
+          ))}
           <span className="ch-vr-count">{count}/6</span>
         </div>
       )}

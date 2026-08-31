@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Avatar from './shared/Avatar.jsx';
 
 /* Очередь уведомлений у кнопки «Приложения».
 
@@ -61,9 +62,7 @@ function Card({ note, onAct, onClose, onHold }) {
     >
       <span className={'hq-rail ' + note.kind} />
       {msg
-        ? <span className="hq-ava">{note.avatar
-          ? <img alt="" src={'data:image/jpeg;base64,' + note.avatar} />
-          : (note.title || '?').charAt(0).toUpperCase()}</span>
+        ? <Avatar cls="hq-ava" src={note.avatar} name={note.title} />
         : <Glyph kind={note.kind} />}
 
       {/* Событие с подписанным действием получает кнопку; у сообщения

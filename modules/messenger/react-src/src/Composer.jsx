@@ -1,72 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { EMOJIS, fmtDuration, fmtSize, mediaType, rejectFile, toast } from './lib.js';
+import useRecorder from '../../../../core/react-src/src/shared/chat/useRecorder.js';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Поле ввода со всем, что к нему прилипает: эмодзи, вложения, полоска
    ответа/пересылки/правки и запись голосового.
 
    Запись раньше жила в полях объекта модуля и чистилась вручную из четырёх
    мест; здесь поток и таймер снимаются при размонтировании. */
-
-function useRecorder(onDone) {
-  const [rec, setRec] = useState(null); // {sec}
-  const mr = useRef(null);
-  const stream = useRef(null);
-  const timer = useRef(null);
-  const chunks = useRef([]);
-  const secs = useRef(0);
-
-  const cleanup = () => {
-    clearInterval(timer.current);
-    if (stream.current) stream.current.getTracks().forEach((t) => t.stop());
-    mr.current = null; stream.current = null; chunks.current = []; secs.current = 0;
-    setRec(null);
-  };
-
-  useEffect(() => () => cleanup(), []);
-
-  const start = async () => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      chunks.current = [];
-      secs.current = 0;
-      let opt = { mimeType: 'audio/webm;codecs=opus' };
-      if (!MediaRecorder.isTypeSupported(opt.mimeType)) opt = { mimeType: 'audio/ogg;codecs=opus' };
-      if (!MediaRecorder.isTypeSupported(opt.mimeType)) opt = {};
-      const r = new MediaRecorder(s, opt);
-      mr.current = r; stream.current = s;
-      r.ondataavailable = (e) => { if (e.data.size > 0) chunks.current.push(e.data); };
-      r.start(100);
-      setRec({ sec: 0 });
-      timer.current = setInterval(() => {
-        secs.current += 1;
-        setRec({ sec: secs.current });
-        if (secs.current >= 180) stopSend();
-      }, 1000);
-    } catch (e) {
-      toast('Нет доступа к микрофону', 'error');
-      cleanup();
-    }
-  };
-
-  const stopSend = () => {
-    const r = mr.current;
-    if (!r) return;
-    const duration = secs.current;
-    r.onstop = () => {
-      const blob = new Blob(chunks.current, { type: r.mimeType || 'audio/webm' });
-      cleanup();
-      if (blob.size < 500 || duration < 1) return;
-      const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
-      const file = new File([blob], 'voice_' + Date.now() + '_' + duration + 's.' + ext, { type: blob.type });
-      onDone([{ file, mediaType: 'audio', preview: null, unsupported: false }]);
-    };
-    try { r.stop(); } catch (e) { cleanup(); }
-  };
-
-  const cancel = () => { try { if (mr.current) mr.current.stop(); } catch (e) { /* уже остановлен */ } cleanup(); };
-
-  return { rec, start, stopSend, cancel };
-}
 
 const TrashIco = () => (
   <svg width="16" height="16" viewBox="19 16 55 60" fill="currentColor">
@@ -85,21 +26,16 @@ export default function Composer({
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const fileRef = useRef(null);
-  const emojiRef = useRef(null);
+  const emojiBtn = useRef(null);
+  const emojiRef = useOutside(emojiOpen, () => setEmojiOpen(false), { ignore: emojiBtn });
 
-  const { rec, start, stopSend, cancel } = useRecorder((voiceFiles) => onSend('', voiceFiles));
+  const { rec, start, stop } = useRecorder({
+    onDone: (file) => onSend('', [{ file, mediaType: 'audio', preview: null, unsupported: false }]),
+    onStart: (ok) => { if (!ok) toast('Нет доступа к микрофону', 'error'); },
+  });
 
   /* Правка подставляет текст в поле — как было */
   useEffect(() => { if (edit) setText(edit.text || ''); }, [edit]);
-
-  useEffect(() => {
-    if (!emojiOpen) return undefined;
-    const onDoc = (e) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target)) setEmojiOpen(false);
-    };
-    document.addEventListener('click', onDoc);
-    return () => document.removeEventListener('click', onDoc);
-  }, [emojiOpen]);
 
   const grow = (el) => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; };
 
@@ -124,7 +60,7 @@ export default function Composer({
   const hasContent = !!(text.trim() || files.length || reply || edit || forward);
 
   const submit = () => {
-    if (rec) { stopSend(); return; }
+    if (rec) { stop(true); return; }
     if (!hasContent) { start(); return; }
     if (hasUnsupported) return;
     onSend(text, files);
@@ -242,7 +178,7 @@ export default function Composer({
         </div>
       )}
 
-      <button className="msg-emoji-btn" onClick={(e) => { e.stopPropagation(); setEmojiOpen((v) => !v); }}>
+      <button className="msg-emoji-btn" ref={emojiBtn} onClick={() => setEmojiOpen((v) => !v)}>
         <span className="ico ico-20 ico-emoji" />
       </button>
       <button className="msg-attach-btn" onClick={() => fileRef.current && fileRef.current.click()} title="Прикрепить">
@@ -277,7 +213,7 @@ export default function Composer({
 
       {rec && (
         <div className="msg-record-inline" style={{ display: 'flex' }}>
-          <button className="msg-record-trash" onClick={cancel}><TrashIco /></button>
+          <button className="msg-record-trash" onClick={() => stop(false)}><TrashIco /></button>
           <span className="msg-record-dot active" />
           <span className="msg-record-time">{fmtDuration(rec.sec)}</span>
         </div>

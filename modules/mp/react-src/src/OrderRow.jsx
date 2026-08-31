@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BANKS } from './mock.js';
 import { Client, OrderAddr, OrderItems, fmtSec, stub } from './atoms.jsx';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Строка заказа — эталон, с которого списаны остальные таблицы модуля.
    Четыре состояния: в работе, ошибка, оплачено, запланировано. */
@@ -58,17 +59,8 @@ function Status({ r, pay }) {
 function Action({ r, state, setState, onQr }) {
   const st = r.status;
   const [bankOpen, setBankOpen] = useState(false);
-  const pillRef = useRef(null);
+  const pillRef = useOutside(bankOpen, () => setBankOpen(false));
   const tick = useRef(null);
-
-  useEffect(() => {
-    if (!bankOpen) return undefined;
-    const onDoc = (e) => { if (pillRef.current && !pillRef.current.contains(e.target)) setBankOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setBankOpen(false); };
-    document.addEventListener('click', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [bankOpen]);
 
   useEffect(() => () => { clearTimeout(tick.current); clearInterval(tick.current); }, []);
 

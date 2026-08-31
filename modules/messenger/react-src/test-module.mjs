@@ -882,6 +882,29 @@ await p.evaluate((h) => window.__recv({ type: 'history', offset: 0, messages: h 
 await p.waitForTimeout(400);
 check('после возврата история снова на месте', await p.locator('.msg-row').count() === 4);
 
+console.log('\n── Общие элементы каркаса ──');
+/* Пикер эмодзи закрывается кликом мимо и своей же кнопкой: кнопка лежит
+   снаружи поповера, и на перехвате mousedown она бы открывала его обратно
+   сразу после закрытия. */
+await p.locator('.msg-emoji-btn').click();
+await p.waitForTimeout(200);
+check('пикер эмодзи открылся', await p.locator('.msg-emoji-picker').count() === 1);
+await p.locator('.msg-emoji-btn').click();
+await p.waitForTimeout(250);
+check('своя же кнопка закрывает пикер', await p.locator('.msg-emoji-picker').count() === 0);
+await p.locator('.msg-emoji-btn').click();
+await p.waitForTimeout(200);
+await p.locator('.msg-messages').click({ position: { x: 20, y: 20 } });
+await p.waitForTimeout(250);
+check('клик мимо закрывает пикер', await p.locator('.msg-emoji-picker').count() === 0);
+
+const avaLetters = await p.evaluate(() => [...document.querySelectorAll('.msg-row-ava')]
+  .filter((el) => !el.querySelector('img'))
+  .map((el) => el.textContent.trim()));
+check('заглушка аватара — одна заглавная буква',
+  avaLetters.every((t) => t.length === 1 && t === t.toUpperCase()),
+  avaLetters.join(',') || 'все с картинками');
+
 console.log('\n── Догрузка истории не срабатывает вхолостую ──');
 /* Порог «лента почти в начале» выполняется и там, где листать нечего: своё
    сообщение доводит короткую переписку до низа, scrollTop остаётся у нуля —

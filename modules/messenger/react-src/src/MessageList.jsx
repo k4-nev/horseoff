@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import MessageRow from './MessageRow.jsx';
 import { fmtTime, layoutMessages } from './lib.js';
+import useStickToBottom from '../../../../core/react-src/src/shared/chat/useStickToBottom.js';
 
 /* Лента сообщений. Скролл вверх подгружает старые, кнопка вниз считает
    пропущенное. Раньше всё это жило в onscroll поверх innerHTML: догрузка
@@ -50,29 +51,7 @@ export default function MessageList({
     return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 150;
   }, [scrollRef]);
 
-  /* Поле ввода растёт вместе с набранным текстом (а на телефоне ещё и
-     клавиатура, полоска ответа, превью вложений) — лента при этом ужимается,
-     и последние сообщения уезжают под ввод: набрал длинное — переписка
-     «поднялась», отправил и поле схлопнулось — «опустилась». Браузер
-     scrollTop при таком сжатии не трогает, поэтому подтягиваем сами: если до
-     изменения размера человек был внизу — остаётся внизу. */
-  const pinned = useRef(true);
-  const lastH = useRef(0);
-  const flow = useRef(null);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(() => {
-      if (!pinned.current) return;
-      el.scrollTop = el.scrollHeight;
-      lastH.current = el.scrollHeight;
-    });
-    ro.observe(el);
-    // Второй наблюдатель — за содержимым: фото и вложения досчитывают высоту
-    // уже после отрисовки, и конец переписки тихо уезжал за нижний край
-    if (flow.current) ro.observe(flow.current);
-    return () => ro.disconnect();
-  }, [scrollRef]);
+  const stick = useStickToBottom(scrollRef);
 
   /* Новые сообщения снизу: если человек внизу — доезжаем, иначе копим счёт.
      Догруженные сверху не считаются — у них меняется только длина. */
@@ -91,26 +70,21 @@ export default function MessageList({
     if (!grew) return;
     const last = messages[messages.length - 1];
     if (atBottom() || (last && last.from === meId)) {
-      // Доводим сами — значит снова прижаты к низу; на событие прокрутки тут
-      // полагаться нельзя: если лента и так была внизу, оно не придёт
-      pinned.current = true;
-      el.scrollTop = el.scrollHeight;
-      lastH.current = el.scrollHeight;
+      stick.toBottom();
       setUnreadBelow(0);
     } else {
-      pinned.current = false;
+      stick.release();
       setUnreadBelow((n) => n + 1);
     }
   }, [messages, meId, atBottom, scrollRef]);
 
   /* Смена чата — всегда вниз, без анимации */
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    pinned.current = true;
-    el.scrollTop = el.scrollHeight;
+    if (!scrollRef.current) return;
+    stick.toBottom();
     setUnreadBelow(0);
     setShowBtn(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length === 0, scrollRef]);
 
   const onScroll = () => {
@@ -125,14 +99,7 @@ export default function MessageList({
       keepScroll.current = el.scrollHeight - el.scrollTop;
       onLoadMore();
     }
-    const below = el.scrollHeight - el.scrollTop - el.clientHeight;
-    /* Прижатость меняем только по живой прокрутке. Когда лента выросла сама
-       (дорисовалась картинка, пришло сообщение), браузер тоже шлёт scroll —
-       и по нему выходило, что человек «ушёл вверх»: наблюдатель размера
-       после этого ленту уже не возвращал. */
-    const grownItself = el.scrollHeight !== lastH.current;
-    lastH.current = el.scrollHeight;
-    if (!grownItself) pinned.current = below < 24;
+    const below = stick.noteScroll();
     if (below < 120) setUnreadBelow(0);
     setShowBtn(below > 120);
   };
@@ -163,7 +130,7 @@ export default function MessageList({
           <div style={{ textAlign: 'center', padding: 40, color: '#bbb', fontSize: 13 }}>Начните диалог</div>
         )}
 
-        <div className="msg-flow" ref={flow}>
+        <div className="msg-flow" ref={stick.flowRef}>
         {rows.map((row) => {
           const hidden = hiddenIds ? hiddenIds.has(row.m.id) : false;
           /* Разделитель дня прячем, если под ним не осталось видимых строк —

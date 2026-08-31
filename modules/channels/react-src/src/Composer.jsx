@@ -1,68 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmtSize } from '../../../../core/react-src/src/shared/chat/media.js';
 import { EMOJIS, buzz, displayName, toast } from './lib.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import useRecorder from '../../../../core/react-src/src/shared/chat/useRecorder.js';
+import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 
 /* Поле ввода канала: вложения, эмодзи, упоминания, ответ и правка, запись
    голосового. Упоминания — часть модели каналов: @ник и @all адресуют
    уведомление конкретному человеку или всей группе. */
-
-function useRecorder(onDone) {
-  const [rec, setRec] = useState(null);   // {sec}
-  const mr = useRef(null);
-  const stream = useRef(null);
-  const timer = useRef(null);
-  const chunks = useRef([]);
-  const secs = useRef(0);
-  const keep = useRef(true);
-
-  const cleanup = () => {
-    clearInterval(timer.current);
-    if (stream.current) stream.current.getTracks().forEach((t) => t.stop());
-    mr.current = null; stream.current = null; chunks.current = []; secs.current = 0;
-    setRec(null);
-  };
-  useEffect(() => () => cleanup(), []);
-
-  const start = async () => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      chunks.current = [];
-      secs.current = 0;
-      keep.current = true;
-      let opts = { mimeType: 'audio/webm;codecs=opus' };
-      if (!MediaRecorder.isTypeSupported(opts.mimeType)) opts = {};
-      const r = new MediaRecorder(s, opts);
-      r.ondataavailable = (e) => { if (e.data.size > 0) chunks.current.push(e.data); };
-      r.onstop = () => {
-        const dur = secs.current;
-        const send = keep.current && dur >= 1;
-        const blob = new Blob(chunks.current, { type: 'audio/webm' });
-        cleanup();
-        if (send) onDone(new File([blob], 'voice_' + Date.now() + '_' + dur + 's.webm', { type: 'audio/webm' }));
-      };
-      mr.current = r;
-      stream.current = s;
-      r.start();
-      setRec({ sec: 0 });
-      timer.current = setInterval(() => {
-        secs.current += 1;
-        setRec({ sec: secs.current });
-      }, 1000);
-      buzz(20);
-    } catch (e) {
-      toast('Нет доступа к микрофону', 'error');
-    }
-  };
-
-  const stop = (send) => {
-    keep.current = send;
-    if (mr.current && mr.current.state === 'recording') mr.current.stop();
-    else cleanup();
-  };
-
-  return { rec, start, stop };
-}
-
 export default function Composer({
   members, reply, edit, files, setFiles, onSend, onUpload, onTyping,
   onCancelReply, onCancelEdit, inputRef,
@@ -70,17 +15,14 @@ export default function Composer({
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [mention, setMention] = useState(null);   // {list, matchLen}
-  const emojiRef = useRef(null);
-  const { rec, start, stop } = useRecorder((file) => onUpload([file], ''));
+  const emojiBtn = useRef(null);
+  const emojiRef = useOutside(emojiOpen, () => setEmojiOpen(false), { ignore: emojiBtn });
+  const { rec, start, stop } = useRecorder({
+    onDone: (file) => onUpload([file], ''),
+    onStart: (ok) => (ok ? buzz(20) : toast('Нет доступа к микрофону', 'error')),
+  });
 
   useEffect(() => { setText(edit ? edit.text || '' : ''); }, [edit]);
-
-  useEffect(() => {
-    if (!emojiOpen) return undefined;
-    const out = (e) => { if (emojiRef.current && !emojiRef.current.contains(e.target)) setEmojiOpen(false); };
-    const t = setTimeout(() => document.addEventListener('click', out), 0);
-    return () => { clearTimeout(t); document.removeEventListener('click', out); };
-  }, [emojiOpen]);
 
   const grow = (el) => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; };
 
@@ -168,9 +110,7 @@ export default function Composer({
         <div className="ch-mention-popup" style={{ display: 'block' }}>
           {mention.list.map((x) => (
             <div className="ch-mention-item" key={x.user_id} onClick={() => insertMention(x.username)}>
-              <div className="ch-mention-ava">
-                {x.avatar ? <img src={'data:image/jpeg;base64,' + x.avatar} alt="" /> : displayName(x).charAt(0).toUpperCase()}
-              </div>
+              <Avatar cls="ch-mention-ava" src={x.avatar} name={displayName(x)} />
               <span className="ch-mention-name">{displayName(x)}</span>
               <span className={'role-badge ' + x.role} style={{ fontSize: 8, padding: '1px 4px' }}>{(x.role || '').toUpperCase()}</span>
             </div>
@@ -240,7 +180,7 @@ export default function Composer({
         <button className="ch-attach-btn" onClick={pickFiles}>
           <span className="ico ico-18 ico-attach" style={{ backgroundColor: '#999' }} />
         </button>
-        <button className="ch-emoji-btn" onClick={() => setEmojiOpen((v) => !v)}>
+        <button className="ch-emoji-btn" ref={emojiBtn} onClick={() => setEmojiOpen((v) => !v)}>
           <span className="ico ico-18 ico-emoji" style={{ backgroundColor: '#999' }} />
         </button>
         <textarea

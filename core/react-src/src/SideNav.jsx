@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import Avatar from './shared/Avatar.jsx';
 
 /* Цвет модуля: мишень узнаётся раньше, чем прочитана подпись. Само стекло
    у всех шаров светлое — цвет живёт в иконке внутри и лишь тенью подкрашивает
@@ -326,9 +327,7 @@ export default function SideNav({ modules, active, unread, valentine, avatar, us
                 >
                   <span className="ho-gl" />
                   {it.profile
-                    ? (avatar
-                      ? <img className="ho-ava-img" alt="" src={'data:image/jpeg;base64,' + avatar} />
-                      : <span className="ho-ava">{(it.name || '?').charAt(0).toUpperCase()}</span>)
+                    ? <Avatar bare cls="ho-ava-img" emptyCls="ho-ava" src={avatar} name={it.name} />
                     : <span className={'ico ico-18 ico-' + it.icon} />}
                   {badge > 0 && <span className="ho-tag">{badge > 99 ? '99+' : badge}</span>}
                 </button>
