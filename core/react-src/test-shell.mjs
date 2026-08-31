@@ -103,6 +103,27 @@ async function clickOrb(p, title) {
   await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
 }
 
+/* Расстояние от кнопки до каждого шара. Шары одной дуги равноудалены от
+   центра, но у них разный угол, поэтому центры их коробок расходятся на
+   несколько пикселей — отсюда допуск. */
+const ARC_EPS = 14;
+
+async function distances(p) {
+  return p.evaluate(() => {
+    const fab = document.querySelector('.ho-fab').getBoundingClientRect();
+    const cx = fab.left + fab.width / 2;
+    const cy = fab.top + fab.height / 2;
+    const out = {};
+    document.querySelectorAll('.ho-bub').forEach((b) => {
+      const r = b.getBoundingClientRect();
+      const dx = r.left + r.width / 2 - cx;
+      const dy = r.top + r.height / 2 - cy;
+      out[b.querySelector('.ho-orb').title] = Math.round(Math.sqrt(dx * dx + dy * dy));
+    });
+    return out;
+  });
+}
+
 async function openRing(p) {
   const h = await p.locator('.ho-fab').boundingBox();
   await p.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
@@ -150,6 +171,16 @@ try {
   check('«Пользователи» — обычный шар, а не отдельная кнопка',
     await p.locator('.ho-orb[title="Пользователи"]').count() === 1);
   check('профильный шар подписан именем', await p.locator('.ho-orb[title="Костя"]').count() === 1);
+
+  /* Профиль (и замок, когда PIN задан) должны лежать ближе к кнопке, чем
+     любой модуль: раскладка идёт по дугам от ближней к дальней, поэтому
+     достаточно, чтобы они стояли первыми в списке. Проверяем не порядок в
+     разметке, а расстояние на экране — именно оно и было просьбой. */
+  const reach = await distances(p);
+  const mods = Object.keys(reach).filter((t) => t !== 'Костя');
+  check('профиль ближе к кнопке, чем любой модуль',
+    mods.every((t) => reach['Костя'] <= reach[t] + ARC_EPS),
+    Object.entries(reach).map(([k, v]) => k + '=' + v).join(' '));
 
   await clickOrb(p, 'Серверы');
   await p.waitForTimeout(900);
@@ -540,6 +571,14 @@ try {
   await openRing(pn);
   check('шар замка появился, раз PIN задан',
     await pn.locator('.ho-orb[title="Заблокировать"]').count() === 1);
+
+  /* Профиль и замок — на ближней к кнопке дуге, модули дальше. Это и была
+     просьба: грид перестраивается как обычно, но эти двое всегда рядом. */
+  const near = await distances(pn);
+  const far = Object.keys(near).filter((t) => t !== 'Костя' && t !== 'Заблокировать');
+  check('профиль и замок ближе к кнопке, чем любой модуль',
+    far.every((t) => near['Костя'] <= near[t] + ARC_EPS && near['Заблокировать'] <= near[t] + ARC_EPS),
+    Object.entries(near).map(([k, v]) => k + '=' + v).join(' '));
   /* Имя иконки подставляется в mask-image: выдуманное даёт пустой квадрат
      и ни одной ошибки в консоли. */
   const lockIco = await pn.evaluate(async () => {

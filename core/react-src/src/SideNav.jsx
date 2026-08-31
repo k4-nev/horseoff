@@ -121,25 +121,28 @@ export default function SideNav({
   const fadeTimer = useRef(null);
   const guard = useRef(0);
 
-  /* Порядок строго тот, что пришёл с сервера, плюс профиль последним.
-     Никакой сортировки по частоте: место шара не должно меняться под
-     пользователем, иначе в кольце каждый раз приходится искать заново. */
-  const items = modules.map((m) => ({
+  /* Профиль и замок идут первыми, а раскладка выкладывает шары по дугам от
+     ближней к дальней — значит эти двое всегда на ближней к кнопке дуге, до
+     каких бы пределов ни разрослось число модулей. Дальше модули строго в
+     том порядке, что пришёл с сервера: никакой сортировки по частоте, место
+     шара не должно меняться под пользователем, иначе в кольце каждый раз
+     приходится искать заново. */
+  const items = [{
+    id: '__profile',
+    name: (user && (user.display_name || user.username)) || 'Профиль',
+    profile: true,
+    tint: PROFILE_TINT,
+  }];
+  /* Замок — только когда PIN задан: без него возвращаться некуда. */
+  if (pinEnabled) {
+    items.push({ id: '__lock', name: 'Заблокировать', icon: 'lock', tint: LOCK_TINT });
+  }
+  modules.forEach((m) => items.push({
     id: m.id,
     name: m.name,
     icon: ICON[m.icon] || 'servers',
     tint: TINT[m.id] || TINT_FALLBACK,
   }));
-  items.push({
-    id: '__profile',
-    name: (user && (user.display_name || user.username)) || 'Профиль',
-    profile: true,
-    tint: PROFILE_TINT,
-  });
-  /* Замок — только когда PIN задан: без него возвращаться некуда. */
-  if (pinEnabled) {
-    items.push({ id: '__lock', name: 'Заблокировать', icon: 'lock', tint: LOCK_TINT });
-  }
 
   const timing = reduced
     ? { out: 300, back: 200, step: 14, drift: false }
