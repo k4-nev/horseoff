@@ -65,6 +65,7 @@ function PassField({ label, value, onChange }) {
 }
 
 export default function ProfileModal({ profile, sessions, pinEnabled, theme }) {
+  const darkOpen = !!(window.Shell && window.Shell.canPreview && window.Shell.canPreview());
   const [tab, setTab] = useState('account');
   const [name, setName] = useState('');
   const [oldPass, setOldPass] = useState('');
@@ -147,9 +148,21 @@ export default function ProfileModal({ profile, sessions, pinEnabled, theme }) {
         <div className="prof-panes">
           <div className={'prof-pane' + (tab === 'account' ? ' active' : '')}>
             <div className="prof-section-lbl">ТЕМА ОФОРМЛЕНИЯ</div>
+            {/* Тёмная тема не доделана. Кнопка видна, но заперта и подписана —
+                правило то же, что и везде: где элемент виден, но нажать
+                нельзя, объясняем почему. Недоделанное открыто только
+                владельцу (dev.preview в core/roles.py). */}
             <div className="theme-seg" style={{ width: '100%' }}>
               <button className={'theme-seg-btn' + (theme === 'light' ? ' active' : '')} onClick={() => window.Shell.setTheme('light')}>☀ Светлая</button>
-              <button className={'theme-seg-btn' + (theme === 'dark' ? ' active' : '')} onClick={() => window.Shell.setTheme('dark')}>☾ Тёмная</button>
+              <button
+                className={'theme-seg-btn' + (theme === 'dark' ? ' active' : '') + (darkOpen ? '' : ' locked')}
+                disabled={!darkOpen}
+                title={darkOpen ? undefined : 'Тёмная тема ещё в разработке'}
+                onClick={() => window.Shell.setTheme('dark')}
+              >
+                ☾ Тёмная
+                {!darkOpen && <span className="theme-seg-why">в разработке</span>}
+              </button>
             </div>
             <div className="prof-section-lbl" style={{ marginTop: 20 }}>ОТОБРАЖАЕМОЕ ИМЯ</div>
             <div style={{ display: 'flex', gap: 8 }}>

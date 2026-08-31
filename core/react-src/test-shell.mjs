@@ -60,9 +60,9 @@ async function open(opts = {}) {
     if (url.includes('/api/auth/status')) {
       if (opts.setup) return json({ setup_required: true });
       if (opts.noToken) return json({});
-      return json({ username: 'k4nev', role: 'arcana' });
+      return json({ username: 'k4nev', role: opts.role || 'arcana', caps: opts.caps });
     }
-    if (url.includes('/api/profile')) return json({ username: 'k4nev', role: 'arcana', id: 'u1', display_name: 'Костя', avatar: null });
+    if (url.includes('/api/profile')) return json({ username: 'k4nev', role: opts.role || 'arcana', id: 'u1', display_name: 'Костя', avatar: null });
     if (url.includes('/api/modules')) return json(opts.modules || MODULES);
     if (url.includes('/api/version')) return json({ version: VERSION, build: BUILD });
     if (url.includes('/api/auth/sessions')) return json([]);
@@ -422,6 +422,14 @@ try {
     const u = document.querySelector('.prof-identity-username').textContent;
     return n === 'Костя' && u === '@k4nev';
   }));
+  /* Тёмная тема не доделана и лежит под общим правилом: недоделанное видит
+     только владелец. Ему кнопка доступна как обычно. */
+  check('владельцу тёмная тема доступна',
+    await pp.evaluate(() => {
+      const b = [...document.querySelectorAll('.theme-seg-btn')].find((x) => x.textContent.includes('Тёмная'));
+      return !!b && !b.disabled && !b.textContent.includes('в разработке');
+    }));
+
   check('по умолчанию вкладка «Аккаунт»',
     (await pp.locator('.prof-tab.active').textContent()) === 'Аккаунт');
   await pp.locator('.prof-tab', { hasText: 'Сессии' }).click();
@@ -434,6 +442,24 @@ try {
   await pp.keyboard.press('Escape');
   await pp.waitForTimeout(300);
   check('Esc закрыл профиль', await pp.locator('.prof-modal').count() === 0);
+
+  /* А всем остальным кнопка видна, но заперта и подписана — то же правило,
+     что и в модулях: раз элемент показан, объясняем, почему не нажимается. */
+  const pd = await open({ role: 'immortal', caps: ['users.manage'] });
+  await pd.evaluate(() => Shell.openProfile());
+  await pd.waitForTimeout(500);
+  const dark = await pd.evaluate(() => {
+    const b = [...document.querySelectorAll('.theme-seg-btn')].find((x) => x.textContent.includes('Тёмная'));
+    return { there: !!b, disabled: !!(b && b.disabled), why: b ? b.textContent : '' };
+  });
+  check('не владельцу тёмная тема заперта и подписана',
+    dark.there && dark.disabled && dark.why.includes('в разработке'), JSON.stringify(dark));
+  /* И не включается в обход кнопки: из консоли, из старого localStorage. */
+  await pd.evaluate(() => Shell.setTheme('dark'));
+  await pd.waitForTimeout(200);
+  check('тёмная не включается в обход кнопки',
+    await pd.evaluate(() => document.body.classList.contains('theme-light')));
+  await pd.close();
   check('состояние профиля очищено', await pp.evaluate(() => Shell._uiState.profile === null));
 
   console.log('\n── Одна очередь вместо трёх механизмов ──');

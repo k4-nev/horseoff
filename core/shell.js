@@ -260,12 +260,23 @@ const Shell = {
   },
 
   setTheme(theme) {
+    /* Тёмная тема не доделана и лежит под общим правилом: незаконченное
+       доступно только владельцу. Проверка здесь, а не только в кнопке, —
+       иначе тема включалась бы из консоли и из старого localStorage. */
+    if (theme !== 'light' && !this.canPreview()) theme = 'light';
     document.body.classList.toggle('theme-light', theme === 'light');
     document.body.classList.toggle('theme-dark', theme !== 'light');
     localStorage.setItem('ho_theme', theme);
     var meta = document.getElementById('metaThemeColor');
     if (meta) meta.content = theme === 'light' ? '#f2f0ec' : '#0a0a0f';
     this._uiEmit({ theme: theme });
+  },
+
+  /* Доступно ли недоделанное. Роль берём живую — из состояния входа. */
+  canPreview() {
+    var caps = (this._uiState && this._uiState.caps) || null;
+    if (caps) return caps.indexOf('dev.preview') !== -1;
+    return (this.user && this.user.role) === 'arcana';
   },
 
   _loadTheme() {

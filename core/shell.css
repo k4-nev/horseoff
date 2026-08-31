@@ -283,3 +283,9 @@ body.theme-light h2{color:#5a6373;font-weight:600}
    незачем знать о том, чего для него не существует. */
 .ho-locked{display:inline-flex;flex-direction:column;gap:2px;opacity:.6}
 .ho-locked-why{font-size:10.5px;color:var(--text-dim);letter-spacing:.01em}
+
+/* Недоделанная тема: кнопка на месте, но заперта и подписана. Правило общее —
+   в разработке значит доступно только владельцу (dev.preview). */
+.theme-seg-btn.locked{flex-direction:column;gap:2px;cursor:not-allowed;opacity:.55}
+.theme-seg-btn.locked:hover{color:var(--text-dim)}
+.theme-seg-why{font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:lowercase}
