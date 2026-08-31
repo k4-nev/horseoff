@@ -190,6 +190,20 @@ try {
     const s = document.querySelector('.ho-orb[title="Серверы"]');
     return !!s && s.classList.contains('on');
   }));
+  /* Текущий модуль отмечен размером, а не свечением. Размер меряем на экране,
+     а не по классу: коробка у шара прежняя, растёт он трансформой. */
+  await openRing(p);
+  const mark = await p.evaluate(() => {
+    const on = document.querySelector('.ho-orb.on');
+    const off = document.querySelector('.ho-orb:not(.on)');
+    const box = (el) => Math.round(el.getBoundingClientRect().width);
+    const glow = (el) => getComputedStyle(el).boxShadow;
+    return { on: box(on), off: box(off), sameShadow: glow(on) === glow(off) };
+  });
+  check('выбранный шар крупнее остальных', mark.on > mark.off + 5, mark.on + ' против ' + mark.off);
+  check('цветного ореола у выбранного больше нет', mark.sameShadow);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(900);
   check('прежний контейнер модуля сохранён (кэш не потерян)',
     await p.locator('#moduleContent .stub[data-stub="messenger"]').count() === 1);
 

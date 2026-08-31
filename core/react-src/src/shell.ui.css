@@ -166,12 +166,13 @@ body.theme-light .app-shell.active::before{
     inset 0 -13px 18px -10px color-mix(in oklab, var(--ho-deep) 24%, transparent),
     0 11px 20px -10px color-mix(in oklab, var(--ho-deep) 34%, transparent),
     0 3px 6px -3px color-mix(in oklab, var(--ho-deep) 16%, transparent)}
-.ho-orb.on{box-shadow:
-    inset 0 0 0 .5px rgba(255,255,255,.72),
-    inset 0 10px 15px -9px rgba(255,255,255,1),
-    inset 0 -13px 18px -10px color-mix(in oklab, var(--ho-deep) 22%, transparent),
-    0 0 22px -2px color-mix(in oklab, var(--ho-orb-tint, var(--ho-deep)) 44%, transparent),
-    0 14px 26px -10px color-mix(in oklab, var(--ho-deep) 34%, transparent)}
+/* Текущий модуль отмечен размером, а не свечением: цветной ореол спорил с
+   собственным оттенком шара и на светлом фоне читался как подсветка ошибки.
+   Увеличиваем трансформой, а не шириной, — коробка остаётся прежней, поэтому
+   ни расстояния между шарами, ни подписи под ними не съезжают. Наклон в
+   transform приходится повторить: свойство одно. */
+.ho-orb.on{
+  transform:perspective(340px) rotateX(calc(var(--rx,0) * 0deg + var(--ry,0) * -13deg)) rotateY(calc(var(--rx,0) * 13deg)) scale(1.18)}
 .ho-orb:focus-visible{outline:2px solid var(--ho-deep);outline-offset:3px}
 
 .ho-gl{position:absolute;inset:0;border-radius:50%;overflow:hidden;pointer-events:none}
