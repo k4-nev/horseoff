@@ -425,10 +425,16 @@ def handle_delete(handler, session, path):
 
     # DELETE channel
     if p.endswith('/channels'):
-        space_id = data.get('space_id', '')
+        channel_id = data.get('channel_id', '')
+        # Группу ищем по каналу, а не берём из запроса: клиент присылал один
+        # channel_id, space_id оставался пустым — и удаление читало
+        # несуществующий файл, «убирая» канал из пустоты. Канал при этом
+        # оставался на месте, а ответ приходил успешный.
+        space = space_of_channel(channel_id)
+        space_id = data.get('space_id') or (space['id'] if space else '')
+        if not space_id: return _json(handler, 404, {'error': 'Канал не найден'})
         if not _may_here(session, 'channels.create', space_id):
             return _denied(handler, 'channels.create')
-        channel_id = data.get('channel_id', '')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
             channels = load_channels(space_id)
             channels = [ch for ch in channels if ch['id'] != channel_id]

@@ -352,7 +352,9 @@ def poll_loop():
             alive = _alive_pass(servers)
             _announce_down(alive)
             _apply_alive(alive)
-            time.sleep(LIVE_INTERVAL)
+            # Ждём с оглядкой: просьба опросить немедленно (первый вход в
+            # раздел) будит нас сразу, а не через полный круг
+            _poll_now.wait(LIVE_INTERVAL)
             continue
 
         count += 1
@@ -382,7 +384,7 @@ def poll_loop():
             except: pass
         else:
             with data_lock: cached_data = []
-        time.sleep(min(interval, LIVE_INTERVAL))
+        _poll_now.wait(min(interval, LIVE_INTERVAL))
 
 def daily_ruvds():
     while True:

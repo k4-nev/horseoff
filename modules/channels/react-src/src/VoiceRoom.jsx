@@ -41,7 +41,7 @@ export function PreJoin({ name, room, onJoin, onSettings, joining }) {
       <div className="ch-vpj-participants">
         {speakers.slice(0, 6).map((p) => (
           <div className="ch-vpj-participant" key={p.user_id}>
-            <Avatar p={p} cls="ch-vpj-av" />
+            <Avatar bare cls="ch-vpj-av" mime="png" src={p.avatar} name={p.username} />
             <span className="ch-vpj-pname">{p.username}</span>
           </div>
         ))}

@@ -9,6 +9,10 @@
 export {
   attUrl, fmtSize, fmtDuration, linkify, mediaType, layoutMedia, MEDIA_W, WAVE_H,
 } from '../../../../core/react-src/src/shared/chat/media.js';
+/* Реэкспорт не заводит имя в этом файле: rejectFile ниже зовёт mediaType,
+   и без обычного импорта он падал с «mediaType is not defined» — выбранный
+   файл просто не появлялся, без единого слова. */
+import { mediaType } from '../../../../core/react-src/src/shared/chat/media.js';
 
 export const chatKey = (a, b) => [a, b].sort().join('_');
 

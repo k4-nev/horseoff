@@ -825,6 +825,20 @@ const chBody = posted.filter((r) => r.url.includes('/channels')).pop();
 check('правка канала уходит с edit_id, а не как новый',
   !!chBody && !!chBody.body.edit_id && !chBody.body.channel_id, JSON.stringify(chBody && chBody.body));
 
+
+/* Удаление канала слало один channel_id, а сервер ищет канал внутри группы:
+   space_id оставался пустым, файл читался несуществующий, и канал «удалялся»
+   из пустоты — оставаясь на месте. */
+posted.length = 0;
+await p.locator('.ch-channel').last().hover();
+await p.locator('.ch-channel').last().locator('.ch-space-action').nth(1).click();
+await p.waitForTimeout(400);
+await p.locator('.modal-actions .btn-danger').click();
+await p.waitForTimeout(500);
+const delCall = posted.find((c) => c.method === 'DELETE' && c.url.includes('/channels'));
+check('удаление канала уходит с группой, а не одним id',
+  !!delCall && delCall.url.includes('space_id='), JSON.stringify(delCall));
+
 await p.screenshot({ path: 'shot-desktop.png' });
 
 console.log('\n── Иконки существуют ──');

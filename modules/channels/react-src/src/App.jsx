@@ -430,7 +430,7 @@ export default function App({ registerBridge }) {
       await api('/api/mod/channels/spaces?space_id=' + t.id, { method: 'DELETE' });
       if (space === t.id) { setSpace(null); setChannel(null); }
     } else {
-      await api('/api/mod/channels/channels?channel_id=' + t.id, { method: 'DELETE' });
+      await api('/api/mod/channels/channels?channel_id=' + t.id + '&space_id=' + (t.spaceId || space || ''), { method: 'DELETE' });
       if (channel === t.id) setChannel(null);
     }
     await loadSpaces();
@@ -462,7 +462,7 @@ export default function App({ registerBridge }) {
           setModal({ kind: 'channel', spaceId: sid, voice: sp.type === 'voice_group' });
         }}
         onEditChannel={(sid, ch) => setModal({ kind: 'channel', spaceId: sid, channel: ch })}
-        onDeleteChannel={(sid, ch) => setModal({ kind: 'delete-channel', id: ch.id, title: 'Удалить канал?', text: `Канал «${ch.name}» и его сообщения будут удалены.` })}
+        onDeleteChannel={(sid, ch) => setModal({ kind: 'delete-channel', id: ch.id, spaceId: sid, title: 'Удалить канал?', text: `Канал «${ch.name}» и его сообщения будут удалены.` })}
       />
 
       <div className={'ch-chat' + (channel ? ' mobile-open' : '')}>

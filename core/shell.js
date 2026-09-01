@@ -612,6 +612,16 @@ const Shell = {
     return window[name] || null;
   },
 
+  /* Модуль открыли. Зовём только после того, как он загружен и показан:
+     на первом входе window.<Модуль> ещё не существует, и сигнал уходил в
+     пустоту — «Серверы» так и не подписывались на метрики. */
+  _activated(id) {
+    var api = this._moduleApi(id);
+    if (api && typeof api.onActivate === 'function') {
+      try { api.onActivate(); } catch (e) {}
+    }
+  },
+
   async switchModule(id) {
     /* Модуль может попросить слово перед уходом — «Боты» так спрашивают,
        сохранять ли раскладку. Метод существовал и раньше, но его никто не
@@ -623,13 +633,6 @@ const Shell = {
       }
     }
     this.activeModule = id;
-    /* Симметрично onDeactivate: модуль узнаёт, что его открыли. «Серверы»
-       по этому сигналу подписываются на метрики — без подписки сервер их
-       никому не шлёт. */
-    var cur = this._moduleApi(id);
-    if (cur && typeof cur.onActivate === 'function') {
-      try { cur.onActivate(); } catch (e) {}
-    }
     if (id === 'messenger') { this.unreadTotal = 0; this.updateMsgBadge(); }
     if (id === 'valentine') this._uiEmit({ valentine: 0 });
     this._uiEmit({ active: id, immersive: false });
@@ -643,6 +646,7 @@ const Shell = {
       // Hide all module containers
       content.querySelectorAll('.module-container').forEach(c => c.style.display = 'none');
       this.loadedModules[id].style.display = 'block';
+      this._activated(id);
       return;
     }
 
@@ -669,6 +673,7 @@ const Shell = {
       /* Модуль подгружается позже входа, поэтому его .app-version надо
          заполнить здесь — иначе останется то, что зашито в разметке. */
       this._stampVersion();
+      this._activated(id);
     } catch(e) { content.innerHTML = '<div class="loading">Ошибка загрузки модуля</div>'; }
   },
 

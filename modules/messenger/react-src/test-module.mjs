@@ -101,6 +101,8 @@ await p.waitForTimeout(500);
 
 console.log('── Список контактов ──');
 check('контакты отрисованы', await p.locator('.msg-contact').count() === 2);
+
+
 check('непрочитанное показано', (await p.locator('.msg-contact-unread').first().textContent()) === '2');
 check('онлайн отмечен', await p.locator('.msg-online-badge').count() === 1);
 check('без чата — приглашение выбрать', (await p.locator('.msg-chat-empty').textContent()).includes('Выберите контакт'));
@@ -904,6 +906,19 @@ const avaLetters = await p.evaluate(() => [...document.querySelectorAll('.msg-ro
 check('заглушка аватара — одна заглавная буква',
   avaLetters.every((t) => t.length === 1 && t === t.toUpperCase()),
   avaLetters.join(',') || 'все с картинками');
+
+/* Выбор файла обязан показать превью. Проверка появилась после того, как
+   вложения молча перестали работать у всех: lib.js только реэкспортировал
+   mediaType, а rejectFile звал его у себя — реэкспорт имени в файле не
+   заводит, и обработчик падал с «mediaType is not defined». */
+await p.setInputFiles('.msg-input-area input[type=file]', {
+  name: 'shot.png', mimeType: 'image/png',
+  buffer: Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6360000002000100ffff03000006000557bfabd4', 'hex'),
+});
+await p.waitForTimeout(600);
+check('выбранный файл показан в превью', await p.locator('.msg-attach-item').count() === 1);
+await p.locator('.msg-attach-remove').first().click().catch(() => {});
+await p.waitForTimeout(200);
 
 console.log('\n── Догрузка истории не срабатывает вхолостую ──');
 /* Порог «лента почти в начале» выполняется и там, где листать нечего: своё

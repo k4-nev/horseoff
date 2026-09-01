@@ -7,8 +7,7 @@ import Sidebar from './Sidebar.jsx';
 import { AccessModal, AddBotModal, Confirm, TableEditor } from './Modals.jsx';
 import { DEFAULT_CONTROLS, DEMO_LOG, TEST_BOT, TEST_BOT_ID } from './testBot.js';
 import {
-  api, applyLayout, buzz, defH, defW, flattenControls, gridCols, groupControls,
-  plural, relTime, toast,
+  api, applyLayout, buzz, defH, defW, denyMessage, flattenControls, gridCols, groupControls, plural, relTime, toast,
 } from './lib.js';
 import Empty from '../../../../core/react-src/src/shared/Empty.jsx';
 
@@ -134,6 +133,10 @@ export default function App({ registerBridge }) {
     api(`/api/mod/bots/${id}/command`, {
       method: 'POST',
       body: JSON.stringify({ ctrl_id: ctrlId, action, value }),
+    }).then((d) => {
+      // Ответ раньше не смотрели вовсе: кнопка нажималась, ничего не
+      // происходило, и почему — не говорилось
+      if (d && d.error) toast(denyMessage(d, 'Команда не выполнена'), 'error');
     });
   }, []);
 
@@ -151,6 +154,7 @@ export default function App({ registerBridge }) {
     setBots((prev) => prev.map((b) => (b.id === id ? { ...b, layout } : b)));
     const d = await api(`/api/mod/bots/${id}/layout`, { method: 'POST', body: JSON.stringify({ layout }) });
     if (d && d.ok) toast('Расположение сохранено');
+    else if (d && d.error) toast(denyMessage(d, 'Не удалось сохранить расположение'), 'error');
   }, []);
 
   const reorder = useCallback((dragId, targetId, before) => {
@@ -249,7 +253,7 @@ export default function App({ registerBridge }) {
     }
     buzz(20);
     const d = await api(`/api/mod/bots/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
-    if (!d || !d.ok) { toast('Ошибка сохранения', 'error'); return; }
+    if (!d || !d.ok) { toast(denyMessage(d, 'Ошибка сохранения'), 'error'); return; }
     setBots((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
     if (okMsg) toast(okMsg);
   }, []);
@@ -264,7 +268,8 @@ export default function App({ registerBridge }) {
         if (!ok) return;
         buzz(40);
         if (bot.id === TEST_BOT_ID) { setTestOn(false); setBots((p) => p.filter((b) => b.id !== TEST_BOT_ID)); setSelected(null); return; }
-        await api(`/api/mod/bots/${bot.id}`, { method: 'DELETE' });
+        const del = await api(`/api/mod/bots/${bot.id}`, { method: 'DELETE' });
+        if (del && del.error) { toast(denyMessage(del, 'Не удалось удалить'), 'error'); return; }
         setSelected(null);
         loadBots();
         toast('Бот удалён');
@@ -279,14 +284,18 @@ export default function App({ registerBridge }) {
     if (!newName || newName === oldName) return;
     buzz(20);
     api('/api/mod/bots/group/rename', { method: 'POST', body: JSON.stringify({ old: oldName, new: newName }) })
-      .then((d) => { if (d && d.ok) { loadBots(); toast(`Группа переименована (${d.count})`); } });
+      .then((d) => {
+        if (d && d.ok) { loadBots(); toast(`Группа переименована (${d.count})`); }
+        else toast(denyMessage(d, 'Не удалось переименовать'), 'error');
+      });
   }, [loadBots]);
 
   const grantAccess = useCallback(async (userId) => {
     const id = selRef.current;
     if (!id || id === TEST_BOT_ID) return;
     buzz(20);
-    await api(`/api/mod/bots/${id}/access`, { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+    const gr = await api(`/api/mod/bots/${id}/access`, { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+    if (gr && gr.error) { toast(denyMessage(gr, 'Не удалось выдать доступ'), 'error'); return; }
     await loadDetails(id);
     toast('Доступ выдан');
   }, [loadDetails]);
