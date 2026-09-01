@@ -141,14 +141,53 @@ def _ssh(server, cmd, timeout=10):
         return p.stdout.strip() if p.returncode == 0 else None
     except: return None
 
-# Опрос без зрителей — раз в пять минут: достаточно, чтобы заметить падение,
-# и вчетверо меньше нагрузки, чем прежние полминуты.
-IDLE_INTERVAL = 300
+# Как часто проверяем, жив ли сервер. Это не полный опрос: TCP-коннект к
+# SSH-порту, три секунды таймаута, никаких процессов. Дорог именно SSH —
+# отдельный ssh-процесс, рукопожатие и шелл-конвейер на каждую машину; вот он
+# и запускается только когда на раздел кто-то смотрит. А падение замечается
+# всегда за полминуты, независимо от того, открыт ли раздел.
+LIVE_INTERVAL = 30
 
 # ip → сколько опросов подряд машина не отвечает. Оповещаем со второго:
 # один пропущенный опрос — это чаще сетевая икота, чем упавший сервер.
 _down_streak = {}
 _down_notified = set()
+
+
+def _alive_pass(servers):
+    """Дешёвая проверка живости: жив ли SSH-порт.
+
+    Свой сервер (host) не проверяем: на нём всё это и крутится — если он
+    лежит, некому и уведомлять."""
+    out = []
+    for srv in servers:
+        if srv.get('role') == 'host':
+            out.append({'ip': srv['ip'], 'name': srv.get('name'), 'online': True})
+            continue
+        alive = _check_port(srv['ip'], int(srv.get('ssh_port', 22) or 22))
+        out.append({'ip': srv['ip'], 'name': srv.get('name'), 'online': alive})
+    return out
+
+
+def _apply_alive(alive):
+    """Отметку «жив» кладём и в снимок — тем, кто смотрит, красный кружок
+    должен загореться сразу, не дожидаясь следующего полного опроса."""
+    global cached_data
+    changed = False
+    with data_lock:
+        by_ip = {m['ip']: m for m in cached_data}
+        for a in alive:
+            m = by_ip.get(a['ip'])
+            if m is not None and m.get('online') != a['online']:
+                m['online'] = a['online']
+                changed = True
+        snapshot = list(cached_data)
+    if changed:
+        try:
+            from server import ws_push_servers
+            ws_push_servers(snapshot)
+        except Exception:
+            pass
 
 
 def _announce_down(results):
@@ -275,17 +314,38 @@ def get_metrics(server, do_speed=False):
 def poll_loop():
     global cached_data
     count = 0
+    last_full = 0.0
     while True:
         with servers_lock: servers = load_servers()
-        count += 1
         # Get poll interval from global settings
         try:
             from server import get_poll_interval
             interval = get_poll_interval()
         except:
             interval = 30
+        try:
+            from server import has_metric_subs
+            watched = has_metric_subs()
+        except Exception:
+            watched = True
+
+        # Полный опрос — по SSH, и он дорогой: процесс на машину, рукопожатие,
+        # шелл-конвейер. Запускаем его только пока на раздел кто-то смотрит и
+        # не чаще выбранного интервала. Всё остальное время идёт дешёвая
+        # проверка живости — TCP-коннект к SSH-порту, — поэтому падение
+        # замечается за полминуты независимо от того, открыт ли раздел.
+        due_full = watched and (time.time() - last_full) >= interval
+        if servers and not due_full:
+            alive = _alive_pass(servers)
+            _announce_down(alive)
+            _apply_alive(alive)
+            time.sleep(LIVE_INTERVAL)
+            continue
+
+        count += 1
         do_speed = (count % max(1, SPEED_TEST_INTERVAL // max(interval, 15))) == 1
         if servers:
+            last_full = time.time()
             results = []
             for s in servers:
                 m = get_metrics(s, do_speed)
@@ -309,17 +369,7 @@ def poll_loop():
             except: pass
         else:
             with data_lock: cached_data = []
-
-        # Пока раздел никто не открыл, опрашивать машины по SSH каждые
-        # полминуты незачем: данные всё равно некому смотреть. Но и бросать
-        # опрос нельзя — иначе некому будет заметить падение. Поэтому реже,
-        # а не никогда.
-        try:
-            from server import has_metric_subs
-            watched = has_metric_subs()
-        except Exception:
-            watched = True
-        time.sleep(interval if watched else max(interval, IDLE_INTERVAL))
+        time.sleep(min(interval, LIVE_INTERVAL))
 
 def daily_ruvds():
     while True:
