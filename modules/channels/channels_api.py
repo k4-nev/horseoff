@@ -18,7 +18,8 @@ def _may(session, action):
 
 def _denied(handler, action):
     import roles as roles_mod
-    return _json(handler, 403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role(action)})
+    return _json(handler, 403, {'error': 'Нет доступа', 'action': action,
+                                'need_role': roles_mod.min_role(action)})
 
 def _load(path, default=None):
     if default is None: default = []

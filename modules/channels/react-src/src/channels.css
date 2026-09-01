@@ -542,3 +542,10 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 .ch-member.in-voice .ch-member-ava{box-shadow:0 0 0 2px var(--accent)}
 .ch-member-voice-ico{display:flex;align-items:center;margin-left:auto;opacity:0.7}
 .ch-mgr-voice{color:var(--accent)!important}
+
+/* Ступень «читать» и ступень «писать» — разные. Поле ввода не прячем, а
+   подменяем объяснением: человек должен понимать, почему не может ответить. */
+.ch-readonly{display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:14px 16px;border-top:1px solid var(--border);color:var(--text-dim);
+  font-size:12.5px;background:var(--surface2)}
+.ch-vpj-why{margin-top:8px;font-size:11.5px;color:var(--text-dim)}

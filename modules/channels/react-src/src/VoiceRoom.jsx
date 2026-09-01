@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { plural } from './lib.js';
 import * as voice from './voice.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
 
 /* Голосовая комната: экран перед входом и сама комната.
 
@@ -27,6 +28,10 @@ function Video({ userId, version, muted, hidden, vref }) {
 }
 
 export function PreJoin({ name, room, onJoin, onSettings, joining }) {
+  /* Кнопку не прячем: комната видна, и молча неработающая кнопка хуже
+     объяснения. */
+  const access = useAccess();
+  const canJoin = access.may('voice.join');
   const speakers = room.speakers || [];
   const total = room.total || 0;
   return (
@@ -58,9 +63,19 @@ export function PreJoin({ name, room, onJoin, onSettings, joining }) {
         <button className="btn-icon-only srv-settings-btn" title="Настройки" onClick={onSettings}>
           <span className="ico ico-16 ico-settings" />
         </button>
-        <button className="btn btn-primary ch-vpj-join-btn" disabled={joining} onClick={onJoin}>
+        <button
+          className="btn btn-primary ch-vpj-join-btn"
+          disabled={joining || !canJoin}
+          title={canJoin ? undefined : 'Нужна роль ' + (access.need('voice.join') || '').toUpperCase()}
+          onClick={onJoin}
+        >
           {joining ? 'Подключение...' : 'Войти в комнату'}
         </button>
+        {!canJoin && (
+          <div className="ch-vpj-why">
+            Нужна роль {(access.need('voice.join') || 'uncommon').toUpperCase()}
+          </div>
+        )}
       </div>
     </div>
   );

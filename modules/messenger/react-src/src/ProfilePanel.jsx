@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toggleAudio } from '../../../../core/react-src/src/shared/chat/audio.js';
 import { api, attUrl, chatKey, displayName, fmtDuration, fmtSize, groupByDate } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
 
 /* Панель профиля собеседника — выезжает справа поверх чата, тем же приёмом,
    что «Создать сервер» в модуле «Серверы». */
@@ -19,6 +20,11 @@ const EmptyIco = () => (
 );
 
 export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, onOpenMedia, onJumpTo, onClear }) {
+  /* Очистка переписки — тоже ступень. Кнопку не прячем: она на виду в
+     панели профиля, и молча неработающая кнопка хуже объяснения. */
+  const access = useAccess();
+  const canClear = access.may('msg.clear');
+  const needClear = access.need('msg.clear') || 'mythical';
   const [tab, setTab] = useState('image');
   const [items, setItems] = useState(null);
 
@@ -171,7 +177,12 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
         </div>
 
         <div className="msg-profile-foot">
-          <button className="msg-clear-chat-btn" onClick={onClear}>
+          <button
+            className="msg-clear-chat-btn"
+            disabled={!canClear}
+            title={canClear ? undefined : 'Нужна роль ' + needClear.toUpperCase()}
+            onClick={onClear}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="3 6 5 6 21 6" /><path d="M19 6l-2 14H7L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
             </svg>

@@ -3,6 +3,7 @@ import { EMOJIS, fmtDuration, fmtSize, mediaType, rejectFile, toast } from './li
 import useRecorder from '../../../../core/react-src/src/shared/chat/useRecorder.js';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 import EmojiPicker from '../../../../core/react-src/src/shared/chat/EmojiPicker.jsx';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
 
 /* Поле ввода со всем, что к нему прилипает: эмодзи, вложения, полоска
    ответа/пересылки/правки и запись голосового.
@@ -28,6 +29,8 @@ export default function Composer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const fileRef = useRef(null);
   const emojiBtn = useRef(null);
+  const access = useAccess();
+  const canAttach = access.may('msg.attach');
   const emojiRef = useOutside(emojiOpen, () => setEmojiOpen(false), { ignore: emojiBtn });
 
   const { rec, start, stop } = useRecorder({
@@ -181,9 +184,11 @@ export default function Composer({
       <button className="msg-emoji-btn" ref={emojiBtn} onClick={() => setEmojiOpen((v) => !v)}>
         <span className="ico ico-20 ico-emoji" />
       </button>
+      {canAttach && (
       <button className="msg-attach-btn" onClick={() => fileRef.current && fileRef.current.click()} title="Прикрепить">
         <span className="ico ico-18 ico-attach" />
       </button>
+      )}
       <input
         type="file" ref={fileRef} multiple style={{ display: 'none' }}
         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt"

@@ -5,6 +5,7 @@ import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 import useRecorder from '../../../../core/react-src/src/shared/chat/useRecorder.js';
 import useOutside from '../../../../core/react-src/src/shared/useOutside.js';
 import EmojiPicker from '../../../../core/react-src/src/shared/chat/EmojiPicker.jsx';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
 
 /* Поле ввода канала: вложения, эмодзи, упоминания, ответ и правка, запись
    голосового. Упоминания — часть модели каналов: @ник и @all адресуют
@@ -17,6 +18,10 @@ export default function Composer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [mention, setMention] = useState(null);   // {list, matchLen}
   const emojiBtn = useRef(null);
+  const access = useAccess();
+  const canPost = access.may('channels.post');
+  const needPost = access.need('channels.post') || 'uncommon';
+  const canAttach = access.may('channels.attach');
   const emojiRef = useOutside(emojiOpen, () => setEmojiOpen(false), { ignore: emojiBtn });
   const { rec, start, stop } = useRecorder({
     onDone: (file) => onUpload([file], ''),
@@ -176,10 +181,21 @@ export default function Composer({
         />
       )}
 
+      {/* Читать канал и писать в него — разные ступени. Поле ввода не
+          прячем, а подменяем объяснением: человек должен понимать, почему
+          не может ответить, а не гадать, куда делся ввод. */}
+      {!canPost ? (
+        <div className="ch-readonly">
+          <span className="ico ico-16 ico-eye-closed" />
+          Только чтение — писать может роль {needPost.toUpperCase()}
+        </div>
+      ) : (
       <div className="ch-input-area" style={{ display: 'flex' }}>
-        <button className="ch-attach-btn" onClick={pickFiles}>
-          <span className="ico ico-18 ico-attach" style={{ backgroundColor: '#999' }} />
-        </button>
+        {canAttach && (
+          <button className="ch-attach-btn" onClick={pickFiles}>
+            <span className="ico ico-18 ico-attach" style={{ backgroundColor: '#999' }} />
+          </button>
+        )}
         <button className="ch-emoji-btn" ref={emojiBtn} onClick={() => setEmojiOpen((v) => !v)}>
           <span className="ico ico-18 ico-emoji" style={{ backgroundColor: '#999' }} />
         </button>
@@ -199,6 +215,7 @@ export default function Composer({
           />
         </button>
       </div>
+      )}
     </>
   );
 }

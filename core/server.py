@@ -1546,7 +1546,9 @@ async def handle_ws(websocket):
 
                 elif mt == 'clear_chat':
                     chat_key = data.get('chat', '')
-                    if chat_key and s['id'] in chat_key.split('_'):
+                    if not may(s, 'msg.clear'):
+                        await _deny(websocket, 'msg.clear')
+                    elif chat_key and s['id'] in chat_key.split('_'):
                         f = MSG_DIR / f"{chat_key}.json"
                         with get_file_lock(f):
                             if f.exists(): write_json_atomic(f, [])
@@ -1641,6 +1643,11 @@ async def handle_ws(websocket):
                     sp_id = data.get('space_id', '')
                     text = data.get('text', '').strip()
                     if not ch_id or not text: continue
+                    # Ступень «читать» и ступень «писать» — разные: common
+                    # каналы видит, но не пишет
+                    if not may(s, 'channels.post'):
+                        await _deny(websocket, 'channels.post')
+                        continue
                     # Build message
                     user = find_user(s['username'])
                     msg = {
@@ -1689,6 +1696,7 @@ async def handle_ws(websocket):
                                 except: pass
 
                 elif mt == 'ch_typing':
+                    if not may(s, 'channels.post'): continue
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     if not ch_id: continue
@@ -1705,6 +1713,9 @@ async def handle_ws(websocket):
                                 except: pass
 
                 elif mt == 'ch_react':
+                    if not may(s, 'channels.post'):
+                        await _deny(websocket, 'channels.post')
+                        continue
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     msg_id = data.get('msg_id', '')
@@ -1839,6 +1850,9 @@ async def handle_ws(websocket):
                             except: pass
 
                 elif mt == 'voice_join':
+                    if not may(s, 'voice.join'):
+                        await _deny(websocket, 'voice.join')
+                        continue
                     room_id = data.get('room_id','')
                     space_id = data.get('space_id','')
                     if room_id:
@@ -2041,6 +2055,18 @@ def can_moderate_space(session, space_id):
     if not ch_mod: return False
     space = next((sp for sp in ch_mod.load_spaces() if sp['id'] == space_id), None)
     return ch_mod.is_space_boss(space, session['id'])
+
+
+async def _deny(websocket, action):
+    """Отказ по вебсокету в том же виде, что и по HTTP: с названием ступени,
+    чтобы интерфейсу было что показать человеку."""
+    try:
+        await websocket.send(json.dumps({
+            'type': 'denied', 'action': action,
+            'need_role': roles_mod.min_role(action),
+        }))
+    except Exception:
+        pass
 
 
 def _sync_module_grants():
@@ -2339,6 +2365,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ch/upload':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
+            # Маршрут лежит в ядре, а не под /api/mod/, поэтому общий
+            # привратник разделов его не покрывает — проверяем здесь
+            if not may(s, 'channels.attach'): return self._deny_action('channels.attach')
             fields, files = parse_multipart(self)
             channel_id = fields.get('channel_id', '')
             space_id = fields.get('space_id', '')
@@ -2408,6 +2437,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/msg/upload':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not may(s, 'msg.attach'): return self._deny_action('msg.attach')
             fields, files = parse_multipart(self)
             to_id = fields.get('to', '')
             text = fields.get('text', '').strip()
@@ -2633,6 +2663,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/messages/clear':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not may(s, 'msg.clear'): return self._deny_action('msg.clear')
             chat_key = data.get('chat', '')
             if not chat_key: return self._json(400, {'error': 'No chat key'})
             parts = chat_key.split('_')
@@ -2811,6 +2842,11 @@ class Handler(BaseHTTPRequestHandler):
                 if denied: return self._json(403, denied)
                 return handler_fn['DELETE'](self, s, path)
         self._json(404, {'error': 'Not found'})
+
+    def _deny_action(self, action):
+        """Отказ с названием нужной ступени — интерфейсу есть что показать."""
+        return self._json(403, {'error': 'Нет доступа', 'action': action,
+                                'need_role': roles_mod.min_role(action)})
 
     def _role_denied(self):
         """401 — не представился, 403 — представился, но роль не та.

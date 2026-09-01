@@ -18,7 +18,8 @@ def _may(session, action):
 
 def _denied(handler, action):
     import roles as roles_mod
-    return _json(handler, 403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role(action)})
+    return _json(handler, 403, {'error': 'Нет доступа', 'action': action,
+                                'need_role': roles_mod.min_role(action)})
 
 # ── Bot WebSocket connections (bot_id → websocket) ───────────────────────────
 bot_ws_connections = {}
@@ -282,7 +283,9 @@ def handle_post(handler, session, path, data=None):
             if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
 
             # POST /api/mod/bots/:id/command
+            # Видеть бота и управлять им — разные ступени
             if sub == 'command':
+                if not _may(session, 'bots.control'): return _denied(handler, 'bots.control')
                 cmd = {
                     'id': secrets.token_hex(4),
                     'ctrl_id': data.get('ctrl_id'),
@@ -311,6 +314,7 @@ def handle_post(handler, session, path, data=None):
 
             # POST /api/mod/bots/:id/layout
             if sub == 'layout':
+                if not _may(session, 'bots.control'): return _denied(handler, 'bots.control')
                 bot['layout'] = data.get('layout', [])
                 _save_bot(bot)
                 return _json(handler, 200, {'ok': True})

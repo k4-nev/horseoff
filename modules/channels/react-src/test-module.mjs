@@ -45,6 +45,9 @@ const CHANNELS = {
   s2: [{ id: 'v1', name: 'Планёрка', type: 'voice', icon: 'mic' }],
 };
 const T = Math.floor(Date.now() / 1000);
+/* Роль стенда: с ней проверяем, что интерфейс запирается ровно там, где
+   запирает сервер. */
+let ROLE = 'arcana';
 const MESSAGES = [
   { id: 'm1', from: 'u2', from_name: 'Мысика', role: 'arcana', text: 'Прокси на втором лежит', time: T - 600, reactions: {} },
   { id: 'm2', from: 'u2', from_name: 'Мысика', role: 'arcana', text: 'перезапусти когда сможешь', time: T - 580, reactions: {} },
@@ -86,7 +89,7 @@ p.on('console', (m) => {
 
 const posted = [];
 const historyOffsets = [];
-await p.route('**/api/**', (route) => {
+const routeApi = (route) => {
   const req = route.request();
   const u = req.url();
   const j = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
@@ -126,13 +129,14 @@ await p.route('**/api/**', (route) => {
     };
     return j({
       roles: ['common', 'uncommon', 'rare', 'mythical', 'legendary', 'immortal', 'arcana'],
-      my_role: 'arcana',
+      my_role: ROLE,
       modules: { channels: 'common' },
       actions: Object.entries(ACT).map(([id, role]) => ({ id, role, title: id, section: 'channels', default: role, locked: false })),
     });
   }
   return j({ ok: true });
-});
+};
+await p.route('**/api/**', routeApi);
 
 await p.addInitScript(() => {
   localStorage.setItem('ho_token', 't');
@@ -848,6 +852,36 @@ await p.locator('.ch-back-btn').click();
 await p.waitForTimeout(400);
 check('назад возвращает к списку каналов', await p.locator('.ch-chat.mobile-open').count() === 0);
 await p.screenshot({ path: 'shot-mobile.png' });
+
+console.log('\n── Роль common: читает, но не пишет ──');
+/* Ровно тот случай, который всплыл на живом аккаунте: ступень «читать» —
+   common, «писать» — uncommon, а поле ввода стояло у всех. Проверяем, что
+   интерфейс запирается там же, где сервер, и объясняет причину. */
+ROLE = 'common';
+const pc = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+await pc.route('**/api/**', routeApi);
+await pc.addInitScript(() => { localStorage.setItem('ho_token', 't'); localStorage.removeItem('ho_pin'); });
+await pc.goto('http://localhost:8894/core/shell.html');
+await pc.waitForSelector('#appShell.active');
+await pc.evaluate(() => {
+  window.__sent = [];
+  Shell.wsReady = true;
+  Shell.wsSend = (m) => window.__sent.push(m);
+});
+await pc.evaluate(() => Shell.switchModule('channels'));
+await pc.waitForSelector('.ch-wrap');
+await pc.locator('.ch-channel').first().click();
+await pc.waitForTimeout(900);
+
+check('канал читается — сообщения на месте', await pc.locator('.ch-msg').count() > 0);
+check('поля ввода нет', await pc.locator('.ch-input').count() === 0);
+const why = await pc.locator('.ch-readonly').textContent().catch(() => '');
+check('вместо него объяснение с нужной ступенью',
+  why.includes('Только чтение') && why.toLowerCase().includes('uncommon'), why.trim());
+check('кнопки вложения тоже нет', await pc.locator('.ch-attach-btn').count() === 0);
+check('ничего не ушло в сеть', await pc.evaluate(() => window.__sent.filter((m) => m.type === 'ch_send').length) === 0);
+await pc.close();
+ROLE = 'arcana';
 
 await browser.close();
 server.kill();
