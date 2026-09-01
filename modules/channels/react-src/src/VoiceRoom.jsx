@@ -63,19 +63,17 @@ export function PreJoin({ name, room, onJoin, onSettings, joining }) {
         <button className="btn-icon-only srv-settings-btn" title="Настройки" onClick={onSettings}>
           <span className="ico ico-16 ico-settings" />
         </button>
+        {/* Причина — в самой кнопке: подпись под ней читается хуже, а
+            серая кнопка без объяснения не читается вовсе. */}
         <button
-          className="btn btn-primary ch-vpj-join-btn"
+          className={'btn btn-primary ch-vpj-join-btn' + (canJoin ? '' : ' locked')}
           disabled={joining || !canJoin}
-          title={canJoin ? undefined : 'Нужна роль ' + (access.need('voice.join') || '').toUpperCase()}
           onClick={onJoin}
         >
-          {joining ? 'Подключение...' : 'Войти в комнату'}
+          {!canJoin
+            ? 'Нужна роль ' + (access.need('voice.join') || 'uncommon').toUpperCase()
+            : (joining ? 'Подключение...' : 'Войти в комнату')}
         </button>
-        {!canJoin && (
-          <div className="ch-vpj-why">
-            Нужна роль {(access.need('voice.join') || 'uncommon').toUpperCase()}
-          </div>
-        )}
       </div>
     </div>
   );

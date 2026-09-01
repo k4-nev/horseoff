@@ -805,6 +805,26 @@ check('канал ушёл на сервер с иконкой',
   !!chCreate && chCreate.body.name === 'новый-канал' && !!chCreate.body.icon,
   JSON.stringify(chCreate && chCreate.body));
 
+/* Правка канала должна править, а не заводить второй: сервер узнаёт правку по
+   edit_id, а клиент слал channel_id — и переименование молча создавало
+   дубликат. */
+await p.locator('.ch-space-header').first().click({ button: 'right' });
+await p.waitForTimeout(300);
+await p.locator('.ch-ctx-item', { hasText: 'Создать канал' }).click().catch(() => {});
+await p.waitForTimeout(300);
+await p.locator('.modal-close').click().catch(() => {});
+await p.waitForTimeout(200);
+await p.evaluate(() => { window.__posted = []; });
+await p.locator('.ch-channel').first().hover();
+await p.locator('.ch-channel').first().locator('.ch-space-action').first().click();
+await p.waitForTimeout(400);
+await p.fill('.modal input', 'переименован');
+await p.locator('.modal-actions .btn-primary').click();
+await p.waitForTimeout(400);
+const chBody = posted.filter((r) => r.url.includes('/channels')).pop();
+check('правка канала уходит с edit_id, а не как новый',
+  !!chBody && !!chBody.body.edit_id && !chBody.body.channel_id, JSON.stringify(chBody && chBody.body));
+
 await p.screenshot({ path: 'shot-desktop.png' });
 
 console.log('\n── Иконки существуют ──');

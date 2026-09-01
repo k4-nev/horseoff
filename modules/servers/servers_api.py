@@ -154,6 +154,18 @@ _down_streak = {}
 _down_notified = set()
 
 
+_poll_now = threading.Event()
+
+
+def poll_now():
+    """Просьба опросить немедленно.
+
+    Первый вход в раздел не должен ждать следующего круга: снимка может не
+    быть вовсе (без зрителей полный опрос не идёт), и человек смотрел бы на
+    пустой список до полуминуты."""
+    _poll_now.set()
+
+
 def _alive_pass(servers):
     """Дешёвая проверка живости: жив ли SSH-порт.
 
@@ -334,7 +346,8 @@ def poll_loop():
         # не чаще выбранного интервала. Всё остальное время идёт дешёвая
         # проверка живости — TCP-коннект к SSH-порту, — поэтому падение
         # замечается за полминуты независимо от того, открыт ли раздел.
-        due_full = watched and (time.time() - last_full) >= interval
+        due_full = watched and ((time.time() - last_full) >= interval or _poll_now.is_set())
+        _poll_now.clear()
         if servers and not due_full:
             alive = _alive_pass(servers)
             _announce_down(alive)

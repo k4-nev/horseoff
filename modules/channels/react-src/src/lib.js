@@ -6,7 +6,7 @@
    просмотрщик, фон, — но не устройство ленты. */
 
 /* Мост к оболочке — общий на все модули. */
-export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
+export { S, api, wsSend, toast, buzz, me, meId, denyMessage } from '../../../../core/react-src/src/shared/shell.js';
 
 /* Роли общие на всё приложение: лестница обязана совпадать с ROLE_RANK
    в core/server.py. ROLE_ORDER — порядок в списке участников, от старших. */

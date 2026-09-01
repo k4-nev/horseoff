@@ -58,6 +58,13 @@ print('\n── Отказ объясняет, чего не хватает ─�
 check('по HTTP в ответе есть нужная ступень', "'need_role': roles_mod.min_role(action)" in blob)
 check('по вебсокету — тоже', "'type': 'denied'" in blob)
 
+print(chr(10) + '── Подсказки не запрещают, а объясняют ──')
+acc = io.open(CORE / 'react-src' / 'src' / 'shared' / 'access.jsx', encoding='utf-8').read()
+head = acc[acc.index('export function may(action)'):]
+check('пока пороги не приехали, интерфейс ничего не прячет',
+      'if (!state.role) return true;' in head[:400],
+      'иначе один неудачный запрос молча убирает кнопки у всех')
+
 print('\n── Разделение похожих прав ──')
 pairs = [
     ('channels.read', 'channels.post', 'читать канал и писать в него'),

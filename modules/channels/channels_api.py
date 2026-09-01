@@ -16,6 +16,26 @@ def _may(session, action):
     return may(session, action)
 
 
+def _boss(session, space_id):
+    """Хозяин этой группы: создал её или назначен в ней модератором.
+
+    Ступень mythical даёт распоряжаться своими группами. Раньше она давала
+    только создать группу и модерировать сообщения: добавить в свою же
+    группу человека было нельзя, потому что состав участников требовал
+    legendary — то есть созданной группой пользоваться было невозможно."""
+    if not space_id:
+        return False
+    space = next((sp for sp in load_spaces() if sp['id'] == space_id), None)
+    return is_space_boss(space, session['id'])
+
+
+def _may_here(session, action, space_id):
+    """Право на действие в конкретной группе: либо глобальное, либо своя."""
+    if _may(session, action):
+        return True
+    return _may(session, 'channels.moderate_own') and _boss(session, space_id)
+
+
 def _denied(handler, action):
     import roles as roles_mod
     return _json(handler, 403, {'error': 'Нет доступа', 'action': action,
@@ -169,6 +189,9 @@ def handle_get(handler, session, path):
                 continue
             s = dict(sp)
             s['photo'] = get_space_photo_b64(sp['id'])
+            # Роль в группе — чтобы интерфейс не показывал кнопки, которых
+            # сервер всё равно не выполнит, и не прятал те, что выполнит
+            s['my_space_role'] = space_role(sp['id'], session['id'])
             result_spaces.append(s)
             chs = load_channels(sp['id'])
             for ch in chs:
@@ -194,6 +217,7 @@ def handle_get(handler, session, path):
         for sp in spaces:
             if is_member(sp['id'], session['id']) or sp['owner_id'] == session['id']:
                 s = dict(sp)
+                s['my_space_role'] = space_role(sp['id'], session['id'])
                 s['photo'] = get_space_photo_b64(sp['id'])
                 result.append(s)
         return _json(handler, 200, result)
@@ -269,7 +293,12 @@ def handle_get(handler, session, path):
 
     # GET /api/mod/channels/users
     if p.endswith('/users'):
-        if not _may(session, 'channels.userlist'): return _denied(handler, 'channels.userlist')
+        # Список нужен затем, чтобы кого-то добавить: значит, спрашиваем
+        # то же право — глобально либо в своей группе
+        if not (_may(session, 'channels.userlist')
+                or (_may(session, 'channels.moderate_own')
+                    and any(is_space_boss(sp, session['id']) for sp in load_spaces()))):
+            return _denied(handler, 'channels.userlist')
         from server import load_users, get_avatar_b64
         users = load_users()
         return _json(handler, 200, [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'avatar':get_avatar_b64(u['id'])} for u in users])
@@ -310,8 +339,10 @@ def handle_post(handler, session, path, data):
 
     # POST /api/mod/channels/channels (create or edit)
     if p.endswith('/channels'):
-        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         space_id = data.get('space_id', '')
+        # В своей группе распоряжается хозяин, в чужой — только глобальное право
+        if not _may_here(session, 'channels.create', space_id):
+            return _denied(handler, 'channels.create')
         name = data.get('name', '').strip()
         icon = data.get('icon', 'channels')
         if not name or len(name) > 30: return _json(handler, 400, {'error': 'Название 1-30 символов'})
@@ -337,8 +368,9 @@ def handle_post(handler, session, path, data):
 
     # POST /api/mod/channels/members
     if p.endswith('/members'):
-        if not _may(session, 'channels.members'): return _denied(handler, 'channels.members')
         space_id = data.get('space_id', '')
+        if not _may_here(session, 'channels.members', space_id):
+            return _denied(handler, 'channels.members')
         user_ids = data.get('user_ids', [])
         set_mod = data.get('set_moderator')  # {user_id, value}
         with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
@@ -366,10 +398,6 @@ def handle_post(handler, session, path, data):
 
 def handle_delete(handler, session, path):
     p = path.split('?')[0]
-    # У удаления группы, канала и участника пороги разные — общий вход
-    # пропускает того, кто тянет хотя бы одно, дальше проверяет каждая ветка.
-    if not (_may(session, 'channels.create') or _may(session, 'channels.members')):
-        return _denied(handler, 'channels.create')
     data = {}
     cl = int(handler.headers.get('Content-Length') or 0)
     if cl > 0:
@@ -384,8 +412,9 @@ def handle_delete(handler, session, path):
 
     # DELETE space
     if p.endswith('/spaces'):
-        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         space_id = data.get('space_id', '')
+        if not _may_here(session, 'channels.create', space_id):
+            return _denied(handler, 'channels.create')
         with _lock:
             spaces = load_spaces()
             spaces = [sp for sp in spaces if sp['id'] != space_id]
@@ -396,8 +425,9 @@ def handle_delete(handler, session, path):
 
     # DELETE channel
     if p.endswith('/channels'):
-        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
         space_id = data.get('space_id', '')
+        if not _may_here(session, 'channels.create', space_id):
+            return _denied(handler, 'channels.create')
         channel_id = data.get('channel_id', '')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
             channels = load_channels(space_id)
@@ -408,8 +438,9 @@ def handle_delete(handler, session, path):
 
     # DELETE member
     if p.endswith('/members'):
-        if not _may(session, 'channels.members'): return _denied(handler, 'channels.members')
         space_id = data.get('space_id', '')
+        if not _may_here(session, 'channels.members', space_id):
+            return _denied(handler, 'channels.members')
         user_id = data.get('user_id', '')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
             members = load_members(space_id)

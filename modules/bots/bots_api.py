@@ -331,6 +331,10 @@ def handle_post(handler, session, path, data=None):
 
             # POST /api/mod/bots/:id/access — grant
             if sub == 'access':
+                # Раздавать доступ к боту — отдельное право, и оно не
+                # спрашивалось нигде: любой, кто видел бота, мог выдать его
+                # кому угодно
+                if not _may(session, 'bots.access'): return _denied(handler, 'bots.access')
                 uid = data.get('user_id')
                 if uid and uid not in bot.setdefault('access_ids', []):
                     bot['access_ids'].append(uid)
@@ -350,6 +354,7 @@ def handle_post(handler, session, path, data=None):
 
             # POST /api/mod/bots/:id/clear_log — wipe stored logs
             if sub == 'clear_log':
+                if not _may(session, 'bots.control'): return _denied(handler, 'bots.control')
                 bot['logs'] = []
                 _save_bot(bot)
                 _broadcast_bot({'type': 'bot_log_clear', 'bot_id': bot_id})
@@ -370,6 +375,8 @@ def handle_put(handler, session, path, data=None):
             bot = _load_bot(bot_id)
             if not bot: return _json(handler, 404, {'error': 'Not found'})
             if not _can_access(session, bot): return _json(handler, 403, {'error': 'Forbidden'})
+            # Видеть бота и менять его настройки — разные ступени
+            if not _may(session, 'bots.manage'): return _denied(handler, 'bots.manage')
             if 'name' in data:
                 name = data['name'].strip()
                 if name:
@@ -403,6 +410,7 @@ def handle_delete(handler, session, path):
 
             # DELETE /api/mod/bots/:id/access — revoke
             if sub == 'access':
+                if not _may(session, 'bots.access'): return _denied(handler, 'bots.access')
                 length = int(handler.headers.get('Content-Length', 0))
                 body = handler.rfile.read(length)
                 try: data = json.loads(body) if body else {}
@@ -420,8 +428,8 @@ def handle_delete(handler, session, path):
 
             # DELETE /api/mod/bots/:id
             if not sub:
-                if not _may(session, 'bots.access') and session['id'] != bot.get('owner_id'):
-                    return _denied(handler, 'bots.access')
+                if not _may(session, 'bots.manage') and session['id'] != bot.get('owner_id'):
+                    return _denied(handler, 'bots.manage')
                 _bot_path(bot_id).unlink(missing_ok=True)
                 with _index_lock:
                     _save_index([e for e in _load_index() if e['id'] != bot_id])

@@ -177,16 +177,18 @@ export default function ProfilePanel({ open, contact, meId, reloadKey, onClose, 
         </div>
 
         <div className="msg-profile-foot">
+          {/* Заперто — пишем прямо в кнопке. Подсказка по наведению у
+              disabled-кнопки не показывается вовсе, а на телефоне её нет и
+              подавно: человек упирался в серую кнопку без объяснения. */}
           <button
-            className="msg-clear-chat-btn"
+            className={'msg-clear-chat-btn' + (canClear ? '' : ' locked')}
             disabled={!canClear}
-            title={canClear ? undefined : 'Нужна роль ' + needClear.toUpperCase()}
             onClick={onClear}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="3 6 5 6 21 6" /><path d="M19 6l-2 14H7L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
             </svg>
-            Очистить чат
+            {canClear ? 'Очистить чат' : 'Очистить чат — нужна роль ' + needClear.toUpperCase()}
           </button>
         </div>
       </div>

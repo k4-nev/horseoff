@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import SearchField from '../../../../core/react-src/src/shared/SearchField.jsx';
-import { api, b64, buzz, compressImage, meId, toast } from './lib.js';
+import { api, b64, buzz, compressImage, denyMessage, meId, toast } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 import ConfirmModal from '../../../../core/react-src/src/shared/ConfirmModal.jsx';
 import RoleBadge from '../../../../core/react-src/src/shared/RoleBadge.jsx';
@@ -126,7 +126,7 @@ export function AddBotModal({ open, groups, onClose, onCreated }) {
       method: 'POST',
       body: JSON.stringify({ name: nm, group: group.trim() || 'Без группы', avatar }),
     });
-    if (!d || !d.bot) { toast('Ошибка создания бота', 'error'); return; }
+    if (!d || !d.bot) { toast(denyMessage(d, 'Ошибка создания бота'), 'error'); return; }
     onCreated(d.bot);
     setCreated({ key: d.api_key, name: nm });
   };

@@ -41,6 +41,16 @@ export default function App({ registerBridge }) {
      ступень не тянет, просто не рисуются, поэтому подписи тут не нужны. */
   const access = useAccess();
   const admin = access.may('channels.moderate') || access.may('channels.moderate_own');
+  /* Кнопки правки и удаления показываем только там, где сервер их выполнит:
+     глобальная модерация — везде, «своя группа» — где человек владелец или
+     назначен модератором. Раньше кнопки стояли у всех групп, а удаление в
+     чужой молча не срабатывало. */
+  const canManageSpace = useCallback((sp) => {
+    if (!sp) return false;
+    if (access.may('channels.moderate')) return true;
+    if (!access.may('channels.moderate_own')) return false;
+    return sp.owner_id === meId || sp.my_space_role === 'owner' || sp.my_space_role === 'moderator';
+  }, [access, meId]);
 
   const [spaces, setSpaces] = useState([]);
   const [channelsBySpace, setChannelsBySpace] = useState({});
@@ -390,8 +400,10 @@ export default function App({ registerBridge }) {
 
   /* ── Модальные действия ─────────────────────────────────────────────── */
   const saveSpace = async (data) => {
+    /* Сервер ждёт edit_id — на space_id он смотрит как на «в какой группе»,
+       и правка молча создавала вторую группу вместо переименования. */
     const body = data.id
-      ? { space_id: data.id, name: data.name, photo: data.photo }
+      ? { edit_id: data.id, name: data.name, photo: data.photo }
       : { name: data.name, type: data.type, photo: data.photo };
     await api('/api/mod/channels/spaces', { method: 'POST', body: JSON.stringify(body) });
     setModal(null);
@@ -401,8 +413,9 @@ export default function App({ registerBridge }) {
 
   const saveChannel = async (data) => {
     const sid = modal.spaceId;
+    // То же и с каналом: без edit_id сервер считал правку созданием
     const body = data.id
-      ? { channel_id: data.id, space_id: sid, name: data.name, icon: data.icon }
+      ? { edit_id: data.id, space_id: sid, name: data.name, icon: data.icon }
       : { space_id: sid, name: data.name, icon: data.icon, type: modal.voice ? 'voice' : 'text' };
     await api('/api/mod/channels/channels', { method: 'POST', body: JSON.stringify(body) });
     setModal(null);
@@ -436,6 +449,7 @@ export default function App({ registerBridge }) {
       <Sidebar
         spaces={spaces} channelsBySpace={channelsBySpace} rooms={vs.rooms}
         currentChannel={channel} voiceRoomId={vs.roomId} admin={admin}
+        canManageSpace={canManageSpace}
         onOpenChannel={openChannel}
         onCreateSpace={() => setModal({ kind: 'space' })}
         onEditSpace={(id) => setModal({ kind: 'space', space: spaces.find((s) => s.id === id) })}

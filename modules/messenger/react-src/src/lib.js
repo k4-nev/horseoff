@@ -13,7 +13,7 @@ export {
 export const chatKey = (a, b) => [a, b].sort().join('_');
 
 /* Мост к оболочке — общий на все модули. */
-export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
+export { S, api, wsSend, toast, buzz, me, meId, denyMessage } from '../../../../core/react-src/src/shared/shell.js';
 
 /* Даты, время и имя — общие на всё приложение. Разделитель дней здесь
    именно дата, без «Сегодня»: она же служит ключом группировки. */

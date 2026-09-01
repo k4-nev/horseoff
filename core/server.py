@@ -1974,7 +1974,13 @@ async def handle_ws(websocket):
                         srv_mod = _loaded_modules.get('servers_api')
                         if srv_mod and hasattr(srv_mod, 'cached_data') and hasattr(srv_mod, 'data_lock'):
                             with srv_mod.data_lock:
-                                await websocket.send(json.dumps({'type':'servers_update','data':list(srv_mod.cached_data)}))
+                                snap = list(srv_mod.cached_data)
+                            await websocket.send(json.dumps({'type':'servers_update','data':snap}))
+                            # Снимка нет — значит опроса без зрителей не было;
+                            # просим сделать круг прямо сейчас, а не через
+                            # полминуты
+                            if not snap and hasattr(srv_mod, 'poll_now'):
+                                srv_mod.poll_now()
 
                 elif mt == 'servers_unsubscribe':
                     _metric_subs.discard(token)
@@ -2215,18 +2221,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'key': key, 'available': HAS_PUSH and key is not None})
 
         # Default modules setting (god only)
-        # Пороги ступеней. Владелец и только он: редактор порогов закреплён
-        # за arcana намертво, иначе тот, кому его однажды открыли, поднимает
-        # себе любые права, включая управление пользователями.
-        if path == '/api/roles':
-            s = require_role(self, 'arcana')
-            if not s: return self._role_denied()
-            taken, refused = roles_mod.set_thresholds(data.get('actions'))
-            dropped = _sync_module_grants()
-            return self._json(200, {'status': 'ok', 'applied': taken,
-                                    'refused': refused, 'dropped': dropped,
-                                    'roles': roles_mod.describe()})
-
         if path == '/api/settings/default-modules':
             s = require_role(self, 'arcana')
             if not s: return self._role_denied()
@@ -2648,6 +2642,18 @@ class Handler(BaseHTTPRequestHandler):
             ep = data.get('endpoint', '')
             if ep: remove_push_sub(s['id'], ep)
             return self._json(200, {'status': 'ok'})
+
+        # Пороги ступеней. Владелец и только он: редактор порогов закреплён
+        # за arcana намертво, иначе тот, кому его однажды открыли, поднимает
+        # себе любые права, включая управление пользователями.
+        if path == '/api/roles':
+            s = require_role(self, 'arcana')
+            if not s: return self._role_denied()
+            taken, refused = roles_mod.set_thresholds(data.get('actions'))
+            dropped = _sync_module_grants()
+            return self._json(200, {'status': 'ok', 'applied': taken,
+                                    'refused': refused, 'dropped': dropped,
+                                    'roles': roles_mod.describe()})
 
         # Default modules setting (god only)
         if path == '/api/settings/default-modules':

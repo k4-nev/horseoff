@@ -5,7 +5,7 @@
    здесь — про то, как разложить произвольный набор карточек по сетке. */
 
 /* Мост к оболочке — общий на все модули. */
-export { S, api, wsSend, toast, buzz, me, meId } from '../../../../core/react-src/src/shared/shell.js';
+export { S, api, wsSend, toast, buzz, me, meId, denyMessage } from '../../../../core/react-src/src/shared/shell.js';
 
 /* ── Сетка раскладки ───────────────────────────────────────────────────
    Восемь колонок на десктопе, две на телефоне. Высота строки в пикселях

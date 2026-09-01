@@ -43,7 +43,7 @@ function VoiceRoomRow({ ch, room, active, inRoom, admin, onOpen, onEdit, onDelet
 }
 
 export default function Sidebar({
-  spaces, channelsBySpace, rooms, currentChannel, voiceRoomId, admin,
+  spaces, channelsBySpace, rooms, currentChannel, voiceRoomId, admin, canManageSpace,
   onOpenChannel, onCreateSpace, onEditSpace, onDeleteSpace, onCreateChannel, onEditChannel, onDeleteChannel,
 }) {
   const [collapsed, setCollapsed] = useState({});
@@ -77,13 +77,19 @@ export default function Sidebar({
         {spaces.map((sp) => {
           const channels = channelsBySpace[sp.id] || [];
           const off = !!collapsed[sp.id];
+          // Правами распоряжаться этой группой человек может и не обладать,
+          // хотя видит её: тогда кнопок правки и удаления быть не должно
+          const boss = canManageSpace ? canManageSpace(sp) : admin;
           return (
             <div className="ch-space-group" data-sid={sp.id} key={sp.id}>
               <div
                 className="ch-space-header"
                 onClick={() => { buzz(6); setCollapsed((c) => ({ ...c, [sp.id]: !off })); }}
                 onContextMenu={(e) => {
-                  if (!admin) return;
+                  // В чужой группе меню не открываем вовсе: показывать
+                  // «Удалить», а потом молча не удалять — хуже, чем не
+                  // показывать
+                  if (!(canManageSpace ? canManageSpace(sp) : admin)) return;
                   e.preventDefault();
                   setCtx({ spaceId: sp.id, x: e.clientX, y: e.clientY });
                 }}
@@ -99,7 +105,7 @@ export default function Sidebar({
               {!off && channels.map((ch) => (ch.type === 'voice' ? (
                 <VoiceRoomRow
                   key={ch.id} ch={ch} room={rooms[ch.id] || {}}
-                  active={currentChannel === ch.id} inRoom={voiceRoomId === ch.id} admin={admin}
+                  active={currentChannel === ch.id} inRoom={voiceRoomId === ch.id} admin={boss}
                   onOpen={() => onOpenChannel(sp.id, ch.id)}
                   onEdit={() => onEditChannel(sp.id, ch)}
                   onDelete={() => onDeleteChannel(sp.id, ch)}
@@ -115,7 +121,7 @@ export default function Sidebar({
                     : <span className="ch-channel-hash">#</span>}
                   <span className="ch-channel-name">{ch.name}</span>
                   <span className="ch-unread-badge" style={{ display: ch.unread > 0 ? '' : 'none' }}>{ch.unread || 0}</span>
-                  {admin && (
+                  {boss && (
                     <div className="ch-channel-actions">
                       <button className="ch-space-action" onClick={(e) => { e.stopPropagation(); onEditChannel(sp.id, ch); }}>
                         <span className="ico ico-14 ico-pencil" />

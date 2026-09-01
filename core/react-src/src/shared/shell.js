@@ -17,6 +17,14 @@ export const api = (url, opts) => {
 };
 
 export const wsSend = (m) => { const s = S(); if (s && s.wsSend) s.wsSend(m); };
+
+/* Ответ сервера об отказе — человеку. Сервер присылает и действие, и нужную
+   ступень; показывать вместо этого «Ошибка» значит заставлять гадать. */
+export const denyMessage = (d, fallback) => {
+  if (d && d.need_role) return 'Недостаточно прав: нужна роль ' + String(d.need_role).toUpperCase();
+  if (d && d.error) return d.error;
+  return fallback || 'Не удалось выполнить';
+};
 export const toast = (t, type) => { const s = S(); if (s && s.toast) s.toast(t, type); };
 
 /** Текущий пользователь целиком и его id — оболочка держит их у себя. */
