@@ -121,7 +121,9 @@ window.Shell = {
   closeModal: (id) => { const el = document.getElementById(id); if (el) el.classList.remove('active'); },
   wsSend: (data) => {
     window.__wsSent.push(data);
-    if (data.type === 'servers_request') {
+    // Подписка и разовый запрос отвечают одинаково — сервер и там и там
+    // сразу отдаёт текущий снимок
+    if (data.type === 'servers_request' || data.type === 'servers_subscribe') {
       setTimeout(() => window.Servers && window.Servers.onServersUpdate(servers), 20);
     } else if (data.type === 'set_interval') {
       settings.poll_interval = data.interval;

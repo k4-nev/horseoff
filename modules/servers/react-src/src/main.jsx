@@ -16,6 +16,14 @@ import App from './App.jsx';
 
 let handlers = null;
 
+/* Метрики приходят по подписке, а не всем подряд: раздел открыт — подписка
+   есть, ушли в другой модуль — снята. Оболочка зовёт onActivate/onDeactivate
+   при переключении, а модуль при этом остаётся смонтированным. */
+const sub = (on) => {
+  const S = window.Shell;
+  if (S && S.wsSend) S.wsSend({ type: on ? 'servers_subscribe' : 'servers_unsubscribe' });
+};
+
 window.Servers = {
   onServersUpdate(data) {
     if (handlers) handlers.onServersUpdate(data);
@@ -23,6 +31,8 @@ window.Servers = {
   onSettingsUpdate(settings) {
     if (handlers) handlers.onSettingsUpdate(settings);
   },
+  onActivate() { sub(true); },
+  onDeactivate() { sub(false); },
 };
 
 const el = document.getElementById('srv-mount');

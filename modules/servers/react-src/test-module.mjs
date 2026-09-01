@@ -425,6 +425,21 @@ try {
   await p12.waitForTimeout(50);
   const highlighted60 = await p12.locator('.srv-interval-btn', { hasText: '60s' }).getAttribute('class');
   check('входящий WS settings-пуш переставляет отметку интервала', highlighted60.includes('on'), highlighted60);
+  /* Метрики теперь по подписке: раздел открыт — подписка есть, ушли —
+     снята. Сервер сам никому ничего не шлёт, поэтому проверяем, что модуль
+     просит подписку и отпускает её при уходе. */
+  const subs = await p12.evaluate(() => window.__wsSent.filter((m) => String(m.type).startsWith('servers_')).map((m) => m.type));
+  check('модуль подписывается на метрики, а не просит их разово',
+    subs.includes('servers_subscribe'), subs.join(',') || '(ничего)');
+  await p12.evaluate(() => window.Servers.onDeactivate());
+  await p12.waitForTimeout(50);
+  const afterLeave = await p12.evaluate(() => window.__wsSent.map((m) => m.type));
+  check('уход из раздела снимает подписку', afterLeave.includes('servers_unsubscribe'));
+  await p12.evaluate(() => window.Servers.onActivate());
+  await p12.waitForTimeout(50);
+  const back = await p12.evaluate(() => window.__wsSent.filter((m) => m.type === 'servers_subscribe').length);
+  check('возврат в раздел подписывает заново', back >= 2, 'подписок: ' + back);
+
   await p12.close();
 } finally {
   await browser.close();

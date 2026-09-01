@@ -1041,12 +1041,61 @@ voice_rooms = {}
 voice_rooms_lock = threading.Lock()
 _ws_queue = None  # asyncio.Queue for cross-thread messaging
 
+def _ws_send_token(token, data):
+    """Одному соединению по токену."""
+    if not _ws_queue or not ws_loop: return
+    try:
+        ws_loop.call_soon_threadsafe(_ws_queue.put_nowait, ('token', token, data, None))
+    except Exception: pass
+
+
 def _ws_broadcast_to_user(user_id, data, exclude_token=None):
     """Schedule broadcast to all WS clients of a user."""
     if not _ws_queue or not ws_loop: return
     try:
         ws_loop.call_soon_threadsafe(_ws_queue.put_nowait, ('user', user_id, data, exclude_token))
     except: pass
+
+# Токены тех, кто сейчас смотрит на «Серверы». Метрики уходят только им:
+# раньше сводка по всей инфраструктуре — адреса, нагрузка, оплачено до
+# какого числа — раз в полминуты приезжала каждому вошедшему, включая тех,
+# кому раздел не выдан вовсе.
+_metric_subs = set()
+
+
+def has_metric_subs():
+    """Смотрит ли кто-нибудь. Опрос по SSH без зрителей можно и разредить."""
+    return any(t in ws_clients for t in _metric_subs)
+
+
+def _may_see_module(user_id, module_id, action):
+    """Доступ к разделу целиком: и ступень, и выдача. Спрашиваем по записи
+    пользователя, а не по сессии — понижение действует сразу."""
+    u = next((x for x in load_users() if x['id'] == user_id), None)
+    if not u: return False
+    role = u.get('role', 'common')
+    if role == 'arcana': return True
+    if not roles_mod.may(role, action): return False
+    return module_id in (u.get('modules') or [])
+
+
+def notify_module_users(module_id, action, payload, push=None):
+    """Сообщение всем, у кого есть доступ к разделу, — и в приложение, и в
+    push. Именно всем с доступом, а не только тем, кто сейчас в разделе:
+    про упавший сервер надо узнавать, не глядя на него."""
+    seen = set()
+    for tk, cl in list(ws_clients.items()):
+        uid = cl.get('user_id')
+        if uid in seen or not _may_see_module(uid, module_id, action): continue
+        seen.add(uid)
+        _ws_send_token(tk, payload)
+    if push:
+        for u in load_users():
+            if u['id'] in seen: continue          # он уже увидел в приложении
+            if not _may_see_module(u['id'], module_id, action): continue
+            try: send_push(u['id'], push[0], push[1], None)
+            except Exception: pass
+
 
 def _ws_broadcast_all(data):
     """Broadcast to ALL connected clients."""
@@ -1080,7 +1129,11 @@ def _ws_ch_presence_offline(user_id):
     except: pass
 
 def ws_push_servers(server_data):
-    _ws_broadcast_all({'type': 'servers_update', 'data': server_data})
+    """Только тем, кто открыл раздел и имеет к нему доступ."""
+    msg = {'type': 'servers_update', 'data': server_data}
+    for tk in list(_metric_subs):
+        if tk in ws_clients: _ws_send_token(tk, msg)
+        else: _metric_subs.discard(tk)
 
 def ws_push_settings():
     _ws_broadcast_all({'type': 'settings', 'data': load_settings()})
@@ -1101,6 +1154,11 @@ async def _ws_queue_processor():
                         except: dead.append(tk)
                     for tk in dead:
                         ws_clients.pop(tk, None)
+                elif kind == 'token':
+                    cl = ws_clients.get(target_id)
+                    if cl:
+                        try: await cl['ws'].send(json.dumps(data))
+                        except: ws_clients.pop(target_id, None)
                 elif kind == 'user':
                     msg = json.dumps(data)
                     dead = []
@@ -1889,11 +1947,23 @@ async def handle_ws(websocket):
                                 except: pass
                             await _voice_leave(room_id, target_uid, target_token)
 
-                elif mt == 'servers_request':
-                    srv_mod = _loaded_modules.get('servers_api')
-                    if srv_mod and hasattr(srv_mod, 'cached_data') and hasattr(srv_mod, 'data_lock'):
-                        with srv_mod.data_lock:
-                            await websocket.send(json.dumps({'type':'servers_update','data':list(srv_mod.cached_data)}))
+                elif mt in ('servers_request', 'servers_subscribe'):
+                    # Раздел открыт — подписались, ушли — отписались. Раньше
+                    # метрики рассылались всем подключённым, и раздел был ни
+                    # при чём: сводка по инфраструктуре приезжала даже тем,
+                    # кому «Серверы» не выданы.
+
+                    if not _may_see_module(s['id'], 'servers', 'servers.view'):
+                        await websocket.send(json.dumps({'type':'error','msg':'Нет доступа'}))
+                    else:
+                        if mt == 'servers_subscribe': _metric_subs.add(token)
+                        srv_mod = _loaded_modules.get('servers_api')
+                        if srv_mod and hasattr(srv_mod, 'cached_data') and hasattr(srv_mod, 'data_lock'):
+                            with srv_mod.data_lock:
+                                await websocket.send(json.dumps({'type':'servers_update','data':list(srv_mod.cached_data)}))
+
+                elif mt == 'servers_unsubscribe':
+                    _metric_subs.discard(token)
 
             except json.JSONDecodeError: pass
             except Exception as e:
@@ -1904,6 +1974,7 @@ async def handle_ws(websocket):
     finally:
         user_id = None
         v_rooms = []
+        _metric_subs.discard(token)   # соединение закрылось — подписка не нужна
         if token and token in ws_clients:
             user_id = ws_clients[token]['user_id']
             del ws_clients[token]

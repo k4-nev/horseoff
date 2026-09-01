@@ -603,6 +603,24 @@ try {
   await pn.waitForSelector('#appShell.active', { timeout: 8000 });
   check('верный PIN пустил в приложение', await pn.locator('.ho-pin-screen').count() === 0);
 
+  /* Упавший сервер виден из любого модуля: карточка приходит по вебсокету,
+     а не рисуется самим разделом. Проверяем, что оболочка её показывает и
+     что она не исчезает сама — падение стоит того, чтобы задержаться. */
+  await pn.evaluate(() => Shell.onWSData({ type: 'server_down', ip: '5.5.5.5', name: 'Proxy-01' }));
+  await pn.waitForTimeout(400);
+  const alert = await pn.evaluate(() => {
+    const c = document.querySelector('.hq-card');
+    return c ? { text: c.textContent, kind: c.className } : null;
+  });
+  check('падение сервера показано карточкой',
+    !!alert && alert.text.includes('не отвечает') && alert.text.includes('Proxy-01'),
+    JSON.stringify(alert));
+  check('карточка про падение не гаснет сама', !!alert && alert.kind.includes('hq-k-error'), alert && alert.kind);
+  await pn.evaluate(() => Shell.onWSData({ type: 'server_up', ip: '5.5.5.5', name: 'Proxy-01' }));
+  await pn.waitForTimeout(400);
+  const back = await pn.evaluate(() => [...document.querySelectorAll('.hq-card')].map((c) => c.textContent).join('|'));
+  check('возвращение сервера тоже сообщают', back.includes('снова на связи'), back);
+
   console.log('\n── Замок: запереть уже открытое приложение ──');
   /* Замок не выкидывает из приложения, а накрывает его экраном PIN: сокет не
      рвётся, открытый модуль остаётся открытым. Проверяем именно это — что

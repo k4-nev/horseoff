@@ -92,7 +92,9 @@ export default function App({ registerHandlers }) {
     function waitAndRequest() {
       if (cancelled) return;
       if (Shell?.wsReady) {
-        Shell.wsSend({ type: 'servers_request' });
+        // Подписка вместо разового запроса: сервер будет слать обновления,
+        // пока раздел открыт, и перестанет, как только из него уйдут
+        Shell.wsSend({ type: 'servers_subscribe' });
         wsFallbackRef.current = setTimeout(() => {
           api.getStatus().then((data) => { if (data) applyData(data); });
         }, 3000);
@@ -198,7 +200,7 @@ export default function App({ registerHandlers }) {
 
   function loadData() {
     setSpinning(true);
-    Shell.wsSend({ type: 'servers_request' });
+    Shell.wsSend({ type: 'servers_subscribe' });
     setTimeout(() => setSpinning(false), 1000);
   }
 

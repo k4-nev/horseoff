@@ -141,6 +141,47 @@ def _ssh(server, cmd, timeout=10):
         return p.stdout.strip() if p.returncode == 0 else None
     except: return None
 
+# Опрос без зрителей — раз в пять минут: достаточно, чтобы заметить падение,
+# и вчетверо меньше нагрузки, чем прежние полминуты.
+IDLE_INTERVAL = 300
+
+# ip → сколько опросов подряд машина не отвечает. Оповещаем со второго:
+# один пропущенный опрос — это чаще сетевая икота, чем упавший сервер.
+_down_streak = {}
+_down_notified = set()
+
+
+def _announce_down(results):
+    """Упал — сказать всем, у кого есть доступ к разделу. Поднялся — тоже.
+
+    Оповещение идёт не подписчикам, а всем с доступом: про упавший сервер
+    надо узнавать, не глядя на него. Тем, кто сейчас в приложении, приходит
+    карточка, остальным — push."""
+    try:
+        from server import notify_module_users
+    except Exception:
+        return
+    for m in results:
+        ip, name = m.get('ip'), m.get('name') or m.get('ip')
+        if not ip: continue
+        if m.get('online'):
+            _down_streak[ip] = 0
+            if ip in _down_notified:
+                _down_notified.discard(ip)
+                notify_module_users(
+                    'servers', 'servers.view',
+                    {'type': 'server_up', 'ip': ip, 'name': name},
+                    push=('Сервер поднялся', name + ' снова на связи'))
+            continue
+        _down_streak[ip] = _down_streak.get(ip, 0) + 1
+        if _down_streak[ip] >= 2 and ip not in _down_notified:
+            _down_notified.add(ip)
+            notify_module_users(
+                'servers', 'servers.view',
+                {'type': 'server_down', 'ip': ip, 'name': name},
+                push=('Сервер упал', name + ' не отвечает'))
+
+
 def get_metrics(server, do_speed=False):
     role = server.get('role', '')
     is_proxy = role == 'proxy'
@@ -260,14 +301,25 @@ def poll_loop():
                 results.append(m)
             save_metrics_hist()
             with data_lock: cached_data = results
-            # Push to all WS clients
+            _announce_down(results)
+            # Метрики уходят только тем, кто сейчас смотрит на раздел
             try:
                 from server import ws_push_servers
                 ws_push_servers(results)
             except: pass
         else:
             with data_lock: cached_data = []
-        time.sleep(interval)
+
+        # Пока раздел никто не открыл, опрашивать машины по SSH каждые
+        # полминуты незачем: данные всё равно некому смотреть. Но и бросать
+        # опрос нельзя — иначе некому будет заметить падение. Поэтому реже,
+        # а не никогда.
+        try:
+            from server import has_metric_subs
+            watched = has_metric_subs()
+        except Exception:
+            watched = True
+        time.sleep(interval if watched else max(interval, IDLE_INTERVAL))
 
 def daily_ruvds():
     while True:

@@ -91,54 +91,9 @@ const Shell = {
         this.ws.send(JSON.stringify({type:'auth',token:this.token,hidden:this._isWindowHidden()}));
       };
       this.ws.onmessage = (e) => {
-        try {
-          var data = JSON.parse(e.data);
-          if (data.type === 'auth_ok') {
-            this.wsReady = true;
-            this._wsRetries = 0;
-          }
-          else if (data.type === 'error') {
-            if (data.msg === 'Unauthorized') {
-              // The token is genuinely dead (expired/revoked/evicted storage),
-              // not a transient network hiccup — retrying it forever is what
-              // hammered the per-IP login limiter and took the whole IP down
-              // for every other user behind it (2026-08-24 iOS incident).
-              // Same recovery path as an HTTP 401: drop it, show login.
-              this._wsRetries = 0;
-              this.logout();
-            }
-            // Other WS-level errors (e.g. rate-limited) just let the normal
-            // onclose backoff below retry — nothing else to do here.
-            return;
-          }
-          else if (data.type === 'message') this.onWSMessage(data);
-          else if (data.type === 'typing') this.onWSTyping(data);
-          else if (data.type === 'read') this.onWSRead(data);
-          else if (data.type === 'muted_list') { this._mutedContacts = data.muted || []; }
-          else if (data.type === 'servers_update') {
-            if (window.Servers && Servers.onServersUpdate) Servers.onServersUpdate(data.data);
-          }
-          else if (data.type === 'settings') {
-            if (window.Servers && Servers.onSettingsUpdate) Servers.onSettingsUpdate(data.data);
-          }
-          else if (data.type === 'modules_update') {
-            this.onModulesUpdate(data.modules || []);
-          }
-          // Forward everything to messenger
-          if (window.Messenger && Messenger.onWS) Messenger.onWS(data);
-          // Forward to channels
-          if (window.Channels && Channels.onWS) Channels.onWS(data);
-          // Forward to valentine
-          if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
-          // Forward to bots
-          if (window.Bots && Bots.onWS) Bots.onWS(data);
-          if (window.MP && MP.onWS) MP.onWS(data);
-          // Valentine badge (when module not active)
-          if (data.type === 'valentine' && this.activeModule !== 'valentine') {
-            this._uiEmit({ valentine: (this._uiState.valentine || 0) + 1 });
-          }
-        } catch(ex) {}
+        try { this.onWSData(JSON.parse(e.data)); } catch (ex) {}
       };
+
       this.ws.onclose = () => {
         this.wsReady = false;
         if (!this.token) return; // logout() during this connection — nothing to retry
@@ -155,6 +110,71 @@ const Shell = {
 
   cacheContact(userId, avatar) {
     this.contactsCache[userId] = avatar;
+  },
+
+  /* Разбор входящего вынесен из onmessage отдельным методом: так его
+     можно позвать без сокета — и в проверках, и когда сообщение
+     приходит не из сети. */
+  onWSData(data) {
+      if (data.type === 'auth_ok') {
+        this.wsReady = true;
+        this._wsRetries = 0;
+      }
+      else if (data.type === 'error') {
+        if (data.msg === 'Unauthorized') {
+          // The token is genuinely dead (expired/revoked/evicted storage),
+          // not a transient network hiccup — retrying it forever is what
+          // hammered the per-IP login limiter and took the whole IP down
+          // for every other user behind it (2026-08-24 iOS incident).
+          // Same recovery path as an HTTP 401: drop it, show login.
+          this._wsRetries = 0;
+          this.logout();
+        }
+        // Other WS-level errors (e.g. rate-limited) just let the normal
+        // onclose backoff below retry — nothing else to do here.
+        return;
+      }
+      else if (data.type === 'message') this.onWSMessage(data);
+      else if (data.type === 'typing') this.onWSTyping(data);
+      else if (data.type === 'read') this.onWSRead(data);
+      else if (data.type === 'muted_list') { this._mutedContacts = data.muted || []; }
+      else if (data.type === 'servers_update') {
+        if (window.Servers && Servers.onServersUpdate) Servers.onServersUpdate(data.data);
+      }
+      else if (data.type === 'settings') {
+        if (window.Servers && Servers.onSettingsUpdate) Servers.onSettingsUpdate(data.data);
+      }
+      else if (data.type === 'modules_update') {
+        this.onModulesUpdate(data.modules || []);
+      }
+      else if (data.type === 'server_down' || data.type === 'server_up') {
+        /* Падение сервера видно и из другого модуля: карточка приходит
+           всем, у кого есть доступ к разделу, а не только тем, кто
+           сейчас в нём сидит. */
+        var down = data.type === 'server_down';
+        this.notify({
+          id: 'srv-' + data.ip,
+          kind: down ? 'error' : 'ok',
+          text: down ? 'Сервер не отвечает' : 'Сервер снова на связи',
+          sub: data.name || data.ip,
+          persistent: down,
+          action: { label: 'Открыть', fn: function () { window.Shell.switchModule('servers'); } },
+        });
+        if (down) this.playNotifySound();
+      }
+      // Forward everything to messenger
+      if (window.Messenger && Messenger.onWS) Messenger.onWS(data);
+      // Forward to channels
+      if (window.Channels && Channels.onWS) Channels.onWS(data);
+      // Forward to valentine
+      if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
+      // Forward to bots
+      if (window.Bots && Bots.onWS) Bots.onWS(data);
+      if (window.MP && MP.onWS) MP.onWS(data);
+      // Valentine badge (when module not active)
+      if (data.type === 'valentine' && this.activeModule !== 'valentine') {
+        this._uiEmit({ valentine: (this._uiState.valentine || 0) + 1 });
+      }
   },
 
   onWSMessage(data) {
@@ -603,6 +623,13 @@ const Shell = {
       }
     }
     this.activeModule = id;
+    /* Симметрично onDeactivate: модуль узнаёт, что его открыли. «Серверы»
+       по этому сигналу подписываются на метрики — без подписки сервер их
+       никому не шлёт. */
+    var cur = this._moduleApi(id);
+    if (cur && typeof cur.onActivate === 'function') {
+      try { cur.onActivate(); } catch (e) {}
+    }
     if (id === 'messenger') { this.unreadTotal = 0; this.updateMsgBadge(); }
     if (id === 'valentine') this._uiEmit({ valentine: 0 });
     this._uiEmit({ active: id, immersive: false });
