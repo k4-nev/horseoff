@@ -30,10 +30,11 @@ def _boss(session, space_id):
 
 
 def _may_here(session, action, space_id):
-    """Право на действие в конкретной группе: либо глобальное, либо своя."""
-    if _may(session, action):
-        return True
-    return _may(session, 'channels.moderate_own') and _boss(session, space_id)
+    """Право на действие внутри группы: хозяин группы либо глобальное право.
+
+    Хозяин — тот, кто её создал, или кому выдали «МОД». Ступень тут ни при
+    чём: она решает только, можно ли вообще заводить группы."""
+    return _boss(session, space_id) or _may(session, action)
 
 
 def _denied(handler, action):
@@ -309,7 +310,13 @@ def handle_post(handler, session, path, data):
     p = path.split('?')[0]
     # POST /api/mod/channels/spaces (create or edit)
     if p.endswith('/spaces'):
-        if not _may(session, 'channels.create'): return _denied(handler, 'channels.create')
+        # Завести новую группу — по ступени; править существующую — по статусу
+        # в ней: свою переименовывает хозяин, чужую только глобальный модератор
+        if data.get('edit_id'):
+            if not _may_here(session, 'channels.moderate', data.get('edit_id')):
+                return _denied(handler, 'channels.moderate')
+        elif not _may(session, 'channels.create'):
+            return _denied(handler, 'channels.create')
         name = data.get('name', '').strip()
         if not name or len(name) > 40: return _json(handler, 400, {'error': 'Название группы 1-40 символов'})
         photo_b64 = data.get('photo')
@@ -341,8 +348,8 @@ def handle_post(handler, session, path, data):
     if p.endswith('/channels'):
         space_id = data.get('space_id', '')
         # В своей группе распоряжается хозяин, в чужой — только глобальное право
-        if not _may_here(session, 'channels.create', space_id):
-            return _denied(handler, 'channels.create')
+        if not _may_here(session, 'channels.moderate', space_id):
+            return _denied(handler, 'channels.moderate')
         name = data.get('name', '').strip()
         icon = data.get('icon', 'channels')
         if not name or len(name) > 30: return _json(handler, 400, {'error': 'Название 1-30 символов'})
@@ -413,8 +420,8 @@ def handle_delete(handler, session, path):
     # DELETE space
     if p.endswith('/spaces'):
         space_id = data.get('space_id', '')
-        if not _may_here(session, 'channels.create', space_id):
-            return _denied(handler, 'channels.create')
+        if not _may_here(session, 'channels.moderate', space_id):
+            return _denied(handler, 'channels.moderate')
         with _lock:
             spaces = load_spaces()
             spaces = [sp for sp in spaces if sp['id'] != space_id]
@@ -433,8 +440,8 @@ def handle_delete(handler, session, path):
         space = space_of_channel(channel_id)
         space_id = data.get('space_id') or (space['id'] if space else '')
         if not space_id: return _json(handler, 404, {'error': 'Канал не найден'})
-        if not _may_here(session, 'channels.create', space_id):
-            return _denied(handler, 'channels.create')
+        if not _may_here(session, 'channels.moderate', space_id):
+            return _denied(handler, 'channels.moderate')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
             channels = load_channels(space_id)
             channels = [ch for ch in channels if ch['id'] != channel_id]

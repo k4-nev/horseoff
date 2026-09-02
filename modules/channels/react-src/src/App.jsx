@@ -40,15 +40,12 @@ export default function App({ registerBridge }) {
      mythical модерирует свои группы, legendary — все; кнопки, которых
      ступень не тянет, просто не рисуются, поэтому подписи тут не нужны. */
   const access = useAccess();
-  const admin = access.may('channels.moderate') || access.may('channels.moderate_own');
-  /* Кнопки правки и удаления показываем только там, где сервер их выполнит:
-     глобальная модерация — везде, «своя группа» — где человек владелец или
-     назначен модератором. Раньше кнопки стояли у всех групп, а удаление в
-     чужой молча не срабатывало. */
+  /* Модерирование даёт статус в самой группе, а не ступень: создал группу —
+     в ней хозяин, делаешь всё. В чужих — обычный участник. Глобальная
+     модерация (channels.moderate) работает поверх этого. */
   const canManageSpace = useCallback((sp) => {
     if (!sp) return false;
     if (access.may('channels.moderate')) return true;
-    if (!access.may('channels.moderate_own')) return false;
     return sp.owner_id === meId || sp.my_space_role === 'owner' || sp.my_space_role === 'moderator';
   }, [access, meId]);
 
@@ -56,6 +53,11 @@ export default function App({ registerBridge }) {
   const [channelsBySpace, setChannelsBySpace] = useState({});
   const [space, setSpace] = useState(null);
   const [channel, setChannel] = useState(null);
+  /* Права всегда про текущую группу: раньше здесь стоял общий флаг, и в
+     чужом канале показывались модераторские действия, которые сервер потом
+     отклонял. */
+  const admin = canManageSpace(spaces.find((s) => s.id === space));
+
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastRead, setLastRead] = useState(0);

@@ -58,6 +58,17 @@ print('\n── Отказ объясняет, чего не хватает ─�
 check('по HTTP в ответе есть нужная ступень', "'need_role': roles_mod.min_role(action)" in blob)
 check('по вебсокету — тоже', "'type': 'denied'" in blob)
 
+print(chr(10) + '── Модерация — от статуса в группе ──')
+srv = io.open(CORE / 'server.py', encoding='utf-8').read()
+mod = srv[srv.index('def can_moderate_channel('):]
+mod = mod[:mod.index('def can_moderate_space(')]
+check('право модерировать канал даёт статус в группе, а не ступень',
+      'is_space_boss' in mod and 'moderate_own' not in mod,
+      'ступень отвечает только за право заводить группы')
+check('удаление сообщения не рассылается, если отказано',
+      "await _deny(websocket, 'channels.moderate')" in srv,
+      'иначе сообщение пропадает у всех и возвращается при перезагрузке')
+
 print(chr(10) + '── Подсказки не запрещают, а объясняют ──')
 acc = io.open(CORE / 'react-src' / 'src' / 'shared' / 'access.jsx', encoding='utf-8').read()
 head = acc[acc.index('export function may(action)'):]
@@ -70,7 +81,7 @@ pairs = [
     ('channels.read', 'channels.post', 'читать канал и писать в него'),
     ('bots.view', 'bots.control', 'видеть бота и управлять им'),
     ('servers.view', 'servers.manage', 'видеть серверы и менять их'),
-    ('channels.moderate_own', 'channels.moderate', 'своя группа и все каналы'),
+    ('channels.create', 'channels.moderate', 'завести свою группу и модерировать все'),
 ]
 for low, high, what in pairs:
     check('разные ступени: ' + what,

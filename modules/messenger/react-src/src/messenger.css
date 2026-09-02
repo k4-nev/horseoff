@@ -629,4 +629,4 @@ body.theme-light .msg-edited{color:#bbb}
 body.theme-light .msg-emoji-picker{background:rgba(255,255,255,0.96);border-color:rgba(220,220,220,0.6);box-shadow:0 8px 32px rgba(0,0,0,0.12)}
 /* Заперто по ступени: подсказка по наведению у disabled-кнопки не работает,
    поэтому причина написана прямо в подписи. */
-.msg-clear-chat-btn.locked{opacity:.6;cursor:not-allowed;font-size:11.5px}
+.msg-clear-chat-btn.locked{opacity:.75;cursor:not-allowed;font-size:11.5px;color:var(--text)}

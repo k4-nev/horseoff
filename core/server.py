@@ -1778,7 +1778,15 @@ async def handle_ws(websocket):
                         if ch_mod:
                             path = ch_mod.DATA_DIR / f'chan_{ch_id}.json'
                             msgs = ch_mod._load(path, [])
-                            msgs = [m for m in msgs if not (m['id'] == msg_id and (m.get('from') == s['id'] or can_moderate_channel(s, ch_id)))]
+                            target = next((m for m in msgs if m['id'] == msg_id), None)
+                            # Раньше отказ исполнялся молча: сообщение
+                            # оставалось на диске, но рассылка «удалено»
+                            # уходила всем — оно пропадало с экрана и
+                            # возвращалось при перезагрузке
+                            if not target or not (target.get('from') == s['id'] or can_moderate_channel(s, ch_id)):
+                                await _deny(websocket, 'channels.moderate')
+                                continue
+                            msgs = [m for m in msgs if m['id'] != msg_id]
                             ch_mod._save(path, msgs)
                             members = ch_mod.load_members(sp_id)
                             member_ids = set(m2['user_id'] for m2 in members)
@@ -2040,13 +2048,11 @@ MIME = {'.html':'text/html','.css':'text/css','.js':'application/javascript',
 def can_moderate_channel(session, channel_id):
     """Может ли человек модерировать этот канал.
 
-    Две ступени: legendary модерирует всё, mythical — только свои группы,
-    то есть созданные им либо те, где ему выдали «МОД». До этого роль
-    модератора в группе не проверялась нигде — её можно было назначить, и
-    она не значила ничего.
+    Право даёт статус в самой группе, а не ступень: создал группу — значит
+    в ней хозяин и делает всё, что делает модератор. Плюс глобальная
+    модерация поверх этого. В чужих группах человек остаётся участником.
     """
     if may(session, 'channels.moderate'): return True
-    if not may(session, 'channels.moderate_own'): return False
     ch_mod = _loaded_modules.get('channels_api')
     if not ch_mod or not channel_id: return False
     space = ch_mod.space_of_channel(channel_id)
@@ -2056,7 +2062,7 @@ def can_moderate_channel(session, channel_id):
 def can_moderate_space(session, space_id):
     """То же, но когда речь про группу целиком (кик, состав участников)."""
     if may(session, 'channels.moderate'): return True
-    if not may(session, 'channels.moderate_own') or not space_id: return False
+    if not space_id: return False
     ch_mod = _loaded_modules.get('channels_api')
     if not ch_mod: return False
     space = next((sp for sp in ch_mod.load_spaces() if sp['id'] == space_id), None)

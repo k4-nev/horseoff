@@ -552,5 +552,5 @@ body.theme-light .ch-att-video{box-shadow:0 2px 8px rgba(23,33,54,.1),0 1px 2px 
 /* Заперто по ступени: кнопка серая и сама объясняет, чего не хватает.
    !important здесь вынужденный: у базового правила .ch-vpj-join-btn фон
    объявлен через !important, и без него запертая кнопка оставалась цветной. */
-.ch-vpj-join-btn.locked{background:var(--surface2)!important;color:var(--text-dim);
+.ch-vpj-join-btn.locked{background:var(--surface2)!important;color:var(--text)!important;
   border:1px solid var(--border);box-shadow:none;cursor:not-allowed;font-size:12.5px}
