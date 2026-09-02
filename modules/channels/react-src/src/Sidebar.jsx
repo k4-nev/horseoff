@@ -43,7 +43,7 @@ function VoiceRoomRow({ ch, room, active, inRoom, admin, onOpen, onEdit, onDelet
 }
 
 export default function Sidebar({
-  spaces, channelsBySpace, rooms, currentChannel, voiceRoomId, admin, canManageSpace,
+  spaces, channelsBySpace, rooms, currentChannel, voiceRoomId, admin, canManageSpace, canCreate,
   onOpenChannel, onCreateSpace, onEditSpace, onDeleteSpace, onCreateChannel, onEditChannel, onDeleteChannel,
 }) {
   const [collapsed, setCollapsed] = useState({});
@@ -55,10 +55,14 @@ export default function Sidebar({
       <div className="ch-sidebar">
         <div className="ch-sidebar-head">
           <div className="ch-sidebar-title">Каналы</div>
-          {admin && <button className="ch-head-add" title="Создать группу" onClick={onCreateSpace}>+</button>}
+          {/* Завести группу — право ступени, оно ни к какой группе не
+              относится. Распоряжаться существующей — статус в ней. Раньше
+              обе кнопки висели на одном флаге, и человек с правом создавать
+              терял его, стоило зайти в чужую группу. */}
+          {canCreate && <button className="ch-head-add" title="Создать группу" onClick={onCreateSpace}>+</button>}
         </div>
         <div className="ch-sidebar-empty" style={{ display: 'flex' }}>
-          {admin
+          {canCreate
             ? <><button className="ch-empty-add" onClick={onCreateSpace}>+</button><p>Создайте первую группу</p></>
             : <p>У вас ещё нет групп</p>}
         </div>
@@ -70,7 +74,7 @@ export default function Sidebar({
     <div className="ch-sidebar">
       <div className="ch-sidebar-head">
         <div className="ch-sidebar-title">Каналы</div>
-        {admin && <button className="ch-head-add" title="Создать группу" onClick={onCreateSpace}>+</button>}
+        {canCreate && <button className="ch-head-add" title="Создать группу" onClick={onCreateSpace}>+</button>}
       </div>
 
       <div className="ch-sidebar-list">

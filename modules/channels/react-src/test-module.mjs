@@ -34,8 +34,8 @@ function waitForServer(url, tries = 40) {
 const MODULES = [{ id: 'channels', name: 'Каналы', icon: 'channels', entry: 'channels.html' }];
 
 const SPACES = [
-  { id: 's1', name: 'Команда', type: 'text', photo: null },
-  { id: 's2', name: 'Голосовая', type: 'voice_group', photo: null },
+  { id: 's1', name: 'Команда', type: 'text', photo: null, owner_id: 'me', my_space_role: 'owner' },
+  { id: 's2', name: 'Голосовая', type: 'voice_group', photo: null, owner_id: 'u2', my_space_role: 'member' },
 ];
 const CHANNELS = {
   s1: [
@@ -915,6 +915,36 @@ check('вместо него объяснение с нужной ступень
 check('кнопки вложения тоже нет', await pc.locator('.ch-attach-btn').count() === 0);
 check('ничего не ушло в сеть', await pc.evaluate(() => window.__sent.filter((m) => m.type === 'ch_send').length) === 0);
 await pc.close();
+ROLE = 'arcana';
+
+console.log('\n── Ступень mythical: свои группы — свои правила ──');
+/* Право заводить группы — от ступени и ни к какой группе не привязано.
+   Право распоряжаться — от статуса в группе. Однажды это было одним флагом,
+   и человек с правом создавать терял кнопку, стоило открыть чужую группу. */
+ROLE = 'mythical';
+const pm = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+await pm.route('**/api/**', routeApi);
+await pm.addInitScript(() => { localStorage.setItem('ho_token', 't'); localStorage.removeItem('ho_pin'); });
+await pm.goto('http://localhost:8894/core/shell.html');
+await pm.waitForSelector('#appShell.active');
+await pm.evaluate(() => { window.__sent = []; Shell.wsReady = true; Shell.wsSend = (m) => window.__sent.push(m); });
+await pm.evaluate(() => Shell.switchModule('channels'));
+await pm.waitForSelector('.ch-wrap');
+await pm.waitForTimeout(900);
+
+check('кнопка «создать группу» на месте', await pm.locator('.ch-head-add').count() >= 1);
+await pm.locator('.ch-space-header').first().click({ button: 'right' });
+await pm.waitForTimeout(350);
+check('в своей группе меню есть', await pm.locator('.ch-ctx').count() === 1);
+check('и в нём можно завести канал',
+  (await pm.locator('.ch-ctx-item').allTextContents()).some((t) => t.includes('Создать канал')));
+await pm.keyboard.press('Escape');
+await pm.locator('.ch-messages, .ch-wrap').first().click({ position: { x: 5, y: 5 } }).catch(() => {});
+await pm.waitForTimeout(300);
+await pm.locator('.ch-space-header').nth(1).click({ button: 'right' });
+await pm.waitForTimeout(350);
+check('в чужой группе меню не открывается', await pm.locator('.ch-ctx').count() === 0);
+await pm.close();
 ROLE = 'arcana';
 
 await browser.close();

@@ -451,7 +451,7 @@ export default function App({ registerBridge }) {
       <Sidebar
         spaces={spaces} channelsBySpace={channelsBySpace} rooms={vs.rooms}
         currentChannel={channel} voiceRoomId={vs.roomId} admin={admin}
-        canManageSpace={canManageSpace}
+        canManageSpace={canManageSpace} canCreate={access.may('channels.create')}
         onOpenChannel={openChannel}
         onCreateSpace={() => setModal({ kind: 'space' })}
         onEditSpace={(id) => setModal({ kind: 'space', space: spaces.find((s) => s.id === id) })}
