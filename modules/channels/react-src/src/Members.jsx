@@ -3,6 +3,10 @@ import { ROLE_ORDER, displayName } from './lib.js';
 import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
 import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
 
+/* Модератор группы — и назначенный, и тот, кто её создал: раньше бейдж
+   видели только назначенные, и создатель своего статуса не знал. */
+const isMod = (m) => m.space_role === 'moderator' || m.space_role === 'owner';
+
 /* Правая колонка: участники группы. Онлайн выше оффлайна, внутри — по роли.
    В голосовом канале сверху отдельной группой те, кто сейчас в комнате: это
    ответ на вопрос «с кем я говорю», а не «кто вообще есть в группе». */
@@ -10,7 +14,7 @@ import useMenuFit from '../../../../core/react-src/src/shared/useMenuFit.js';
 function Row({ m, offline, inRoom, muted, onCtx }) {
   return (
     <div
-      className={'ch-member' + (offline ? ' offline' : '') + (m.space_role === 'moderator' ? ' moderator' : '') + (inRoom ? ' in-voice' : '')}
+      className={'ch-member' + (offline ? ' offline' : '') + (isMod(m) ? ' moderator' : '') + (inRoom ? ' in-voice' : '')}
       onContextMenu={(e) => { e.preventDefault(); onCtx(e, m); }}
     >
       <Avatar cls="ch-member-ava" src={m.avatar} name={displayName(m)} />
@@ -20,7 +24,7 @@ function Row({ m, offline, inRoom, muted, onCtx }) {
           <span className={'ico ico-14 ' + (muted ? 'ico-mic-off' : 'ico-mic')} style={muted ? undefined : { backgroundColor: 'var(--accent)' }} />
         </span>
       )}
-      {m.space_role === 'moderator' && <span className="ch-mod-badge">МОД</span>}
+      {isMod(m) && <span className="ch-mod-badge">МОД</span>}
       <span className={'role-badge ' + m.role} style={{ fontSize: 8, padding: '1px 4px' }}>{(m.role || '').toUpperCase()}</span>
       {!offline && <span className={'ch-member-online-dot ' + (m.status || 'online')} />}
     </div>
@@ -111,7 +115,7 @@ export default function Members({
             {admin && !isMe && target.role !== 'arcana' && (
               <>
                 <div className="ch-ctx-item" onClick={() => { onSetModerator(target.user_id, target.space_role !== 'moderator'); close(); }}>
-                  <span className="ico ico-14 ico-users" /> {target.space_role === 'moderator' ? 'Снять модератора' : 'Назначить модератором'}
+                  <span className="ico ico-14 ico-users" /> {isMod(target) ? 'Снять модератора' : 'Назначить модератором'}
                 </div>
                 <div className="ch-ctx-item ch-ctx-danger" onClick={() => { onKick(target.user_id); close(); }}>
                   <span className="ico ico-14 ico-trash" /> Кикнуть

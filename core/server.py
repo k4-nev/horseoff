@@ -1929,6 +1929,12 @@ async def handle_ws(websocket):
                 elif mt == 'voice_allow_speak':
                     room_id = data.get('room_id','')
                     target_uid = data.get('user_id','')
+                    # Слово даёт модератор группы или глобальный. Раньше не
+                    # проверялось вовсе: слушатель мог выдать слово себе сам
+                    _vs = voice_rooms.get(room_id, {}).get('space_id', '')
+                    if not (may(s, 'voice.moderate') or can_moderate_space(s, _vs)):
+                        await _deny(websocket, 'voice.moderate')
+                        continue
                     with voice_rooms_lock:
                         if room_id in voice_rooms:
                             room = voice_rooms[room_id]
@@ -1955,7 +1961,10 @@ async def handle_ws(websocket):
                 elif mt == 'voice_kick':
                     room_id = data.get('room_id','')
                     target_uid = data.get('target_user_id','')
-                    if room_id and target_uid and may(s, 'voice.moderate'):
+                    # Комната живёт внутри группы, поэтому распоряжается ею
+                    # модератор этой группы — и глобальный модератор поверх
+                    _vs = voice_rooms.get(room_id, {}).get('space_id', '')
+                    if room_id and target_uid and (may(s, 'voice.moderate') or can_moderate_space(s, _vs)):
                         target_token = None
                         with voice_rooms_lock:
                             if room_id in voice_rooms:

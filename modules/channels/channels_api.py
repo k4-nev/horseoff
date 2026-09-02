@@ -16,25 +16,22 @@ def _may(session, action):
     return may(session, action)
 
 
-def _boss(session, space_id):
-    """Хозяин этой группы: создал её или назначен в ней модератором.
+def _moderates(session, space_id):
+    """Модератор ли человек в этой группе.
 
-    Ступень mythical даёт распоряжаться своими группами. Раньше она давала
-    только создать группу и модерировать сообщения: добавить в свою же
-    группу человека было нельзя, потому что состав участников требовал
-    legendary — то есть созданной группой пользоваться было невозможно."""
+    Внутри группы это единственный вопрос, который задаётся. Модератор
+    делает всё: участники, сообщения, каналы, сама группа. Ступень внутри не
+    спрашивается — она отвечает только за право заводить группы, а модератором
+    человек становится, создав группу или получив «МОД».
+
+    Глобальная модерация (channels.moderate) действует поверх, во всех
+    группах сразу."""
+    if _may(session, 'channels.moderate'):
+        return True
     if not space_id:
         return False
     space = next((sp for sp in load_spaces() if sp['id'] == space_id), None)
     return is_space_boss(space, session['id'])
-
-
-def _may_here(session, action, space_id):
-    """Право на действие внутри группы: хозяин группы либо глобальное право.
-
-    Хозяин — тот, кто её создал, или кому выдали «МОД». Ступень тут ни при
-    чём: она решает только, можно ли вообще заводить группы."""
-    return _boss(session, space_id) or _may(session, action)
 
 
 def _denied(handler, action):
@@ -165,7 +162,10 @@ def space_role(space_id, user_id):
     return None
 
 def is_space_boss(space, user_id):
-    """Хозяин группы: создатель или назначенный модератор."""
+    """Модератор группы: её создатель или назначенный.
+
+    Создателя проверяем и по owner_id — на случай групп, заведённых до того,
+    как создатель стал записываться модератором в списке участников."""
     if not space: return False
     if space.get('owner_id') == user_id: return True
     return space_role(space['id'], user_id) in ('owner', 'moderator')
@@ -294,11 +294,10 @@ def handle_get(handler, session, path):
 
     # GET /api/mod/channels/users
     if p.endswith('/users'):
-        # Список нужен затем, чтобы кого-то добавить: значит, спрашиваем
-        # то же право — глобально либо в своей группе
+        # Список нужен затем, чтобы кого-то добавить: спрашиваем то же, что
+        # и на добавление — модератор хоть где-нибудь или глобальное право
         if not (_may(session, 'channels.userlist')
-                or (_may(session, 'channels.moderate_own')
-                    and any(is_space_boss(sp, session['id']) for sp in load_spaces()))):
+                or any(is_space_boss(sp, session['id']) for sp in load_spaces())):
             return _denied(handler, 'channels.userlist')
         from server import load_users, get_avatar_b64
         users = load_users()
@@ -313,7 +312,7 @@ def handle_post(handler, session, path, data):
         # Завести новую группу — по ступени; править существующую — по статусу
         # в ней: свою переименовывает хозяин, чужую только глобальный модератор
         if data.get('edit_id'):
-            if not _may_here(session, 'channels.moderate', data.get('edit_id')):
+            if not _moderates(session, data.get('edit_id')):
                 return _denied(handler, 'channels.moderate')
         elif not _may(session, 'channels.create'):
             return _denied(handler, 'channels.create')
@@ -340,7 +339,10 @@ def handle_post(handler, session, path, data):
             elif data.get('remove_photo'): delete_space_photo(edit_id)
             return _json(handler, 200, {'status': 'ok'})
         with _get_file_lock(DATA_DIR / f"space_{space['id']}_members.json"):
-            save_members(space['id'], [{'user_id': session['id'], 'role': 'owner', 'joined': space['created']}])
+            # Создатель сразу модератор: статус виден и ему, и остальным,
+            # и не зависит от того, помнит ли кто-то, что группу завёл он
+            save_members(space['id'], [{'user_id': session['id'], 'role': 'moderator',
+                                        'joined': space['created'], 'creator': True}])
         if photo_b64: save_space_photo(space['id'], photo_b64)
         return _json(handler, 200, {'status': 'ok', 'space': space})
 
@@ -348,7 +350,7 @@ def handle_post(handler, session, path, data):
     if p.endswith('/channels'):
         space_id = data.get('space_id', '')
         # В своей группе распоряжается хозяин, в чужой — только глобальное право
-        if not _may_here(session, 'channels.moderate', space_id):
+        if not _moderates(session, space_id):
             return _denied(handler, 'channels.moderate')
         name = data.get('name', '').strip()
         icon = data.get('icon', 'channels')
@@ -376,7 +378,7 @@ def handle_post(handler, session, path, data):
     # POST /api/mod/channels/members
     if p.endswith('/members'):
         space_id = data.get('space_id', '')
-        if not _may_here(session, 'channels.members', space_id):
+        if not _moderates(session, space_id):
             return _denied(handler, 'channels.members')
         user_ids = data.get('user_ids', [])
         set_mod = data.get('set_moderator')  # {user_id, value}
@@ -420,7 +422,7 @@ def handle_delete(handler, session, path):
     # DELETE space
     if p.endswith('/spaces'):
         space_id = data.get('space_id', '')
-        if not _may_here(session, 'channels.moderate', space_id):
+        if not _moderates(session, space_id):
             return _denied(handler, 'channels.moderate')
         with _lock:
             spaces = load_spaces()
@@ -440,7 +442,7 @@ def handle_delete(handler, session, path):
         space = space_of_channel(channel_id)
         space_id = data.get('space_id') or (space['id'] if space else '')
         if not space_id: return _json(handler, 404, {'error': 'Канал не найден'})
-        if not _may_here(session, 'channels.moderate', space_id):
+        if not _moderates(session, space_id):
             return _denied(handler, 'channels.moderate')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
             channels = load_channels(space_id)
@@ -452,7 +454,7 @@ def handle_delete(handler, session, path):
     # DELETE member
     if p.endswith('/members'):
         space_id = data.get('space_id', '')
-        if not _may_here(session, 'channels.members', space_id):
+        if not _moderates(session, space_id):
             return _denied(handler, 'channels.members')
         user_id = data.get('user_id', '')
         with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
