@@ -2,3 +2,26 @@
 __pycache__/
 *.pyc
 data/
+node_modules/
+
+# Артефакты локальных прогонов тестов и сборка прототипа со вшитыми картинками.
+# Собранные valentine.js/.css КОММИТЯТСЯ — на сервере сборки нет, деплой идёт scp.
+modules/*/react-src/*.png
+modules/*/react-src/concept-app.html
+modules/*/react-src/*.tmp
+
+# Secrets — never commit private keys
+*.pem
+*.key
+
+# Ruflo/claude-flow tooling — local runtime state, not project code
+.env
+.env.local
+.env.*.local
+.claude-flow/
+.swarm/
+.agents/
+.mcp.json
+
+# Локальные снимки прогонов каркаса
+core/react-src/*.png

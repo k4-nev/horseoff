@@ -2,6 +2,18 @@
 
 ## Deploy commands
 
+**ВАЖНО (формат выдачи команд):** когда после изменений нужно скинуть
+пользователю команды на загрузку, всегда давать ТОЛЬКО изменённые файлы,
+каждый отдельной строкой `scp ...` в одном блоке кода. НЕ объединять через
+`&&`, НЕ делать одной командой, НЕ разбивать на несколько блоков кода.
+Пример:
+
+```bash
+scp modules/bots/bots.js root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp modules/bots/bots.css root@157.22.207.243:/opt/horseoff-v2/modules/bots/
+scp pwa/sw.js root@157.22.207.243:/opt/horseoff-v2/pwa/
+```
+
 After making changes, run from the repo root on a machine with SSH access:
 
 ```bash
@@ -30,7 +42,12 @@ ssh root@157.22.207.243 "systemctl restart horseoff"
 
 ## Stack
 
-- Vanilla JS + Python WebSocket backend (no frameworks)
+- Python WebSocket backend (no backend frameworks)
+- Frontend: гибрид. Большинство модулей — vanilla JS. Модуль `valentine`
+  («Признания») переведён на React (Vite-сборка в
+  `modules/valentine/react-src/`, компилируется в бандл, который грузится
+  через `modules/valentine/valentine.js`). Новые модули по умолчанию
+  делать на vanilla JS, если явно не решено переводить на React.
 - WebRTC mesh P2P (max 6 speakers, unlimited listeners)
 - Branch for development: `claude/gallant-fermi-2y4cbp`
 

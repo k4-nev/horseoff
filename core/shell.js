@@ -1,10 +1,74 @@
 const Shell = {
+  /* ─── Мост к React-каркасу ───────────────────────────────────────────
+     Состояние интерфейса живёт здесь, в ядре, а React на него подписан.
+     Порядок загрузки скриптов неважен: подписчик получает текущее
+     состояние сразу при подписке, а до его появления вызовы просто
+     копятся в _uiState. */
+  _uiState: {
+    /* Каркас */
+    booting: true, authed: false, theme: 'light',
+    modules: [], active: null, unread: 0, valentine: 0, avatar: null, user: null, immersive: false,
+    /* Экран входа */
+    setup: false, authError: '', authBusy: false,
+    /* Модалка профиля: profile !== null — открыта */
+    profile: null, sessions: null, pinEnabled: false,
+    /* PIN: {mode:'unlock'|'set', title, len, error} */
+    pin: null,
+    /* Очередь уведомлений у кнопки «Приложения»: один список на всё —
+       подтверждения, события с действием и новые сообщения. */
+    notes: [], pushBanner: false, version: '', build: '',
+  },
+  _uiSubs: [],
+  _uiEmit(patch) {
+    this._uiState = Object.assign({}, this._uiState, patch);
+    var s = this._uiState;
+    this._uiSubs.forEach(function (fn) { try { fn(s); } catch (e) {} });
+  },
+  /* Модуль сообщает, что ушёл в «погружение» — открыл чат или канал, где
+     низ экрана занят полем ввода. На телефоне кнопка «Приложения» на это
+     время убирается, чтобы не лезть под палец. Раньше ровно эту роль играло
+     прятание нижней панели через document.querySelector('.sidebar'). */
+  /* Единственное место, где номер версии попадает в разметку модулей.
+     Модуль объявляет пустой <span class="app-version">, а ядро его
+     заполняет — и при загрузке версии, и при загрузке самого модуля.
+     Без второго вызова модули, открытые позже входа, оставались с тем,
+     что зашито у них в разметке. */
+  _stampVersion() {
+    if (!this.appVersion || this.appVersion === '?') return;
+    var v = 'v' + this.appVersion;
+    document.querySelectorAll('.app-version').forEach(function (el) { el.textContent = v; });
+  },
+
+  setImmersive(on) {
+    if (this._uiState.immersive === !!on) return;
+    this._uiEmit({ immersive: !!on });
+  },
+  subscribeUI(fn) {
+    this._uiSubs.push(fn);
+    fn(this._uiState);
+    var subs = this._uiSubs;
+    return function () { var i = subs.indexOf(fn); if (i !== -1) subs.splice(i, 1); };
+  },
+  /* React монтируется асинхронно, а switchModule может быть вызван сразу
+     после showApp — ждём появления контейнера, а не падаем на null. */
+  _waitContent() {
+    return new Promise(function (resolve) {
+      var tries = 0;
+      (function step() {
+        var el = document.getElementById('moduleContent');
+        if (el || tries++ > 120) return resolve(el);
+        requestAnimationFrame(step);
+      })();
+    });
+  },
+
   token: null,
   user: null,
   locale: {},
   modules: [],
   activeModule: null,
   appVersion: '?',
+  appBuild: '',
 
   ws: null,
   wsReady: false,
@@ -15,6 +79,10 @@ const Shell = {
 
   connectWS() {
     if (!this.token) return;
+    // Guard against overlapping connects: iOS can fire close/open in quick
+    // succession while backgrounding/foregrounding, and stacking sockets
+    // just adds to the reconnect storm instead of fixing it.
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var url = proto + '//' + window.location.host + '/ws';
     try {
@@ -23,45 +91,17 @@ const Shell = {
         this.ws.send(JSON.stringify({type:'auth',token:this.token,hidden:this._isWindowHidden()}));
       };
       this.ws.onmessage = (e) => {
-        try {
-          var data = JSON.parse(e.data);
-          if (data.type === 'auth_ok') {
-            this.wsReady = true;
-            this._wsRetries = 0;
-          }
-          else if (data.type === 'message') this.onWSMessage(data);
-          else if (data.type === 'typing') this.onWSTyping(data);
-          else if (data.type === 'read') this.onWSRead(data);
-          else if (data.type === 'muted_list') { this._mutedContacts = data.muted || []; }
-          else if (data.type === 'servers_update') {
-            if (window.Servers && Servers.onServersUpdate) Servers.onServersUpdate(data.data);
-          }
-          else if (data.type === 'settings') {
-            if (window.Servers && Servers.onSettingsUpdate) Servers.onSettingsUpdate(data.data);
-          }
-          else if (data.type === 'modules_update') {
-            this.onModulesUpdate(data.modules || []);
-          }
-          // Forward everything to messenger
-          if (window.Messenger && Messenger.onWS) Messenger.onWS(data);
-          // Forward to channels
-          if (window.Channels && Channels.onWS) Channels.onWS(data);
-          // Forward to valentine
-          if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
-          // Forward to bots
-          if (window.Bots && Bots.onWS) Bots.onWS(data);
-          // Valentine badge (when module not active)
-          if (data.type === 'valentine' && this.activeModule !== 'valentine') {
-            var sb = document.getElementById('valBadge');
-            if (sb) { var n = (parseInt(sb.textContent)||0)+1; sb.textContent=n; sb.style.display='flex'; }
-          }
-        } catch(ex) {}
+        try { this.onWSData(JSON.parse(e.data)); } catch (ex) {}
       };
+
       this.ws.onclose = () => {
         this.wsReady = false;
-        // Fast reconnect: 1s first, then 3s
-        var delay = this._wsRetries > 0 ? 3000 : 1000;
+        if (!this.token) return; // logout() during this connection — nothing to retry
+        // Exponential backoff capped at 30s: fast first retry (network blips,
+        // iOS backgrounding), but a genuinely down server or a still-stuck
+        // client no longer gets hammered every 1-3s forever.
         this._wsRetries = (this._wsRetries || 0) + 1;
+        var delay = Math.min(1000 * Math.pow(2, this._wsRetries - 1), 30000);
         setTimeout(() => this.connectWS(), delay);
       };
       this.ws.onerror = () => {};
@@ -70,6 +110,71 @@ const Shell = {
 
   cacheContact(userId, avatar) {
     this.contactsCache[userId] = avatar;
+  },
+
+  /* Разбор входящего вынесен из onmessage отдельным методом: так его
+     можно позвать без сокета — и в проверках, и когда сообщение
+     приходит не из сети. */
+  onWSData(data) {
+      if (data.type === 'auth_ok') {
+        this.wsReady = true;
+        this._wsRetries = 0;
+      }
+      else if (data.type === 'error') {
+        if (data.msg === 'Unauthorized') {
+          // The token is genuinely dead (expired/revoked/evicted storage),
+          // not a transient network hiccup — retrying it forever is what
+          // hammered the per-IP login limiter and took the whole IP down
+          // for every other user behind it (2026-08-24 iOS incident).
+          // Same recovery path as an HTTP 401: drop it, show login.
+          this._wsRetries = 0;
+          this.logout();
+        }
+        // Other WS-level errors (e.g. rate-limited) just let the normal
+        // onclose backoff below retry — nothing else to do here.
+        return;
+      }
+      else if (data.type === 'message') this.onWSMessage(data);
+      else if (data.type === 'typing') this.onWSTyping(data);
+      else if (data.type === 'read') this.onWSRead(data);
+      else if (data.type === 'muted_list') { this._mutedContacts = data.muted || []; }
+      else if (data.type === 'servers_update') {
+        if (window.Servers && Servers.onServersUpdate) Servers.onServersUpdate(data.data);
+      }
+      else if (data.type === 'settings') {
+        if (window.Servers && Servers.onSettingsUpdate) Servers.onSettingsUpdate(data.data);
+      }
+      else if (data.type === 'modules_update') {
+        this.onModulesUpdate(data.modules || []);
+      }
+      else if (data.type === 'server_down' || data.type === 'server_up') {
+        /* Падение сервера видно и из другого модуля: карточка приходит
+           всем, у кого есть доступ к разделу, а не только тем, кто
+           сейчас в нём сидит. */
+        var down = data.type === 'server_down';
+        this.notify({
+          id: 'srv-' + data.ip,
+          kind: down ? 'error' : 'ok',
+          text: down ? 'Сервер не отвечает' : 'Сервер снова на связи',
+          sub: data.name || data.ip,
+          persistent: down,
+          action: { label: 'Открыть', fn: function () { window.Shell.switchModule('servers'); } },
+        });
+        if (down) this.playNotifySound();
+      }
+      // Forward everything to messenger
+      if (window.Messenger && Messenger.onWS) Messenger.onWS(data);
+      // Forward to channels
+      if (window.Channels && Channels.onWS) Channels.onWS(data);
+      // Forward to valentine
+      if (window.Valentine && Valentine.onWS) Valentine.onWS(data);
+      // Forward to bots
+      if (window.Bots && Bots.onWS) Bots.onWS(data);
+      if (window.MP && MP.onWS) MP.onWS(data);
+      // Valentine badge (when module not active)
+      if (data.type === 'valentine' && this.activeModule !== 'valentine') {
+        this._uiEmit({ valentine: (this._uiState.valentine || 0) + 1 });
+      }
   },
 
   onWSMessage(data) {
@@ -122,44 +227,27 @@ const Shell = {
   onWSRead(data) {},
 
   showNotification(msg) {
-    var old = document.querySelector('.msg-notify');
-    if (old) old.remove();
-    var n = document.createElement('div');
-    n.className = 'msg-notify';
-    var avaHtml = '';
-    var cachedAvatar = this.contactsCache[msg.from];
-    if (cachedAvatar) {
-      avaHtml = '<div class="msg-notify-ava"><img src="data:image/jpeg;base64,' + cachedAvatar + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover"/></div>';
-    } else {
-      avaHtml = '<div class="msg-notify-ava">' + msg.from_name.charAt(0).toUpperCase() + '</div>';
-    }
-    n.innerHTML = '<div class="msg-notify-body" onclick="Shell.goToChat(\'' + msg.from + '\')">'
-      + avaHtml
-      + '<div class="msg-notify-content">'
-      + '<div class="msg-notify-name">' + msg.from_name + '</div>'
-      + '<div class="msg-notify-text">' + (msg.text.length > 60 ? msg.text.substring(0,60) + '...' : msg.text) + '</div>'
-      + '</div></div>'
-      + '<button class="msg-notify-close" onclick="this.parentNode.remove()">×</button>';
-    document.body.appendChild(n);
-    setTimeout(() => { if (n.parentNode) { n.style.opacity = '0'; setTimeout(() => n.remove(), 300); } }, 5000);
+    var self = this;
+    this._push({
+      kind: 'msg',
+      title: String(msg.from_name == null ? '' : msg.from_name),
+      text: String(msg.text == null ? '' : msg.text).slice(0, 90),
+      avatar: this.contactsCache[msg.from] || null,
+      ttl: 6000,
+      fn: function () { self.goToChat(msg.from); },
+    });
   },
 
+
   goToChat(userId) {
-    var old = document.querySelector('.msg-notify');
-    if (old) old.remove();
+    var self = this;
+    this._uiState.notes.forEach(function (n) { if (n.kind === 'msg') self.dismissNote(n.id); });
     this.switchModule('messenger');
     setTimeout(() => { if (window.Messenger) Messenger.openChat(userId); }, 200);
   },
 
   updateMsgBadge() {
-    var badge = document.getElementById('msgBadge');
-    if (!badge) return;
-    if (this.unreadTotal > 0) {
-      badge.textContent = this.unreadTotal > 99 ? '99+' : this.unreadTotal;
-      badge.style.display = 'flex';
-    } else {
-      badge.style.display = 'none';
-    }
+    this._uiEmit({ unread: this.unreadTotal });
   },
 
   _isWindowHidden() {
@@ -192,19 +280,27 @@ const Shell = {
   },
 
   setTheme(theme) {
+    /* Тёмная тема не доделана и лежит под общим правилом: незаконченное
+       доступно только владельцу. Проверка здесь, а не только в кнопке, —
+       иначе тема включалась бы из консоли и из старого localStorage. */
+    if (theme !== 'light' && !this.canPreview()) theme = 'light';
     document.body.classList.toggle('theme-light', theme === 'light');
     document.body.classList.toggle('theme-dark', theme !== 'light');
     localStorage.setItem('ho_theme', theme);
     var meta = document.getElementById('metaThemeColor');
-    if (meta) meta.content = theme === 'light' ? '#f2f4f8' : '#0a0a0f';
-    // Update toggle buttons if profile is open
-    document.querySelectorAll('.theme-seg-btn').forEach(function(btn) {
-      btn.classList.toggle('active', btn.dataset.theme === theme);
-    });
+    if (meta) meta.content = theme === 'light' ? '#f2f0ec' : '#0a0a0f';
+    this._uiEmit({ theme: theme });
+  },
+
+  /* Доступно ли недоделанное. Роль берём живую — из состояния входа. */
+  canPreview() {
+    var caps = (this._uiState && this._uiState.caps) || null;
+    if (caps) return caps.indexOf('dev.preview') !== -1;
+    return (this.user && this.user.role) === 'arcana';
   },
 
   _loadTheme() {
-    var theme = localStorage.getItem('ho_theme') || 'dark';
+    var theme = localStorage.getItem('ho_theme') || 'light';
     this.setTheme(theme);
   },
 
@@ -226,18 +322,20 @@ const Shell = {
       const ok = await this.verifyToken();
       if (ok) {
         const pin = localStorage.getItem('ho_pin');
-        if (pin) { this._showPinScreen(); return; }
+        if (pin) { this._uiEmit({ booting: false }); this._showPinScreen(); return; }
+        this._uiEmit({ booting: false });
         this.showApp(); return;
       }
       localStorage.removeItem('ho_token');
+      this.token = null;
     }
     const r = await this.api('/api/auth/status');
-    if (r && r.setup_required) {
-      document.getElementById('loginSubtitle').textContent = this.t('setup_subtitle');
-      document.getElementById('auth-confirm-group').style.display = 'block';
-      document.getElementById('authBtn').textContent = this.t('create_account');
-      document.getElementById('authBtn').setAttribute('onclick', 'Shell.handleSetup()');
-    }
+    /* booting снимаем только здесь: пока не знаем, первый это запуск или
+       обычный вход, экран входа показывать нечем — форма разная. */
+    this._uiEmit({ booting: false, setup: !!(r && r.setup_required) });
+    var v0 = await this.api('/api/version');
+    if (v0 && v0.build) this.appBuild = v0.build;
+    if (v0 && v0.version) { this.appVersion = v0.version; this._uiEmit({ version: v0.version }); }
   },
 
   async loadLocale() {
@@ -271,38 +369,45 @@ const Shell = {
     return false;
   },
 
-  async handleAuth() {
-    const u = document.getElementById('auth-user').value.trim();
-    const p = document.getElementById('auth-pass').value;
-    const err = document.getElementById('authError');
-    err.style.display = 'none';
-    if (!u || !p) { err.textContent = this.t('fill_fields'); err.style.display = 'block'; return; }
+  /* Логин и пароль приходят из формы на React — ядро их больше не читает
+     из DOM. Ошибку и «занятость» кнопки отдаём в состояние. */
+  async handleAuth(u, p) {
+    u = (u || '').trim();
+    if (!u || !p) { this._uiEmit({ authError: this.t('fill_fields') }); return; }
+    this._uiEmit({ authError: '', authBusy: true });
     const d = await this.api('/api/auth/login', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId(),user_agent:navigator.userAgent,platform:navigator.platform||''})});
+    this._uiEmit({ authBusy: false });
     if (d && d.token) { this.token = d.token; localStorage.setItem('ho_token', this.token); await this.verifyToken(); this.showApp(); }
-    else { err.textContent = d?.error || this.t('auth_error'); err.style.display = 'block'; }
+    else { this._uiEmit({ authError: (d && d.error) || this.t('auth_error') }); }
   },
 
-  async handleSetup() {
-    const u = document.getElementById('auth-user').value.trim();
-    const p = document.getElementById('auth-pass').value;
-    const p2 = document.getElementById('auth-pass2').value;
-    const err = document.getElementById('authError');
-    err.style.display = 'none';
-    if (!u || !p) { err.textContent = this.t('fill_fields'); err.style.display = 'block'; return; }
-    if (p !== p2) { err.textContent = this.t('passwords_mismatch'); err.style.display = 'block'; return; }
-    if (p.length < 6) { err.textContent = this.t('pass_min'); err.style.display = 'block'; return; }
+  async handleSetup(u, p, p2) {
+    u = (u || '').trim();
+    if (!u || !p) { this._uiEmit({ authError: this.t('fill_fields') }); return; }
+    if (p !== p2) { this._uiEmit({ authError: this.t('passwords_mismatch') }); return; }
+    if (p.length < 6) { this._uiEmit({ authError: this.t('pass_min') }); return; }
+    this._uiEmit({ authError: '', authBusy: true });
     const d = await this.api('/api/auth/setup', {method:'POST', body:JSON.stringify({username:u,password:p,device_id:this._getDeviceId(),user_agent:navigator.userAgent,platform:navigator.platform||''})});
+    this._uiEmit({ authBusy: false });
     if (d && d.token) { this.token = d.token; localStorage.setItem('ho_token', this.token); await this.verifyToken(); this.showApp(); }
-    else { err.textContent = d?.error || this.t('auth_error'); err.style.display = 'block'; }
+    else { this._uiEmit({ authError: (d && d.error) || this.t('auth_error') }); }
   },
 
   async showApp() {
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('appShell').classList.add('active');
+    this._uiEmit({
+      booting: false, authed: true, pin: null, authError: '', user: this.user,
+      // Замок в кольце показываем только тем, у кого PIN вообще задан
+      pinEnabled: !!localStorage.getItem('ho_pin'),
+    });
     await this.loadModules();
     // Load version
     var v = await this.api('/api/version');
-    if (v && v.version) { this.appVersion = v.version; document.querySelectorAll('.app-version').forEach(el => el.textContent = 'v' + v.version); }
+    if (v && v.build) this.appBuild = v.build;
+    if (v && v.version) {
+      this.appVersion = v.version;
+      this._uiEmit({ version: v.version });
+      this._stampVersion();
+    }
     // Only switch to messenger if modules loaded
     if (this.modules.length > 0) {
       var defaultMod = this.modules.find(m => m.id === 'messenger') ? 'messenger' : this.modules[0].id;
@@ -321,40 +426,72 @@ const Shell = {
   },
 
   _initSwUpdateCheck() {
-    if (!('serviceWorker' in navigator)) return;
-    // Show update banner when a new SW takes control (don't force-reload)
     var self = this;
-    navigator.serviceWorker.addEventListener('controllerchange', function() {
-      self._showUpdateBanner();
-    });
-    // Force SW update check every 5 minutes
-    var self = this;
-    setInterval(function() {
-      navigator.serviceWorker.getRegistration().then(function(reg) {
-        if (reg) reg.update();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        self._showUpdateBanner();
       });
-    }, 5 * 60 * 1000);
-    // Check server version every 10 min, reload if changed
-    setInterval(async function() {
+    }
+    // Lightweight server-version check — the primary trigger.
+    self._checkVersion = async function() {
+      if (self._checkingVersion) return;
+      self._checkingVersion = true;
       try {
         var v = await self.api('/api/version');
-        if (v && v.version && v.version !== self.appVersion) {
-          self.appVersion = v.version;
-          // Show update banner instead of hard reload
+        /* Сравниваем сборку, а не номер версии: version.json правится
+           руками и на деплое его забывают, а build сервер считает сам по
+           файлам — он меняется от любой выкладки. */
+        if (v && v.build && self.appBuild && v.build !== self.appBuild) {
+          self.appBuild = v.build;
+          if (v.version) { self.appVersion = v.version; self._uiEmit({ version: v.version }); }
           self._showUpdateBanner();
         }
-      } catch(e) {}
-    }, 10 * 60 * 1000);
+      } catch (e) {}
+      self._checkingVersion = false;
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function(reg) { if (reg) reg.update(); });
+      }
+    };
+    // Мгновенно при возврате в приложение (открыл вкладку/свернул-развернул PWA)
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') self._checkVersion();
+    });
+    window.addEventListener('focus', function() { self._checkVersion(); });
+    // Фоновая подстраховка каждую минуту, пока приложение открыто
+    setInterval(self._checkVersion, 60 * 1000);
+    self._checkVersion();
   },
 
   _showUpdateBanner() {
-    if (document.getElementById('updateBanner')) return;
-    var b = document.createElement('div');
-    b.id = 'updateBanner';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:Inter,sans-serif;box-shadow:0 2px 12px rgba(0,212,170,0.3)';
-    b.innerHTML = '<span>Доступно обновление приложения</span><button onclick="window.location.reload()" style="background:rgba(0,0,0,0.2);border:none;color:#fff;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">Обновить</button>';
-    document.body.appendChild(b);
+    /* Карточка висит до нажатия: закрыть обновление нельзя. Версию пишем
+       прямо в ней — иначе непонятно, на что именно обновляешься. */
+    this.notify({
+      id: 'app-update',
+      kind: 'update',
+      persistent: true,
+      text: 'Доступно обновление',
+      sub: 'Версия ' + this.appVersion,
+      action: { label: 'Обновить', fn: function () { window.location.reload(); } },
+    });
   },
+
+  /* Событие, на которое можно нажать. Имя оставлено прежним — его зовут
+     модули (mp.js), и оно же несёт обновление приложения. */
+  notify(opts) {
+    opts = opts || {};
+    return this._push({
+      id: opts.id,
+      kind: opts.kind || 'info',
+      title: String(opts.text == null ? '' : opts.text),
+      text: opts.sub ? String(opts.sub) : '',
+      label: opts.action ? String(opts.action.label || '') : '',
+      fn: opts.action && opts.action.fn,
+      persistent: !!opts.persistent,
+      ttl: opts.duration || 5000,
+    });
+  },
+  /* Старые имена: на них ещё могут ссылаться модули. */
+  dismissCloud(id) { this.dismissNote(id); },
 
   lockOrientation() {
     // Only lock on phones (< 768px), not tablets
@@ -373,8 +510,17 @@ const Shell = {
       var reg = await navigator.serviceWorker.ready;
       var existing = await reg.pushManager.getSubscription();
       if (existing) {
-        await this.api('/api/push/subscribe', {method:'POST', body:JSON.stringify({subscription: existing.toJSON()})});
-        return;
+        // Подписка привязана к ключу сервера. Если ключ сменился (переезд,
+        // перегенерация), старая подписка остаётся живой на вид, но сервер
+        // ею отправить уже не может — и уведомления тихо пропадают, потому
+        // что подписка «есть» и мы её не обновляем. Сверяем и пересоздаём.
+        var srvKey = await this.api('/api/push/key');
+        if (srvKey && srvKey.key && !this._subKeyMatches(existing, srvKey.key)) {
+          try { await existing.unsubscribe(); } catch(e) {}
+        } else {
+          await this.api('/api/push/subscribe', {method:'POST', body:JSON.stringify({subscription: existing.toJSON()})});
+          return;
+        }
       }
       if (isIOS) {
         // iOS requires user gesture — show button
@@ -388,20 +534,23 @@ const Shell = {
     } catch(e) { console.log('Push init:', e); }
   },
 
-  _showPushBanner() {
-    if (document.getElementById('pushBanner')) return;
-    var b = document.createElement('div');
-    b.id = 'pushBanner';
-    b.style.cssText = 'position:fixed;bottom:60px;left:12px;right:12px;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:2000;box-shadow:0 8px 30px rgba(0,0,0,0.4)';
-    b.innerHTML = '<div style="flex:1;font-size:13px;color:var(--text)">Включите уведомления, чтобы не пропустить сообщения</div>'
-      + '<button onclick="Shell.enablePush()" style="background:var(--accent);border:none;color:#000;padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;white-space:nowrap;cursor:pointer">Включить</button>'
-      + '<button onclick="this.parentNode.remove()" style="background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;padding:0 4px">×</button>';
-    document.body.appendChild(b);
+  /** Тот ли ключ сервера, на который выписана подписка. */
+  _subKeyMatches(sub, key) {
+    try {
+      var raw = sub.options && sub.options.applicationServerKey;
+      if (!raw) return true;   // сравнить нечем — не трогаем рабочую подписку
+      var bytes = new Uint8Array(raw), str = '';
+      for (var i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+      var mine = btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      return mine === String(key).replace(/=+$/, '');
+    } catch (e) { return true; }
   },
 
+  _showPushBanner() { this._uiEmit({ pushBanner: true }); },
+  dismissPushBanner() { this._uiEmit({ pushBanner: false }); },
+
   async enablePush() {
-    var banner = document.getElementById('pushBanner');
-    if (banner) banner.remove();
+    this._uiEmit({ pushBanner: false });
     try {
       var result = await Notification.requestPermission();
       if (result !== 'granted') { this.toast('Уведомления отклонены', 'error'); return; }
@@ -434,73 +583,70 @@ const Shell = {
     if (this._contactsInterval) { clearInterval(this._contactsInterval); this._contactsInterval = null; }
     // Reset UI
     document.querySelectorAll('.modal-overlay.active').forEach(function(m){ m.classList.remove('active'); });
-    document.getElementById('appShell').classList.remove('active');
-    document.getElementById('loginScreen').classList.remove('hidden');
-    document.getElementById('auth-user').value = '';
-    document.getElementById('auth-pass').value = '';
-    document.getElementById('moduleContent').innerHTML = '';
-    document.getElementById('sidebarModules').innerHTML = '';
-    // Remove admin button if exists
-    var ab = document.getElementById('adminBtn');
-    if (ab) ab.remove();
+    var mc = document.getElementById('moduleContent');
+    if (mc) mc.innerHTML = '';
+    this._uiEmit({
+      authed: false, modules: [], active: null, unread: 0, valentine: 0,
+      avatar: null, user: null, immersive: false,
+      profile: null, sessions: null, pin: null, notes: [],
+      authError: '', authBusy: false,
+    });
   },
 
   async loadModules() {
     const mods = await this.api('/api/modules');
     if (!mods) return;
     this.modules = mods;
-    const icons = {
-      servers:'<span class="ico ico-18 ico-servers"></span>',
-      users:'<span class="ico ico-18 ico-users"></span>',
-      messenger:'<span class="ico ico-18 ico-messenger"></span>',
-      channels:'<span class="ico ico-18 ico-channels"></span>',
-      valentine:'<span class="ico ico-18 ico-valentine"></span>',
-      bots:'<span class="ico ico-18 ico-bots"></span>'
-    };
-    const el = document.getElementById('sidebarModules');
-    var visibleMods = mods.filter(m => {
-      if (m.min_role === 'arcana') return false;
-      return true;
-    });
-    el.innerHTML = visibleMods.map(m => {
-      var badge = m.id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
-      if (m.id === 'valentine') badge = '<span class="val-badge" id="valBadge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e8395e;color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;"></span>';
-      return '<button class="sidebar-module" data-id="'+m.id+'" onclick="Shell.switchModule(\''+m.id+'\')" title="'+m.name+'" style="position:relative">'+(icons[m.icon]||icons.servers)+badge+'</button>';
-    }).join('');
-    // Add admin module as bottom button for god
-    if (this.user && this.user.role === 'arcana') {
-      var adminMod = mods.find(m => m.id === 'admin');
-      if (adminMod) {
-        var profBtn = document.getElementById('profileBtn');
-        if (profBtn && !document.getElementById('adminBtn')) {
-          var ab = document.createElement('button');
-          ab.className = 'sidebar-btn';
-          ab.id = 'adminBtn';
-          ab.title = adminMod.name;
-          ab.onclick = function(){ Shell.switchModule('admin'); };
-          ab.innerHTML = '<span class="ico ico-18 ico-users"></span>';
-          profBtn.parentNode.insertBefore(ab, profBtn);
-        }
-      }
-    }
-
+    /* Раньше модуль «Пользователи» (min_role: arcana) выкидывался из списка
+       и вставлялся отдельной кнопкой над профилем. В кольце отдельного места
+       нет — он такой же шар, как остальные, и виден только тому, кому выдан
+       сервером. Никакой клиентской фильтрации по роли больше не нужно. */
+    this._uiEmit({ modules: mods.map(function (m) { return { id: m.id, name: m.name, icon: m.icon }; }) });
   },
 
   loadedModules: {},
 
+  /** Объект модуля, который тот кладёт в window (Messenger, Bots, Channels…). */
+  _moduleApi(id) {
+    var name = id.charAt(0).toUpperCase() + id.slice(1);
+    return window[name] || null;
+  },
+
+  /* Модуль открыли. Зовём только после того, как он загружен и показан:
+     на первом входе window.<Модуль> ещё не существует, и сигнал уходил в
+     пустоту — «Серверы» так и не подписывались на метрики. */
+  _activated(id) {
+    var api = this._moduleApi(id);
+    if (api && typeof api.onActivate === 'function') {
+      try { api.onActivate(); } catch (e) {}
+    }
+  },
+
   async switchModule(id) {
+    /* Модуль может попросить слово перед уходом — «Боты» так спрашивают,
+       сохранять ли раскладку. Метод существовал и раньше, но его никто не
+       звал: правки молча терялись при переключении. */
+    if (this.activeModule && this.activeModule !== id) {
+      var prev = this._moduleApi(this.activeModule);
+      if (prev && typeof prev.onDeactivate === 'function') {
+        try { prev.onDeactivate(); } catch (e) {}
+      }
+    }
     this.activeModule = id;
     if (id === 'messenger') { this.unreadTotal = 0; this.updateMsgBadge(); }
-    document.querySelectorAll('.sidebar-module').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+    if (id === 'valentine') this._uiEmit({ valentine: 0 });
+    this._uiEmit({ active: id, immersive: false });
     const mod = this.modules.find(m => m.id === id);
     if (!mod) return;
-    const content = document.getElementById('moduleContent');
+    const content = await this._waitContent();
+    if (!content) return;
 
     // If already loaded, just show the cached container
     if (this.loadedModules[id]) {
       // Hide all module containers
       content.querySelectorAll('.module-container').forEach(c => c.style.display = 'none');
       this.loadedModules[id].style.display = 'block';
+      this._activated(id);
       return;
     }
 
@@ -524,122 +670,103 @@ const Shell = {
       content.appendChild(container);
       if (js) { var s = document.createElement('script'); s.textContent = js; container.appendChild(s); }
       this.loadedModules[id] = container;
+      /* Модуль подгружается позже входа, поэтому его .app-version надо
+         заполнить здесь — иначе останется то, что зашито в разметке. */
+      this._stampVersion();
+      this._activated(id);
     } catch(e) { content.innerHTML = '<div class="loading">Ошибка загрузки модуля</div>'; }
   },
 
-  // Profile
+  // ── Профиль ───────────────────────────────────────────────
+  /* Модалку рисует React: ядро отдаёт ей данные профиля и список сессий.
+     Вкладки — состояние компонента, ядру о них знать незачем. */
   async openProfile() {
     var d = await this.api('/api/profile');
     if (!d) return;
-    // Username (shown as @login)
-    var unEl = document.getElementById('profileUsername');
-    if (unEl) unEl.textContent = '@' + d.username;
-    // Display name header
-    var dnSpan = document.getElementById('profileDisplayName');
-    if (dnSpan) dnSpan.textContent = d.display_name || d.username;
-    // Role badge
-    var prEl = document.getElementById('profileRole');
-    if (prEl) { prEl.className = 'role-badge ' + d.role; prEl.textContent = d.role.toUpperCase(); }
-    // Password fields
-    var opEl = document.getElementById('profOldPass'); if (opEl) opEl.value = '';
-    var npEl = document.getElementById('profNewPass'); if (npEl) npEl.value = '';
-    // Avatar
-    var img = document.getElementById('profileAvatarImg');
-    var letter = document.getElementById('profileAvatarLetter');
-    var removeBtn = document.getElementById('profileAvatarRemove');
-    if (d.avatar) {
-      img.src = 'data:image/jpeg;base64,' + d.avatar;
-      img.style.display = 'block';
-      letter.style.display = 'none';
-      if (removeBtn) removeBtn.style.display = 'block';
-    } else {
-      img.style.display = 'none';
-      letter.style.display = 'block';
-      letter.textContent = (d.display_name || d.username).charAt(0).toUpperCase();
-      if (removeBtn) removeBtn.style.display = 'none';
-    }
-    // Display name input
-    var dnInput = document.getElementById('profDisplayName');
-    if (dnInput) dnInput.value = d.display_name || '';
-    // Sync theme toggle
-    var currentTheme = localStorage.getItem('ho_theme') || 'dark';
-    document.querySelectorAll('.theme-seg-btn').forEach(function(btn) {
-      btn.classList.toggle('active', btn.dataset.theme === currentTheme);
-    });
-    // Switch to account tab by default
-    this._switchProfileTab('account');
-    document.getElementById('profileModal').classList.add('active');
+    this._uiEmit({ profile: d, sessions: null, pinEnabled: !!localStorage.getItem('ho_pin') });
     this._loadSessionsTab();
   },
 
-  _switchProfileTab(tab) {
-    document.querySelectorAll('.prof-tab').forEach(function(b) {
-      b.classList.toggle('active', b.id === 'profTab-' + tab);
-    });
-    document.querySelectorAll('.prof-pane').forEach(function(p) {
-      p.classList.toggle('active', p.id === 'profPane-' + tab);
-    });
-  },
+  closeProfile() { this._uiEmit({ profile: null }); },
 
   // ── PIN CODE ──────────────────────────────────────────────
+  /* Клавиатуру и точки рисует React. Ядро держит введённое, считает
+     попытки и решает, что делать дальше. Два режима:
+       unlock — вход по PIN при старте,
+       set    — ввод нового PIN (два прохода) из настроек. */
   _showPinScreen() {
-    var self = this;
-    var entered = '';
-    var overlay = document.getElementById('pinScreen');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'pinScreen';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:var(--bg,#0f0f17);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px';
-      document.body.appendChild(overlay);
-    }
-    overlay.innerHTML =
-      '<div style="font-size:22px;font-weight:700;color:var(--text)">Введите PIN-код</div>' +
-      '<div id="pinDots" style="display:flex;gap:16px">' +
-        '<div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>' +
-      '</div>' +
-      '<div id="pinError" style="color:#e74c3c;font-size:13px;min-height:18px"></div>' +
-      '<div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px">' +
-        [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(function(n){
-          if (n === '') return '<div style="width:72px;height:72px"></div>';
-          return '<button ontouchstart="this.style.transform=\'scale(0.88)\';this.style.background=\'var(--surface2)\'" ontouchend="this.style.transform=\'\';this.style.background=\'var(--surface)\'" onmousedown="this.style.transform=\'scale(0.88)\'" onmouseup="this.style.transform=\'\'" onclick="Shell._pinKey(\''+n+'\')" style="-webkit-tap-highlight-color:transparent;outline:none;width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:'+(n==='⌫'?'20':'22')+'px;font-weight:600;cursor:pointer;transition:transform 0.08s,background 0.08s;user-select:none">'+n+'</button>';
-        }).join('') +
-      '</div>' +
-      '<button onclick="Shell.logout()" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;margin-top:8px">Войти с паролем</button>';
-    overlay.style.display = 'flex';
-    this._pinAttempts = 0;
     this._pinEntered = '';
+    this._pinAttempts = 0;
+    this._uiEmit({ pin: { mode: 'unlock', title: 'Введите PIN-код', len: 0, error: '' } });
+  },
+
+  /* Запереть уже запущенное приложение. Экран PIN накрывает его целиком
+     (position:fixed поверх всего, непрозрачный фон), а само приложение под
+     ним продолжает жить: сокет не рвётся, модули не перезагружаются. Поэтому
+     разблокировка здесь только снимает экран — гонять showApp заново значило
+     бы открыть второй сокет и заново собрать все модули. */
+  lock() {
+    if (!localStorage.getItem('ho_pin')) {
+      this.toast('Сначала задайте PIN-код в профиле', 'error');
+      return;
+    }
+    this._pinLocked = true;
+    this._showPinScreen();
   },
 
   _pinKey(key) {
-    if (key === '') return;
-    try { navigator.vibrate && navigator.vibrate(key === '⌫' ? 30 : 20); } catch(e){}
-    var pin = localStorage.getItem('ho_pin');
-    if (key === '⌫') {
-      this._pinEntered = (this._pinEntered || '').slice(0, -1);
-    } else {
-      this._pinEntered = (this._pinEntered || '') + key;
+    var st = this._uiState.pin;
+    if (!st || key === '') return;
+    try { navigator.vibrate && navigator.vibrate(key === '\u232b' ? 30 : 20); } catch (e) {}
+    if (key === '\u232b') this._pinEntered = (this._pinEntered || '').slice(0, -1);
+    else this._pinEntered = (this._pinEntered || '') + key;
+
+    var len = this._pinEntered.length;
+    if (len < 4) { this._uiEmit({ pin: Object.assign({}, st, { len: len }) }); return; }
+
+    if (st.mode === 'set') {
+      var val = this._pinEntered;
+      this._pinEntered = '';
+      var resolve = this._pinResolve;
+      this._pinResolve = null;
+      this._uiEmit({ pin: null });
+      if (resolve) resolve(val);
+      return;
     }
-    var dots = document.querySelectorAll('.pin-dot');
-    dots.forEach(function(d, i) { d.style.background = i < (Shell._pinEntered||'').length ? 'var(--accent)' : 'var(--border)'; });
-    if ((this._pinEntered || '').length === 4) {
-      if (this._pinEntered === pin) {
-        document.getElementById('pinScreen').style.display = 'none';
-        this.showApp();
-      } else {
-        this._pinAttempts = (this._pinAttempts || 0) + 1;
-        document.getElementById('pinError').textContent = 'Неверный PIN (' + (3 - this._pinAttempts) + ' попытки осталось)';
-        this._pinEntered = '';
-        document.querySelectorAll('.pin-dot').forEach(function(d){ d.style.background = 'var(--border)'; });
-        if (this._pinAttempts >= 3) {
-          localStorage.removeItem('ho_pin');
-          this.logout();
-        }
-      }
+
+    if (this._pinEntered === localStorage.getItem('ho_pin')) {
+      this._pinEntered = '';
+      var wasLocked = this._pinLocked;
+      this._pinLocked = false;
+      this._uiEmit({ pin: null });
+      // Приложение всё это время работало под экраном — поднимать его заново незачем
+      if (!wasLocked) this.showApp();
+      return;
     }
+    this._pinAttempts = (this._pinAttempts || 0) + 1;
+    this._pinEntered = '';
+    if (this._pinAttempts >= 3) {
+      localStorage.removeItem('ho_pin');
+      this._uiEmit({ pin: null });
+      this.logout();
+      return;
+    }
+    var left = 3 - this._pinAttempts;
+    this._uiEmit({ pin: Object.assign({}, st, {
+      len: 0,
+      error: 'Неверный PIN (' + left + (left === 1 ? ' попытка' : ' попытки') + ' осталось)',
+    }) });
+  },
+
+  _pinCancel() {
+    var resolve = this._pinResolve;
+    this._pinResolve = null;
+    this._pinEntered = '';
+    this._uiEmit({ pin: null });
+    if (resolve) resolve(null);
   },
 
   async _setPinFlow() {
-    var self = this;
     var first = await this._pinDialog('Введите новый PIN');
     if (!first) return;
     var second = await this._pinDialog('Повторите PIN');
@@ -650,42 +777,16 @@ const Shell = {
     var hint = this.token ? this.token.slice(-6) : '';
     await this.api('/api/auth/set_pin_flag', {method:'POST', body:JSON.stringify({token_hint: hint, pin_enabled: true})});
     this.toast('PIN-код установлен');
+    this._uiEmit({ pinEnabled: true });
     this._loadSessionsTab();
   },
 
   _pinDialog(title) {
-    return new Promise(function(resolve) {
-      var entered = '';
-      var overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px';
-      function update() {
-        dots.forEach(function(d, i){ d.style.background = i < entered.length ? 'var(--accent)' : 'var(--border)'; });
-        if (entered.length === 4) { document.body.removeChild(overlay); resolve(entered); }
-      }
-      overlay.innerHTML =
-        '<div style="background:var(--surface);border-radius:20px;padding:32px;display:flex;flex-direction:column;align-items:center;gap:20px;min-width:280px">' +
-        '<div style="font-size:18px;font-weight:700;color:var(--text)">'+title+'</div>' +
-        '<div id="pinDlgDots" style="display:flex;gap:16px">' +
-          '<div class="pin-dot" style="width:14px;height:14px;border-radius:50%;background:var(--border)"></div>'.repeat(4) +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:repeat(3,64px);gap:10px">' +
-          [1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(function(n){
-            return '<button class="pin-dlg-btn" data-key="'+n+'" style="width:64px;height:64px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:20px;font-weight:600;cursor:pointer"'+(n===''?' disabled style="opacity:0;pointer-events:none;border:none;background:none"':'')+'>'+n+'</button>';
-          }).join('') +
-        '</div>' +
-        '<button id="pinDlgCancel" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer">Отмена</button>' +
-        '</div>';
-      document.body.appendChild(overlay);
-      var dots = overlay.querySelectorAll('.pin-dot');
-      overlay.querySelectorAll('.pin-dlg-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var k = btn.dataset.key;
-          if (k === '⌫') { entered = entered.slice(0, -1); }
-          else if (k) { entered += k; }
-          update();
-        });
-      });
-      overlay.querySelector('#pinDlgCancel').addEventListener('click', function(){ document.body.removeChild(overlay); resolve(null); });
+    var self = this;
+    return new Promise(function (resolve) {
+      self._pinEntered = '';
+      self._pinResolve = resolve;
+      self._uiEmit({ pin: { mode: 'set', title: title, len: 0, error: '' } });
     });
   },
 
@@ -694,73 +795,22 @@ const Shell = {
     var hint = this.token ? this.token.slice(-6) : '';
     await this.api('/api/auth/set_pin_flag', {method:'POST', body:JSON.stringify({token_hint: hint, pin_enabled: false})});
     this.toast('PIN-код отключён');
+    this._uiEmit({ pinEnabled: false });
     this._loadSessionsTab();
   },
 
   // ── SESSIONS ──────────────────────────────────────────────
+  /* Список отдаём как есть — разметку строит React. Раньше здесь была
+     склейка HTML, куда hint сессии подставлялся прямо в onclick. */
   async _loadSessionsTab() {
-    var el = document.getElementById('profileSessions');
-    if (!el) return;
+    if (!this._uiState.profile) return;
     var sessions = await this.api('/api/auth/sessions');
-    if (!sessions) { el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:16px 0">Не удалось загрузить</div>'; return; }
-    // Update footer session count
-    var countEl = document.getElementById('profSessionCount');
-    if (countEl) countEl.textContent = 'Сессий активно: ' + sessions.length;
-    // Update PIN block in security tab
-    var pinEnabled = !!localStorage.getItem('ho_pin');
-    var subEl = document.getElementById('profPinSub');
-    if (subEl) subEl.textContent = pinEnabled ? 'Включён на этом устройстве' : 'Не настроен';
-    var pinBtnEl = document.getElementById('profPinBtn');
-    if (pinBtnEl) pinBtnEl.innerHTML = pinEnabled
-      ? '<button onclick="Shell._disablePin()" style="background:none;border:1px solid rgba(231,76,60,0.5);color:#e74c3c;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap">Отключить</button>'
-      : '<button onclick="Shell._setPinFlow()" style="background:var(--accent-glow);border:none;color:var(--accent);padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap">Включить</button>';
-    var html = '';
-    sessions.forEach(function(s) {
-      var ua = s.device_info && s.device_info.user_agent || '';
-      var device = Shell._deviceName(ua);
-      var lastSeen = s.last_seen ? Shell._relTime(s.last_seen) : '—';
-      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)">' +
-        '<div style="flex:1;min-width:0;overflow:hidden">' +
-          '<div style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+device+
-            (s.is_current ? '<span style="font-size:10px;background:var(--accent-glow);color:var(--accent);padding:1px 6px;border-radius:6px;font-weight:600">текущая</span>' : '') +
-            (s.pin_enabled ? '<span style="font-size:10px;background:rgba(251,191,36,0.15);color:#fbbf24;padding:1px 6px;border-radius:6px">PIN</span>' : '') +
-          '</div>' +
-          '<div style="font-size:11px;color:var(--text-dim);margin-top:1px">'+lastSeen+'</div>' +
-        '</div>' +
-        (!s.is_current ? '<button onclick="Shell._revokeSession(\''+s.hint+'\')" style="background:rgba(231,76,60,0.1);border:none;color:#e74c3c;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:11px;white-space:nowrap;flex-shrink:0;transition:background 0.15s">Завершить</button>' : '') +
-      '</div>';
+    /* Сервер на ошибке отвечает объектом, а не списком — в разметку такое
+       уходить не должно. */
+    this._uiEmit({
+      sessions: Array.isArray(sessions) ? sessions : [],
+      pinEnabled: !!localStorage.getItem('ho_pin'),
     });
-    el.innerHTML = html;
-  },
-
-  _relTime(ts) {
-    var diff = Math.floor(Date.now()/1000 - ts);
-    if (diff < 60) return 'только что';
-    if (diff < 3600) return Math.floor(diff/60) + ' мин. назад';
-    if (diff < 86400) return Math.floor(diff/3600) + ' ч. назад';
-    return Math.floor(diff/86400) + ' дн. назад';
-  },
-
-  _deviceName(ua) {
-    if (!ua) return '💻 Устройство';
-    // iOS devices
-    if (/iPhone/.test(ua)) {
-      var m = ua.match(/iPhone OS ([\d_]+)/); var v = m ? ' ' + m[1].replace(/_/g,'.') : '';
-      return '📱 iPhone' + v;
-    }
-    if (/iPad/.test(ua)) return '📱 iPad';
-    // Android
-    if (/Android/.test(ua)) {
-      var m2 = ua.match(/Android [^;]+;\s*([^)]+)/); var model = m2 ? m2[1].trim() : 'Android';
-      if (model.length > 28) model = model.slice(0,28) + '…';
-      return '📱 ' + model;
-    }
-    // Desktop OS
-    if (/Windows NT 10/.test(ua)) return '💻 Windows 10/11';
-    if (/Windows NT 6/.test(ua)) return '💻 Windows';
-    if (/Macintosh/.test(ua)) { var mv = ua.match(/Mac OS X ([\d_]+)/); return '💻 macOS' + (mv ? ' ' + mv[1].replace(/_/g,'.') : ''); }
-    if (/Linux/.test(ua)) return '💻 Linux';
-    return '💻 Устройство';
   },
 
   async _revokeSession(hint) {
@@ -768,46 +818,31 @@ const Shell = {
     this._loadSessionsTab();
   },
 
-  async saveDisplayName() {
-    var dn = document.getElementById('profDisplayName').value.trim();
+  async saveDisplayName(dn) {
+    dn = (dn || '').trim();
     var d = await this.api('/api/profile/name', {method:'POST', body:JSON.stringify({display_name: dn})});
     if (d && d.status === 'ok') {
       this.toast(dn ? 'Имя сохранено' : 'Имя удалено');
-      var dnSpan = document.getElementById('profileDisplayName');
-      if (dnSpan) { var profile = this.user; dnSpan.textContent = dn || (profile && profile.username) || ''; }
+      var p = this._uiState.profile;
+      if (p) this._uiEmit({ profile: Object.assign({}, p, { display_name: dn }) });
+      this.updateSidebarAvatar();
     }
-    else { this.toast(d?.error || 'Ошибка', 'error'); }
+    else { this.toast((d && d.error) || 'Ошибка', 'error'); }
   },
 
-  async changePassword() {
-    const old = document.getElementById('profOldPass').value;
-    const nw = document.getElementById('profNewPass').value;
-    if (!old || !nw || nw.length < 6) { this.toast(this.t('pass_min'), 'error'); return; }
+  async changePassword(old, nw) {
+    if (!old || !nw || nw.length < 6) { this.toast(this.t('pass_min'), 'error'); return false; }
     const d = await this.api('/api/profile/password', {method:'POST', body:JSON.stringify({old:old,'new':nw})});
-    if (d && d.status === 'ok') { this.toast(this.t('password_changed')); this.closeModal('profileModal'); }
-    else { this.toast(d?.error || this.t('error'), 'error'); }
+    if (d && d.status === 'ok') { this.toast(this.t('password_changed')); this.closeProfile(); return true; }
+    this.toast((d && d.error) || this.t('error'), 'error');
+    return false;
   },
 
 
-
-  toggleEye(btn) {
-    var input = btn.parentNode.querySelector('input');
-    if (input.type === 'password') {
-      input.type = 'text';
-      btn.innerHTML = '<span class="ico ico-16 ico-eye-closed"></span>';
-    } else {
-      input.type = 'password';
-      btn.innerHTML = '<span class="ico ico-16 ico-eye-open"></span>';
-    }
-  },
 
   // Avatar
-  pickAvatar() {
-    document.getElementById('avatarFileInput').click();
-  },
-
-  async uploadAvatar(input) {
-    var file = input.files[0];
+  /* Файл приходит из <input> внутри React-модалки. */
+  async uploadAvatar(file) {
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { this.toast('Максимум 2 МБ', 'error'); return; }
     if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { this.toast('Только JPG, PNG, WebP', 'error'); return; }
@@ -815,10 +850,9 @@ const Shell = {
     reader.onload = async (e) => {
       var d = await this.api('/api/profile/avatar', {method:'POST', body:JSON.stringify({image: e.target.result})});
       if (d && d.status === 'ok') { this.toast('Фото загружено'); this.openProfile(); this.updateSidebarAvatar(); }
-      else { this.toast(d?.error || 'Ошибка', 'error'); }
+      else { this.toast((d && d.error) || 'Ошибка', 'error'); }
     };
     reader.readAsDataURL(file);
-    input.value = '';
   },
 
   async removeAvatar() {
@@ -829,101 +863,110 @@ const Shell = {
   async updateSidebarAvatar() {
     var d = await this.api('/api/profile');
     if (!d) return;
-    var btn = document.getElementById('profileBtn');
-    if (d.avatar) {
-      btn.innerHTML = '<img class="sidebar-avatar" src="data:image/jpeg;base64,' + d.avatar + '"/>';
-    } else {
-      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-    }
+    this._uiEmit({ avatar: d.avatar || null, user: { username: d.username, display_name: d.display_name, role: d.role, id: d.id } });
   },
-
-  closeModal(id) { document.getElementById(id).classList.remove('active'); },
 
   onModulesUpdate(newModuleIds) {
-    var el = document.getElementById('sidebarModules');
-    if (!el) return;
-    var currentBtns = el.querySelectorAll('.sidebar-module');
-    var currentIds = [];
-    currentBtns.forEach(function(b) { currentIds.push(b.dataset.id); });
-
-    // Fade out removed modules
-    var removed = [];
-    currentBtns.forEach(function(b) {
-      if (newModuleIds.indexOf(b.dataset.id) === -1) {
-        removed.push(b.dataset.id);
-        b.style.transition = 'opacity 0.3s, transform 0.3s';
-        b.style.opacity = '0';
-        b.style.transform = 'scale(0.5)';
-        setTimeout(function() { b.remove(); }, 300);
-      }
-    });
-
-    // Fade in new modules
     var self = this;
-    newModuleIds.forEach(function(id) {
-      if (currentIds.indexOf(id) === -1) {
-        var mod = self.modules.find(function(m) { return m.id === id; });
-        if (!mod) {
-          // Module not loaded yet — fetch all modules
-          self.api('/api/modules').then(function(mods) {
-            if (mods) { self.modules = mods; self._addSidebarBtn(id, el); }
-          });
-        } else {
-          self._addSidebarBtn(id, el);
-        }
-      }
-    });
+    var known = this.modules.map(function (m) { return m.id; });
+    var missing = newModuleIds.some(function (id) { return known.indexOf(id) === -1; });
 
-    // If active module was removed — switch to messenger or first available
-    if (removed.indexOf(this.activeModule) !== -1) {
-      var target = newModuleIds.indexOf('messenger') !== -1 ? 'messenger' : (newModuleIds[0] || 'messenger');
-      setTimeout(function() { self.switchModule(target); }, 350);
+    var apply = function () {
+      var next = self.modules.filter(function (m) { return newModuleIds.indexOf(m.id) !== -1; });
+      self._uiEmit({ modules: next.map(function (m) { return { id: m.id, name: m.name, icon: m.icon }; }) });
+      /* Сняли открытый модуль — уводим пользователя туда, что осталось */
+      if (self.activeModule && newModuleIds.indexOf(self.activeModule) === -1) {
+        var target = newModuleIds.indexOf('messenger') !== -1 ? 'messenger' : (newModuleIds[0] || 'messenger');
+        setTimeout(function () { self.switchModule(target); }, 200);
+      }
+    };
+
+    if (missing) {
+      /* Выдали модуль, которого клиент ещё не видел — забираем манифесты */
+      this.api('/api/modules').then(function (mods) {
+        if (mods) self.modules = mods;
+        apply();
+      });
+    } else {
+      apply();
     }
   },
 
-  _addSidebarBtn(id, container) {
-    var mod = this.modules.find(function(m) { return m.id === id; });
-    if (!mod) return;
-    var icons = {
-      servers:'<span class="ico ico-18 ico-servers"></span>',
-      users:'<span class="ico ico-18 ico-users"></span>',
-      messenger:'<span class="ico ico-18 ico-messenger"></span>',
-      channels:'<span class="ico ico-18 ico-channels"></span>',
-      valentine:'<span class="ico ico-18 ico-valentine"></span>',
-      bots:'<span class="ico ico-18 ico-bots"></span>'
-    };
-    var badge = id === 'messenger' ? '<span class="msg-badge" id="msgBadge" style="display:none"></span>' : '';
-    var btn = document.createElement('button');
-    btn.className = 'sidebar-module';
-    btn.dataset.id = id;
-    btn.title = mod.name;
-    btn.style.position = 'relative';
-    btn.onclick = function() { Shell.switchModule(id); };
-    btn.innerHTML = (icons[mod.icon] || icons.servers) + badge;
-    btn.style.opacity = '0';
-    btn.style.transform = 'scale(0.5)';
-    container.appendChild(btn);
-    requestAnimationFrame(function() {
-      btn.style.transition = 'opacity 0.3s, transform 0.3s';
-      btn.style.opacity = '1';
-      btn.style.transform = 'scale(1)';
-    });
+  /* ── Очередь уведомлений ───────────────────────────────────────────
+     Одна стопка карточек над кнопкой «Приложения». Раньше на это было три
+     независимых механизма, которые не знали друг о друге и делили два
+     нижних угла с кнопкой и плашкой голосовой.
+
+     Текст везде идёт как текст, а не как HTML: и сообщение собеседника, и
+     ответ сервера в тосте — чужой ввод. */
+  _push(note) {
+    var id = note.id || ('n' + (this._noteSeq = (this._noteSeq || 0) + 1));
+    note.id = id;
+    if (note.fn) { this._noteFns = this._noteFns || {}; this._noteFns[id] = note.fn; delete note.fn; }
+
+    var next = this._uiState.notes.filter(function (n) { return n.id !== id; });
+    next.push(note);
+    /* В состоянии держим не больше десяти: показываем три, остальные
+       считаем, а совсем старое незачем возить в памяти. */
+    if (next.length > 10) next = next.slice(next.length - 10);
+    this._uiEmit({ notes: next });
+
+    this._noteTimers = this._noteTimers || {};
+    clearTimeout(this._noteTimers[id]);
+    if (!note.persistent) this._armNote(id, note.ttl || 5000);
+    return id;
   },
 
-  toast(msg, type='success') {
-    const old = document.querySelector('.toast'); if (old) old.remove();
-    const t = document.createElement('div'); t.className = 'toast '+ type;
-    t.innerHTML = (type==='success'?'✓':'✗')+' '+msg;
-    document.body.appendChild(t);
-    setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 3000);
+  _armNote(id, ttl) {
+    var self = this;
+    this._noteTimers = this._noteTimers || {};
+    clearTimeout(this._noteTimers[id]);
+    this._noteTimers[id] = setTimeout(function () { self.dismissNote(id); }, ttl);
+  },
+
+  /* Курсор на карточке останавливает таймер: прочитать длинное сообщение
+     за отведённые секунды иначе не успеть. */
+  _noteHold(id, hold) {
+    var n = this._uiState.notes.find(function (x) { return x.id === id; });
+    if (!n || n.persistent) return;
+    if (hold) { clearTimeout((this._noteTimers || {})[id]); }
+    else this._armNote(id, n.ttl || 5000);
+  },
+
+  dismissNote(id) {
+    if (id == null) {
+      var self0 = this;
+      this._uiState.notes.slice().forEach(function (n) { self0.dismissNote(n.id); });
+      return;
+    }
+    if (this._noteTimers) clearTimeout(this._noteTimers[id]);
+    var next = this._uiState.notes.filter(function (n) { return n.id !== id; });
+    if (next.length !== this._uiState.notes.length) this._uiEmit({ notes: next });
+    if (this._noteFns) delete this._noteFns[id];
+  },
+
+  _noteAction(id) {
+    var fn = this._noteFns && this._noteFns[id];
+    if (fn) fn();
+  },
+
+  /* Подтверждение действия. Сигнатура прежняя: модули зовут его как есть. */
+  toast(msg, type = 'success') {
+    return this._push({
+      kind: type === 'success' ? 'ok' : 'error',
+      title: String(msg == null ? '' : msg),
+      ttl: 3200,
+    });
   }
 };
 
-// Close modals
-document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); }));
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); });
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && !document.getElementById('loginScreen').classList.contains('hidden')) Shell.handleAuth(); });
+/* Закрытие окон по фону и Escape живёт в самих компонентах (общий хук
+   core/react-src/src/shared/useEscape.js). Раньше здесь висели два
+   глобальных слушателя: они снимали класс active со всех .modal-overlay —
+   то есть гасили React-овскую разметку мимо состояния. Окно исчезало, а
+   модуль считал его открытым, и следующая перерисовка возвращала его. */
 
+window.Shell = Shell;
 Shell.init();
 
 // Unlock audio on first user interaction (iOS/Safari)

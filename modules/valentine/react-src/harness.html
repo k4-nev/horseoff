@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>valentine — harness</title>
+<style>
+  /* Токены оболочки: модуль не должен от них зависеть, но они есть в проде */
+  :root{
+    --bg:#1c1e2a; --surface:#252838; --surface2:#2e3146; --border:#3a3d55;
+    --text:#e2e4f0; --text-dim:#8890a8; --scrollbar:rgba(255,255,255,0.05);
+  }
+  /* ВАЖНО: воспроизводим оболочку ровно как в проде и НЕ добавляем удобных
+     стилей от себя. Ранее здесь была придуманная flex-цепочка с высотами,
+     из-за чего тесты проходили, а в проде модуль схлопывался в нулевую
+     высоту. .content ниже скопирован из core/shell.css как есть,
+     .module-container своих стилей не имеет — так и в проде. */
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:'Inter',sans-serif;min-height:100vh;overflow:hidden}
+  .app{display:flex;height:100vh}
+  .content{flex:1;overflow-y:auto;min-width:0}
+</style>
+</head>
+<body>
+<div class="app"><main class="content" id="moduleContent"></main></div>
+<script>
+/* Точная эмуляция того, как core/shell.js грузит модуль:
+   три файла как ТЕКСТ, html+css через innerHTML в контейнер, js — инлайновым
+   <script>. Плюс window.Shell.api, который добавляет токен и разбирает JSON. */
+const NAMES = ['Аня','Миша','Катя','Лена'];
+const CAPS = ['пить один коктейль на двоих','строить что-то вместе','сидеть рядом и молчать',
+  'ждать и дождаться','смеяться над одним и тем же'];
+const S = n => '/stickers/sticker-' + String(n).padStart(2,'0') + '.png';
+const now = Math.floor(Date.now()/1000);
+
+let received = [
+  {id:'v1',from:'u2',from_name:'Аня',from_avatar:null,time:now-3600,read:false,
+   pages:[1,9,17,4,5].map((s,i)=>({sticker:S(s),text:CAPS[i]}))},
+  {id:'v2',from:'u3',from_name:'Миша',from_avatar:null,time:now-90000,read:false,
+   pages:[6,7,8,2,10].map((s,i)=>({sticker:S(s),text:CAPS[(i+1)%5]}))},
+  {id:'v3',from:'u2',from_name:'Аня',from_avatar:null,time:now-400000,read:true,
+   pages:[11,12,1,9,17].map((s,i)=>({sticker:S(s),text:CAPS[(i+2)%5]}))},
+  {id:'v4',from:'u4',from_name:'Катя',from_avatar:null,time:now-900000,read:true,
+   pages:[4,5,6,7,8].map((s,i)=>({sticker:S(s),text:CAPS[(i+3)%5]}))},
+];
+
+window.Shell = {
+  token:'test-token',
+  user:{username:'tester',id:'u1'},
+  api: async (path, opts) => {
+    const method = (opts && opts.method) || 'GET';
+    await new Promise(r=>setTimeout(r,60)); // сеть не мгновенна
+    if(path === '/api/msg/contacts')
+      return {contacts: NAMES.map((n,i)=>({id:'u'+(i+2),username:n.toLowerCase(),display_name:n,avatar:null}))};
+    if(path === '/api/valentine/stickers')
+      return {stickers: Array.from({length:12},(_,i)=>S(i+1))};
+    if(path === '/api/valentine/received') return received;
+    if(path === '/api/profile') return {username:'tester',display_name:'Тестер',avatar:null};
+    if(path === '/api/valentine/read') return {status:'ok'};
+    if(path === '/api/valentine/send'){ window.__sent = JSON.parse(opts.body); return {status:'ok',id:'new'}; }
+    if(method === 'DELETE' && path.startsWith('/api/valentine/')){
+      const id = path.split('/api/valentine/')[1];
+      window.__deleted = id;
+      received = received.filter(v=>v.id!==id);
+      return {status:'ok'};
+    }
+    return {status:'ok'};
+  },
+};
+
+(async () => {
+  const [html, css, js] = await Promise.all([
+    fetch('/modules/valentine/valentine.html').then(r=>r.text()),
+    fetch('/modules/valentine/valentine.css').then(r=>r.text()),
+    fetch('/modules/valentine/valentine.js').then(r=>r.text()),
+  ]);
+  const content = document.getElementById('moduleContent');
+  const container = document.createElement('div');
+  container.className = 'module-container';
+  container.dataset.moduleId = 'valentine';
+  container.innerHTML = '<style>' + css + '</style>' + html;
+  content.appendChild(container);
+  const s = document.createElement('script');
+  s.textContent = js;
+  container.appendChild(s);
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

@@ -9,6 +9,8 @@ import json, time, threading, os, hashlib, secrets, base64, io, asyncio, re, sub
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import roles as roles_mod
 
 # Register this module so servers_api can import from it
 sys.modules['server'] = sys.modules[__name__]
@@ -37,6 +39,97 @@ DATA_DIR = ROOT_DIR / "data"
 LOCALE_DIR = ROOT_DIR / "locale"
 MODULES_DIR = ROOT_DIR / "modules"
 CORE_DIR = SCRIPT_DIR
+
+# ─── Отпечаток выложенной статики ────────────────────────────────────────
+# Клиент сравнивает его, чтобы понять, что вышло обновление. Раньше на этом
+# месте был номер из version.json, который правят руками и на деплое забывают.
+_BUILD_CACHE = {'at': 0.0, 'id': ''}
+
+def _build_id():
+    """Короткий хеш от mtime и размеров статики. Пересчитываем не чаще
+    раза в 10 секунд: клиенты опрашивают версию каждую минуту, а на диск
+    за этим ходить на каждый запрос незачем."""
+    now = time.time()
+    if _BUILD_CACHE['id'] and now - _BUILD_CACHE['at'] < 10:
+        return _BUILD_CACHE['id']
+    h = hashlib.sha1()
+    for base in (CORE_DIR, MODULES_DIR):
+        if not base.exists():
+            continue
+        for p in sorted(base.rglob('*')):
+            if not p.is_file():
+                continue
+            if p.suffix.lower() not in ('.js', '.css', '.html', '.json', '.py'):
+                continue
+            # Исходники React-модулей в браузер не едут — на сборку не влияют
+            if 'react-src' in p.parts or 'node_modules' in p.parts:
+                continue
+            # version.json пишет сам сервер: попади он в отпечаток, запись
+            # меняла бы его mtime и версия росла бы на каждом запросе
+            if p.name == 'version.json':
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            h.update(str(p.relative_to(ROOT_DIR)).encode())
+            h.update(str(int(st.st_mtime)).encode())
+            h.update(str(st.st_size).encode())
+    _BUILD_CACHE['at'] = now
+    _BUILD_CACHE['id'] = h.hexdigest()[:12]
+    return _BUILD_CACHE['id']
+VERSION_FILE = CORE_DIR / "version.json"
+
+def _bump(version):
+    """Поднимаем последнюю компоненту номера: 2.333 → 2.334."""
+    parts = str(version or '2.0').split('.')
+    try:
+        parts[-1] = str(int(parts[-1]) + 1)
+    except ValueError:
+        parts.append('1')
+    return '.'.join(parts)
+
+def ensure_version():
+    """Единственное место, где живёт версия приложения.
+
+    Сервер сам сравнивает отпечаток выложенной статики с записанным и, если
+    они разошлись, поднимает номер. То есть версия растёт на каждое реальное
+    изменение файлов и не зависит от того, вспомнил ли человек её бампнуть.
+
+    Возвращает {'version', 'build'}. Дёргается на старте и из /api/version,
+    поэтому выкладка без рестарта тоже замечается."""
+    build = _build_id()
+    with get_file_lock(VERSION_FILE):
+        data = None
+        if VERSION_FILE.exists():
+            try:
+                data = json.loads(VERSION_FILE.read_text(encoding='utf-8'))
+            except Exception:
+                data = None
+        if isinstance(data, dict) and data.get('build') == build:
+            return {'version': data.get('version', '?'), 'build': build}
+
+        if data is None:
+            # Файла нет или он испорчен — сверять не с чем и незачем: это
+            # установка с нуля, начинаем с базового номера.
+            version = '2.0'
+        elif 'build' not in data:
+            # Номер есть, отпечатка нет. Сверить не с чем, значит считаем, что
+            # файлы изменились. Ровно в этом состоянии находится выкладка,
+            # которая ставит саму авто-версию: не поднять здесь — значит
+            # прислать уведомление с той же версией, что уже стоит.
+            version = _bump(data.get('version'))
+        else:
+            version = _bump(data.get('version'))
+        out = {'version': version, 'build': build}
+        try:
+            VERSION_FILE.write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
+        except OSError:
+            return out
+        if data is not None:
+            print(f"  [VERSION] {data.get('version')} -> {version} (файлы изменились)")
+        return out
+
 USERS_FILE = DATA_DIR / "users.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 SESSIONS_FILE = DATA_DIR / "sessions.json"
@@ -50,7 +143,7 @@ MSG_DIR.mkdir(exist_ok=True)
 # Push notifications
 PUSH_DIR = DATA_DIR / 'push'
 PUSH_DIR.mkdir(exist_ok=True)
-VAPID_DIR = ROOT_DIR / 'pwa'
+VAPID_DIR = DATA_DIR
 VAPID_PRIVATE_KEY = VAPID_DIR / 'vapid_private.pem'
 VAPID_PUBLIC_KEY_FILE = VAPID_DIR / 'vapid_public.txt'
 VAPID_EMAIL = 'mailto:admin@horseoff-workspace.ru'
@@ -62,6 +155,49 @@ except ImportError:
     HAS_PUSH = False
     print("  [WARN] pywebpush not installed. Run: pip install pywebpush --break-system-packages")
 
+def migrate_vapid_keys():
+    """Ключи VAPID переехали из публично раздаваемого pwa/ в data/ (a6e9a74).
+
+    Правка была верной — приватный ключ лежал под раздачей статики и качался
+    по HTTP, — но на уже работающих установках файлы остались на старом
+    месте. После выкладки send_push молча выходил в первой же строке (нет
+    приватного ключа — нет отправки), а /api/push/key отдавал available:false,
+    так что и подписаться заново было нельзя. Уведомления просто перестали
+    приходить, без единой ошибки в логе.
+
+    Переносим сами, один раз. Именно переносим, а не копируем: копия в pwa/
+    вернула бы ровно ту дыру, из-за которой всё и затевалось.
+    """
+    legacy = ROOT_DIR / 'pwa'
+    if legacy.resolve() == VAPID_DIR.resolve():
+        return
+    for name in ('vapid_private.pem', 'vapid_public.txt'):
+        new = VAPID_DIR / name
+        old = legacy / name
+        if new.exists() or not old.is_file():
+            continue
+        try:
+            new.write_bytes(old.read_bytes())
+            try: os.chmod(new, 0o600)
+            except Exception: pass
+            old.unlink()
+            print(f"  [PUSH] {name}: перенесён из pwa/ в data/")
+        except Exception as e:
+            print(f"  [PUSH] {name}: перенести не удалось — {e}")
+
+
+def push_status():
+    """Одна строка при старте: работают ли пуши и почему нет."""
+    if not HAS_PUSH:
+        return 'выключены (нет pywebpush)'
+    if not VAPID_PRIVATE_KEY.exists():
+        return f'выключены (нет ключа {VAPID_PRIVATE_KEY})'
+    if not VAPID_PUBLIC_KEY_FILE.exists():
+        return f'выключены (нет ключа {VAPID_PUBLIC_KEY_FILE})'
+    subs = sum(1 for f in PUSH_DIR.glob('*.json'))
+    return f'работают, подписок у {subs} польз.'
+
+
 def get_vapid_public_key():
     if VAPID_PUBLIC_KEY_FILE.exists():
         return VAPID_PUBLIC_KEY_FILE.read_text().strip()
@@ -69,23 +205,25 @@ def get_vapid_public_key():
 
 def save_push_sub(user_id, subscription):
     f = PUSH_DIR / f"{user_id}.json"
-    try:
-        subs = json.loads(f.read_text()) if f.exists() else []
-    except: subs = []
-    # Avoid duplicates by endpoint
-    ep = subscription.get('endpoint', '')
-    subs = [s for s in subs if s.get('endpoint') != ep]
-    subs.append(subscription)
-    f.write_text(json.dumps(subs, ensure_ascii=False))
+    with get_file_lock(f):
+        try:
+            subs = json.loads(f.read_text()) if f.exists() else []
+        except: subs = []
+        # Avoid duplicates by endpoint
+        ep = subscription.get('endpoint', '')
+        subs = [s for s in subs if s.get('endpoint') != ep]
+        subs.append(subscription)
+        write_json_atomic(f, subs, ensure_ascii=False)
 
 def remove_push_sub(user_id, endpoint):
     f = PUSH_DIR / f"{user_id}.json"
-    if not f.exists(): return
-    try:
-        subs = json.loads(f.read_text())
-        subs = [s for s in subs if s.get('endpoint') != endpoint]
-        f.write_text(json.dumps(subs, ensure_ascii=False))
-    except: pass
+    with get_file_lock(f):
+        if not f.exists(): return
+        try:
+            subs = json.loads(f.read_text())
+            subs = [s for s in subs if s.get('endpoint') != endpoint]
+            write_json_atomic(f, subs, ensure_ascii=False)
+        except: pass
 
 def get_push_subs(user_id):
     f = PUSH_DIR / f"{user_id}.json"
@@ -123,10 +261,14 @@ def send_push(user_id, title, body, url='/', sender_id=''):
             print(f"[PUSH] Exception: {e}")
     if dead:
         f = PUSH_DIR / f"{user_id}.json"
-        try:
-            subs = [s for s in subs if s.get('endpoint') not in dead]
-            f.write_text(json.dumps(subs, ensure_ascii=False))
-        except: pass
+        with get_file_lock(f):
+            try:
+                # Re-read under the lock: a concurrent subscribe may have landed
+                # since we loaded `subs` above, and we must not clobber it.
+                fresh = json.loads(f.read_text()) if f.exists() else []
+                fresh = [s for s in fresh if s.get('endpoint') not in dead]
+                write_json_atomic(f, fresh, ensure_ascii=False)
+            except: pass
 
 def is_user_online(user_id):
     """Check if user has active WS connection."""
@@ -200,6 +342,80 @@ def get_remaining_block(ip):
             return int(r['blocked_until'] - time.time())
     return 0
 
+# Per-account limiting: login_attempts above is per-IP only, so a distributed
+# credential-stuffing attack (many IPs, one target account) sails through it
+# untouched. account_attempts tracks failures per *username* regardless of
+# source IP. A login from an IP the account has logged in from before (see
+# known_ips on the user record) is treated as the real owner and exempted
+# from the account-level block, so an attacker can't lock the real owner out
+# just by spraying wrong passwords at their username.
+account_attempts = {}  # username -> {'count': int, 'blocked_until': float}
+
+def get_account_remaining_block(username):
+    with rate_lock:
+        r = account_attempts.get(username)
+        if r and r.get('blocked_until') and time.time() < r['blocked_until']:
+            return int(r['blocked_until'] - time.time())
+    return 0
+
+def record_account_failed(username, ip):
+    user = find_user(username)
+    if not user: return  # unknown username: nothing to protect, per-IP limit still applies
+    known = ip in (user.get('known_ips') or [])
+    with rate_lock:
+        r = account_attempts.get(username, {'count': 0, 'blocked_until': 0})
+        r['count'] = r.get('count', 0) + 1
+        if r['count'] >= 5:
+            r = {'count': 0, 'blocked_until': 0 if known else time.time() + 60}
+        account_attempts[username] = r
+
+def record_account_success(username, ip):
+    with rate_lock:
+        account_attempts.pop(username, None)
+    remember_ip(username, ip)
+
+def remember_ip(username, ip):
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        for u in users:
+            if u['username'] == username:
+                ips = u.get('known_ips') or []
+                if ip not in ips:
+                    u['known_ips'] = (ips + [ip])[-8:]
+                    save_users(users)
+                break
+
+# ============================================================
+# CONCURRENT FILE ACCESS
+# ============================================================
+# The HTTP handler (main thread, one request at a time) and the WS server
+# (separate daemon thread running its own asyncio loop) both read-modify-write
+# the same JSON files under data/ with no coordination between the two threads.
+# Within a single thread there's no race (HTTP is sequential; the WS handler
+# never awaits between reading a file and writing it back), but across the two
+# threads a read-modify-write can interleave and silently drop one side's
+# change. _file_locks gives every file path its own lock shared by both
+# threads; write_json_atomic makes the write itself crash-safe (temp file +
+# os.replace, so a kill mid-write can never leave a half-written/corrupt file).
+_file_locks = {}
+_file_locks_meta = threading.Lock()
+
+def get_file_lock(path):
+    key = str(path)
+    with _file_locks_meta:
+        lock = _file_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _file_locks[key] = lock
+        return lock
+
+def write_json_atomic(path, data, **kwargs):
+    path = Path(path)
+    tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, **kwargs)
+    os.replace(tmp, path)
+
 # ============================================================
 # USERS & AUTH
 # ============================================================
@@ -238,7 +454,7 @@ def load_users():
     return []
 
 def save_users(users):
-    with open(USERS_FILE, 'w') as f: json.dump(users, f, indent=2, ensure_ascii=False)
+    write_json_atomic(USERS_FILE, users, indent=2, ensure_ascii=False)
     os.chmod(str(USERS_FILE), 0o600)
 
 
@@ -254,6 +470,37 @@ def migrate_user_roles():
     if changed:
         save_users(users)
         print(f"  [MIGRATE] Roles updated for {len(users)} users")
+
+def migrate_module_ids():
+    """Переименования модулей: id в выданных доступах едет следом.
+
+    Иначе выдача просто перестаёт совпадать с существующими модулями и
+    пользователь тихо теряет доступ. Идемпотентна: если старого id уже нет,
+    файл не переписывается."""
+    renames = {'wb': 'mp'}
+    users = load_users()
+    changed = 0
+    for u in users:
+        mods = u.get('modules')
+        if not isinstance(mods, list):
+            continue
+        new = []
+        for m in mods:
+            new.append(renames.get(m, m))
+        # дубли, если новый id уже был выдан отдельно
+        seen, dedup = set(), []
+        for m in new:
+            if m not in seen:
+                seen.add(m)
+                dedup.append(m)
+        if dedup != mods:
+            u['modules'] = dedup
+            changed += 1
+    if changed:
+        save_users(users)
+        print(f"  [MIGRATE] Module ids updated for {changed} user(s): " +
+              ', '.join(f'{a}->{b}' for a, b in renames.items()))
+
 
 def find_user_by_id(uid):
     users = load_users()
@@ -285,47 +532,50 @@ def create_user(username, password, role, display_name=''):
     if display_name:
         ok, msg = validate_display_name(display_name)
         if not ok: return False, msg
-    users = load_users()
-    if any(u['username'] == username for u in users): return False, "Пользователь уже существует"
-    salt, h = _hash(password)
-    default_mods = load_settings().get('default_modules', ['messenger'])
-    users.append({'id': secrets.token_hex(8), 'username': username, 'role': role,
-        'display_name': display_name.strip() if display_name else '',
-        'modules': list(default_mods),
-        'salt': salt, 'password_hash': h, 'created': time.strftime("%Y-%m-%d %H:%M:%S")})
-    save_users(users)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        if any(u['username'] == username for u in users): return False, "Пользователь уже существует"
+        salt, h = _hash(password)
+        default_mods = load_settings().get('default_modules', ['messenger'])
+        users.append({'id': secrets.token_hex(8), 'username': username, 'role': role,
+            'display_name': display_name.strip() if display_name else '',
+            'modules': list(default_mods),
+            'salt': salt, 'password_hash': h, 'created': time.strftime("%Y-%m-%d %H:%M:%S")})
+        save_users(users)
     return True, "OK"
 
 def update_user(uid, data):
-    users = load_users()
-    u = next((u for u in users if u['id'] == uid), None)
-    if not u: return False, "Не найден"
-    if 'username' in data and data['username']:
-        new_name = data['username'].strip()
-        if new_name != u['username']:
-            ok, msg = validate_username(new_name)
-            if not ok: return False, msg
-            if any(x['username'] == new_name for x in users): return False, "Логин уже занят"
-            u['username'] = new_name
-    if 'display_name' in data:
-        dn = data['display_name'].strip() if data['display_name'] else ''
-        if dn:
-            ok, msg = validate_display_name(dn)
-            if not ok: return False, msg
-        u['display_name'] = dn
-    if 'role' in data: u['role'] = data['role']
-    if 'modules' in data: u['modules'] = data['modules']
-    if 'password' in data and data['password']:
-        s, h = _hash(data['password'])
-        u['salt'] = s; u['password_hash'] = h
-    save_users(users)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        u = next((u for u in users if u['id'] == uid), None)
+        if not u: return False, "Не найден"
+        if 'username' in data and data['username']:
+            new_name = data['username'].strip()
+            if new_name != u['username']:
+                ok, msg = validate_username(new_name)
+                if not ok: return False, msg
+                if any(x['username'] == new_name for x in users): return False, "Логин уже занят"
+                u['username'] = new_name
+        if 'display_name' in data:
+            dn = data['display_name'].strip() if data['display_name'] else ''
+            if dn:
+                ok, msg = validate_display_name(dn)
+                if not ok: return False, msg
+            u['display_name'] = dn
+        if 'role' in data: u['role'] = data['role']
+        if 'modules' in data: u['modules'] = data['modules']
+        if 'password' in data and data['password']:
+            s, h = _hash(data['password'])
+            u['salt'] = s; u['password_hash'] = h
+        save_users(users)
     return True, "OK"
 
 def delete_user(uid):
-    users = load_users()
-    new = [u for u in users if u['id'] != uid]
-    if len(new) == len(users): return False
-    save_users(new)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        new = [u for u in users if u['id'] != uid]
+        if len(new) == len(users): return False
+        save_users(new)
     delete_avatar(uid)
     return True
 
@@ -388,7 +638,10 @@ def process_image(data, att_id):
 def save_attachment(data, filename, att_id):
     """Save a non-image file. Returns True on success."""
     try:
-        p = ATTACH_DIR / f"{att_id}_{filename}"
+        # filename comes from the client-supplied Content-Disposition header — strip any
+        # directory components so a crafted "../../core/shell.html" can't escape ATTACH_DIR.
+        safe_name = Path(filename).name
+        p = ATTACH_DIR / f"{att_id}_{safe_name}"
         p.write_bytes(data)
         return True
     except: return False
@@ -551,10 +804,11 @@ def change_password(username, old_pw, new_pw):
     if not u: return False, "Неверный текущий пароль"
     s, h = _hash(new_pw)
     u['salt'] = s; u['password_hash'] = h
-    users = load_users()
-    for i, usr in enumerate(users):
-        if usr['id'] == u['id']: users[i] = u; break
-    save_users(users)
+    with get_file_lock(USERS_FILE):
+        users = load_users()
+        for i, usr in enumerate(users):
+            if usr['id'] == u['id']: users[i] = u; break
+        save_users(users)
     return True, "OK"
 
 def get_token_from_handler(handler):
@@ -585,7 +839,10 @@ def get_session(handler):
         s = sessions.get(token)
         if not s: return None
         if time.time() > s['expires']: del sessions[token]; save_sessions(); return None
+        # Sliding expiry: an active session shouldn't hard-expire mid-use just
+        # because SESSION_TTL counts from login, not from last activity.
         s['last_seen'] = time.time()
+        s['expires'] = s['last_seen'] + SESSION_TTL
     save_sessions()
     return s
 
@@ -595,14 +852,36 @@ def get_session_by_token(token):
         if not s: return None
         if time.time() > s['expires']: del sessions[token]; save_sessions(); return None
         s['last_seen'] = time.time()
+        s['expires'] = s['last_seen'] + SESSION_TTL
     save_sessions()
     return s
+
+# Лестница живёт в core/roles.py — там же записано, что открывает каждая
+# ступень. Здесь только псевдонимы, чтобы старый код не переписывать целиком.
+ROLE_RANK = roles_mod.ROLE_RANK
+role_at_least = roles_mod.role_at_least
+
+
+def may(session, action):
+    """Тянет ли ступень человека это действие.
+
+    Роль берём из записи пользователя, а не из сессии: сессия помнит её с
+    момента входа, и понижение до сих пор вступало в силу только через
+    семь дней — на следующем входе."""
+    if not session: return False
+    u = find_user(session['username'])
+    role = (u or {}).get('role', session['role'])
+    return roles_mod.may(role, action)
+
+
+def live_role(session):
+    u = find_user(session['username']) if session else None
+    return (u or {}).get('role', (session or {}).get('role', 'common'))
 
 def require_role(handler, min_role):
     s = get_session(handler)
     if not s: return None
-    roles = {'arcana': 7, 'immortal': 6, 'legendary': 5, 'mythical': 4, 'rare': 3, 'uncommon': 2, 'common': 1}
-    if roles.get(s['role'], 0) >= roles.get(min_role, 0): return s
+    if role_at_least(s['role'], min_role): return s
     return None
 
 # ============================================================
@@ -617,6 +896,10 @@ def discover_modules():
                 try:
                     with open(mf) as f: m = json.load(f)
                     m['path'] = str(d)
+                    # Порог берём из лестницы, а не из манифеста: он меняется
+                    # из админки, и манифест о правках не знает. В манифесте
+                    # он остаётся как значение по умолчанию для новых модулей.
+                    m['min_role'] = roles_mod.module_min_role(m['id'])
                     mods.append(m)
                 except: pass
     return mods
@@ -658,10 +941,11 @@ def get_messages(chat_key, offset=0, limit=50):
 
 def save_message(chat_key, msg):
     f = MSG_DIR / f"{chat_key}.json"
-    try: msgs = json.loads(f.read_text()) if f.exists() else []
-    except: msgs = []
-    msgs.append(msg)
-    f.write_text(json.dumps(msgs, ensure_ascii=False))
+    with get_file_lock(f):
+        try: msgs = json.loads(f.read_text()) if f.exists() else []
+        except: msgs = []
+        msgs.append(msg)
+        write_json_atomic(f, msgs, ensure_ascii=False)
     return msg
 
 def get_last_message(chat_key):
@@ -695,14 +979,15 @@ def get_msg_count(chat_key):
 def mark_read(chat_key, user_id):
     f = MSG_DIR / f"{chat_key}.json"
     if not f.exists(): return
-    try:
-        msgs = json.loads(f.read_text())
-        changed = False
-        for m in reversed(msgs):
-            if m['from'] == user_id: break
-            if not m.get('read'): m['read'] = True; changed = True
-        if changed: f.write_text(json.dumps(msgs, ensure_ascii=False))
-    except: pass
+    with get_file_lock(f):
+        try:
+            msgs = json.loads(f.read_text())
+            changed = False
+            for m in reversed(msgs):
+                if m['from'] == user_id: break
+                if not m.get('read'): m['read'] = True; changed = True
+            if changed: write_json_atomic(f, msgs, ensure_ascii=False)
+        except: pass
 
 def get_user_status(user_id):
     """Aggregate presence across all of a user's connections.
@@ -756,12 +1041,61 @@ voice_rooms = {}
 voice_rooms_lock = threading.Lock()
 _ws_queue = None  # asyncio.Queue for cross-thread messaging
 
+def _ws_send_token(token, data):
+    """Одному соединению по токену."""
+    if not _ws_queue or not ws_loop: return
+    try:
+        ws_loop.call_soon_threadsafe(_ws_queue.put_nowait, ('token', token, data, None))
+    except Exception: pass
+
+
 def _ws_broadcast_to_user(user_id, data, exclude_token=None):
     """Schedule broadcast to all WS clients of a user."""
     if not _ws_queue or not ws_loop: return
     try:
         ws_loop.call_soon_threadsafe(_ws_queue.put_nowait, ('user', user_id, data, exclude_token))
     except: pass
+
+# Токены тех, кто сейчас смотрит на «Серверы». Метрики уходят только им:
+# раньше сводка по всей инфраструктуре — адреса, нагрузка, оплачено до
+# какого числа — раз в полминуты приезжала каждому вошедшему, включая тех,
+# кому раздел не выдан вовсе.
+_metric_subs = set()
+
+
+def has_metric_subs():
+    """Смотрит ли кто-нибудь. Опрос по SSH без зрителей можно и разредить."""
+    return any(t in ws_clients for t in _metric_subs)
+
+
+def _may_see_module(user_id, module_id, action):
+    """Доступ к разделу целиком: и ступень, и выдача. Спрашиваем по записи
+    пользователя, а не по сессии — понижение действует сразу."""
+    u = next((x for x in load_users() if x['id'] == user_id), None)
+    if not u: return False
+    role = u.get('role', 'common')
+    if role == 'arcana': return True
+    if not roles_mod.may(role, action): return False
+    return module_id in (u.get('modules') or [])
+
+
+def notify_module_users(module_id, action, payload, push=None):
+    """Сообщение всем, у кого есть доступ к разделу, — и в приложение, и в
+    push. Именно всем с доступом, а не только тем, кто сейчас в разделе:
+    про упавший сервер надо узнавать, не глядя на него."""
+    seen = set()
+    for tk, cl in list(ws_clients.items()):
+        uid = cl.get('user_id')
+        if uid in seen or not _may_see_module(uid, module_id, action): continue
+        seen.add(uid)
+        _ws_send_token(tk, payload)
+    if push:
+        for u in load_users():
+            if u['id'] in seen: continue          # он уже увидел в приложении
+            if not _may_see_module(u['id'], module_id, action): continue
+            try: send_push(u['id'], push[0], push[1], None)
+            except Exception: pass
+
 
 def _ws_broadcast_all(data):
     """Broadcast to ALL connected clients."""
@@ -795,7 +1129,11 @@ def _ws_ch_presence_offline(user_id):
     except: pass
 
 def ws_push_servers(server_data):
-    _ws_broadcast_all({'type': 'servers_update', 'data': server_data})
+    """Только тем, кто открыл раздел и имеет к нему доступ."""
+    msg = {'type': 'servers_update', 'data': server_data}
+    for tk in list(_metric_subs):
+        if tk in ws_clients: _ws_send_token(tk, msg)
+        else: _metric_subs.discard(tk)
 
 def ws_push_settings():
     _ws_broadcast_all({'type': 'settings', 'data': load_settings()})
@@ -816,6 +1154,11 @@ async def _ws_queue_processor():
                         except: dead.append(tk)
                     for tk in dead:
                         ws_clients.pop(tk, None)
+                elif kind == 'token':
+                    cl = ws_clients.get(target_id)
+                    if cl:
+                        try: await cl['ws'].send(json.dumps(data))
+                        except: ws_clients.pop(target_id, None)
                 elif kind == 'user':
                     msg = json.dumps(data)
                     dead = []
@@ -936,7 +1279,12 @@ async def handle_ws(websocket):
         t = data['token']
         s = get_session_by_token(t)
         if not s:
-            record_failed_login(ip)
+            # NOT record_failed_login here: this is a 256-bit secrets.token_urlsafe(32)
+            # session token, not a guessable password — an expired/stale token is a
+            # normal lifecycle event (session TTL hit, client storage evicted), not
+            # a brute-force signal. Counting it as one let a single client stuck
+            # retrying a dead token blow through the per-IP login limiter and take
+            # every other user on that IP down with it (see 2026-08-24 iOS incident).
             await websocket.send(json.dumps({'type':'error','msg':'Unauthorized'}))
             await websocket.close(); return
 
@@ -1103,18 +1451,19 @@ async def handle_ws(websocket):
                             f = MSG_DIR / f"{chat_key}.json"
                             if f.exists():
                                 try:
-                                    msgs = json.loads(f.read_text())
-                                    updated_reactions = {}
-                                    for m in msgs:
-                                        if m['id'] == msg_id:
-                                            if 'reactions' not in m: m['reactions'] = {}
-                                            if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
-                                                del m['reactions'][s['id']]
-                                            else:
-                                                m['reactions'][s['id']] = emoji
-                                            updated_reactions = m.get('reactions', {})
-                                            break
-                                    f.write_text(json.dumps(msgs, ensure_ascii=False))
+                                    with get_file_lock(f):
+                                        msgs = json.loads(f.read_text())
+                                        updated_reactions = {}
+                                        for m in msgs:
+                                            if m['id'] == msg_id:
+                                                if 'reactions' not in m: m['reactions'] = {}
+                                                if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
+                                                    del m['reactions'][s['id']]
+                                                else:
+                                                    m['reactions'][s['id']] = emoji
+                                                updated_reactions = m.get('reactions', {})
+                                                break
+                                        write_json_atomic(f, msgs, ensure_ascii=False)
                                     await websocket.send(json.dumps({'type':'reaction','chat':chat_key,'msg_id':msg_id,'reactions':updated_reactions}))
                                     other_ids = [p for p in parts if p != s['id']]
                                     for oid in other_ids:
@@ -1134,15 +1483,17 @@ async def handle_ws(websocket):
                             f = MSG_DIR / f"{chat_key}.json"
                             if f.exists():
                                 try:
-                                    msgs = json.loads(f.read_text())
-                                    ok = False
-                                    for m in msgs:
-                                        if m['id'] == msg_id and m['from'] == s['id']:
-                                            if time.time() - m['time'] <= 172800:
-                                                m['text'] = new_text; m['edited'] = True; ok = True
-                                            break
+                                    with get_file_lock(f):
+                                        msgs = json.loads(f.read_text())
+                                        ok = False
+                                        for m in msgs:
+                                            if m['id'] == msg_id and m['from'] == s['id']:
+                                                if time.time() - m['time'] <= 172800:
+                                                    m['text'] = new_text; m['edited'] = True; ok = True
+                                                break
+                                        if ok:
+                                            write_json_atomic(f, msgs, ensure_ascii=False)
                                     if ok:
-                                        f.write_text(json.dumps(msgs, ensure_ascii=False))
                                         resp = {'type':'edited','chat':chat_key,'msg_id':msg_id,'text':new_text}
                                         await websocket.send(json.dumps(resp))
                                         other_ids = [p for p in parts if p != s['id']]
@@ -1164,11 +1515,15 @@ async def handle_ws(websocket):
                             f = MSG_DIR / f"{chat_key}.json"
                             if f.exists():
                                 try:
-                                    msgs = json.loads(f.read_text())
-                                    mo = next((m for m in msgs if m['id'] == msg_id), None)
-                                    if mo and mo['from'] == s['id'] and time.time() - mo['time'] <= 172800:
-                                        msgs = [m for m in msgs if m['id'] != msg_id]
-                                        f.write_text(json.dumps(msgs, ensure_ascii=False))
+                                    deleted = False
+                                    with get_file_lock(f):
+                                        msgs = json.loads(f.read_text())
+                                        mo = next((m for m in msgs if m['id'] == msg_id), None)
+                                        if mo and mo['from'] == s['id'] and time.time() - mo['time'] <= 172800:
+                                            msgs = [m for m in msgs if m['id'] != msg_id]
+                                            write_json_atomic(f, msgs, ensure_ascii=False)
+                                            deleted = True
+                                    if deleted:
                                         resp = {'type':'deleted','chat':chat_key,'msg_id':msg_id}
                                         await websocket.send(json.dumps(resp))
                                         other_ids = [p for p in parts if p != s['id']]
@@ -1191,9 +1546,12 @@ async def handle_ws(websocket):
 
                 elif mt == 'clear_chat':
                     chat_key = data.get('chat', '')
-                    if chat_key and s['id'] in chat_key.split('_'):
+                    if not may(s, 'msg.clear'):
+                        await _deny(websocket, 'msg.clear')
+                    elif chat_key and s['id'] in chat_key.split('_'):
                         f = MSG_DIR / f"{chat_key}.json"
-                        if f.exists(): f.write_text('[]')
+                        with get_file_lock(f):
+                            if f.exists(): write_json_atomic(f, [])
                         await websocket.send(json.dumps({'type':'chat_cleared','chat':chat_key}))
 
                 elif mt == 'pin':
@@ -1258,7 +1616,7 @@ async def handle_ws(websocket):
                         await websocket.send(json.dumps({'type':'muted_list','muted':prefs['muted']}))
 
                 elif mt == 'set_interval':
-                    if s['role'] in ('arcana', 'immortal'):
+                    if may(s, 'servers.interval'):
                         interval = int(data.get('interval', 30))
                         if interval in (15, 30, 45, 60):
                             with _settings_lock:
@@ -1285,6 +1643,11 @@ async def handle_ws(websocket):
                     sp_id = data.get('space_id', '')
                     text = data.get('text', '').strip()
                     if not ch_id or not text: continue
+                    # Ступень «читать» и ступень «писать» — разные: common
+                    # каналы видит, но не пишет
+                    if not may(s, 'channels.post'):
+                        await _deny(websocket, 'channels.post')
+                        continue
                     # Build message
                     user = find_user(s['username'])
                     msg = {
@@ -1333,6 +1696,7 @@ async def handle_ws(websocket):
                                 except: pass
 
                 elif mt == 'ch_typing':
+                    if not may(s, 'channels.post'): continue
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     if not ch_id: continue
@@ -1349,6 +1713,9 @@ async def handle_ws(websocket):
                                 except: pass
 
                 elif mt == 'ch_react':
+                    if not may(s, 'channels.post'):
+                        await _deny(websocket, 'channels.post')
+                        continue
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     msg_id = data.get('msg_id', '')
@@ -1390,7 +1757,7 @@ async def handle_ws(websocket):
                             path = ch_mod.DATA_DIR / f'chan_{ch_id}.json'
                             msgs = ch_mod._load(path, [])
                             for m in msgs:
-                                if m['id'] == msg_id and (m.get('from') == s['id'] or s['role'] in ('arcana','immortal','legendary')):
+                                if m['id'] == msg_id and (m.get('from') == s['id'] or can_moderate_channel(s, ch_id)):
                                     m['text'] = text
                                     m['edited'] = True
                                     break
@@ -1411,7 +1778,15 @@ async def handle_ws(websocket):
                         if ch_mod:
                             path = ch_mod.DATA_DIR / f'chan_{ch_id}.json'
                             msgs = ch_mod._load(path, [])
-                            msgs = [m for m in msgs if not (m['id'] == msg_id and (m.get('from') == s['id'] or s['role'] in ('arcana','immortal','legendary')))]
+                            target = next((m for m in msgs if m['id'] == msg_id), None)
+                            # Раньше отказ исполнялся молча: сообщение
+                            # оставалось на диске, но рассылка «удалено»
+                            # уходила всем — оно пропадало с экрана и
+                            # возвращалось при перезагрузке
+                            if not target or not (target.get('from') == s['id'] or can_moderate_channel(s, ch_id)):
+                                await _deny(websocket, 'channels.moderate')
+                                continue
+                            msgs = [m for m in msgs if m['id'] != msg_id]
                             ch_mod._save(path, msgs)
                             members = ch_mod.load_members(sp_id)
                             member_ids = set(m2['user_id'] for m2 in members)
@@ -1424,7 +1799,7 @@ async def handle_ws(websocket):
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     msg_id = data.get('msg_id', '')
-                    if ch_id and msg_id and s['role'] in ('arcana','immortal','legendary'):
+                    if ch_id and msg_id and can_moderate_channel(s, ch_id):
                         ch_mod = _loaded_modules.get('channels_api')
                         if ch_mod:
                             msgs = ch_mod._load(ch_mod.DATA_DIR / f'chan_{ch_id}.json', [])
@@ -1444,7 +1819,7 @@ async def handle_ws(websocket):
                     ch_id = data.get('channel_id', '')
                     sp_id = data.get('space_id', '')
                     msg_id = data.get('msg_id', '')
-                    if ch_id and msg_id and s['role'] in ('arcana','immortal','legendary'):
+                    if ch_id and msg_id and can_moderate_channel(s, ch_id):
                         ch_mod = _loaded_modules.get('channels_api')
                         if ch_mod:
                             pins = ch_mod.load_pins(ch_id)
@@ -1463,7 +1838,7 @@ async def handle_ws(websocket):
                     kick_self = uid == s['id']
                     target_user = find_user_by_id(uid) if not kick_self else None
                     target_arcana = target_user and target_user.get('role') == 'arcana' if target_user else False
-                    can_kick = kick_self or (s['role'] in ('arcana','immortal','legendary') and not target_arcana)
+                    can_kick = kick_self or (can_moderate_space(s, sp_id) and not target_arcana)
                     if sp_id and uid and can_kick:
                         ch_mod = _loaded_modules.get('channels_api')
                         if ch_mod:
@@ -1483,6 +1858,9 @@ async def handle_ws(websocket):
                             except: pass
 
                 elif mt == 'voice_join':
+                    if not may(s, 'voice.join'):
+                        await _deny(websocket, 'voice.join')
+                        continue
                     room_id = data.get('room_id','')
                     space_id = data.get('space_id','')
                     if room_id:
@@ -1551,6 +1929,12 @@ async def handle_ws(websocket):
                 elif mt == 'voice_allow_speak':
                     room_id = data.get('room_id','')
                     target_uid = data.get('user_id','')
+                    # Слово даёт модератор группы или глобальный. Раньше не
+                    # проверялось вовсе: слушатель мог выдать слово себе сам
+                    _vs = voice_rooms.get(room_id, {}).get('space_id', '')
+                    if not (may(s, 'voice.moderate') or can_moderate_space(s, _vs)):
+                        await _deny(websocket, 'voice.moderate')
+                        continue
                     with voice_rooms_lock:
                         if room_id in voice_rooms:
                             room = voice_rooms[room_id]
@@ -1577,7 +1961,10 @@ async def handle_ws(websocket):
                 elif mt == 'voice_kick':
                     room_id = data.get('room_id','')
                     target_uid = data.get('target_user_id','')
-                    if room_id and target_uid and s.get('role') in ['arcana','immortal','legendary']:
+                    # Комната живёт внутри группы, поэтому распоряжается ею
+                    # модератор этой группы — и глобальный модератор поверх
+                    _vs = voice_rooms.get(room_id, {}).get('space_id', '')
+                    if room_id and target_uid and (may(s, 'voice.moderate') or can_moderate_space(s, _vs)):
                         target_token = None
                         with voice_rooms_lock:
                             if room_id in voice_rooms:
@@ -1591,11 +1978,29 @@ async def handle_ws(websocket):
                                 except: pass
                             await _voice_leave(room_id, target_uid, target_token)
 
-                elif mt == 'servers_request':
-                    srv_mod = _loaded_modules.get('servers_api')
-                    if srv_mod and hasattr(srv_mod, 'cached_data') and hasattr(srv_mod, 'data_lock'):
-                        with srv_mod.data_lock:
-                            await websocket.send(json.dumps({'type':'servers_update','data':list(srv_mod.cached_data)}))
+                elif mt in ('servers_request', 'servers_subscribe'):
+                    # Раздел открыт — подписались, ушли — отписались. Раньше
+                    # метрики рассылались всем подключённым, и раздел был ни
+                    # при чём: сводка по инфраструктуре приезжала даже тем,
+                    # кому «Серверы» не выданы.
+
+                    if not _may_see_module(s['id'], 'servers', 'servers.view'):
+                        await websocket.send(json.dumps({'type':'error','msg':'Нет доступа'}))
+                    else:
+                        if mt == 'servers_subscribe': _metric_subs.add(token)
+                        srv_mod = _loaded_modules.get('servers_api')
+                        if srv_mod and hasattr(srv_mod, 'cached_data') and hasattr(srv_mod, 'data_lock'):
+                            with srv_mod.data_lock:
+                                snap = list(srv_mod.cached_data)
+                            await websocket.send(json.dumps({'type':'servers_update','data':snap}))
+                            # Снимка нет — значит опроса без зрителей не было;
+                            # просим сделать круг прямо сейчас, а не через
+                            # полминуты
+                            if not snap and hasattr(srv_mod, 'poll_now'):
+                                srv_mod.poll_now()
+
+                elif mt == 'servers_unsubscribe':
+                    _metric_subs.discard(token)
 
             except json.JSONDecodeError: pass
             except Exception as e:
@@ -1606,6 +2011,7 @@ async def handle_ws(websocket):
     finally:
         user_id = None
         v_rooms = []
+        _metric_subs.discard(token)   # соединение закрылось — подписка не нужна
         if token and token in ws_clients:
             user_id = ws_clients[token]['user_id']
             del ws_clients[token]
@@ -1646,6 +2052,92 @@ MIME = {'.html':'text/html','.css':'text/css','.js':'application/javascript',
         '.ogg':'audio/ogg','.mp3':'audio/mpeg','.m4a':'audio/mp4',
         '.mp4':'video/mp4','.webm':'video/webm'}
 
+
+
+def can_moderate_channel(session, channel_id):
+    """Может ли человек модерировать этот канал.
+
+    Право даёт статус в самой группе, а не ступень: создал группу — значит
+    в ней хозяин и делает всё, что делает модератор. Плюс глобальная
+    модерация поверх этого. В чужих группах человек остаётся участником.
+    """
+    if may(session, 'channels.moderate'): return True
+    ch_mod = _loaded_modules.get('channels_api')
+    if not ch_mod or not channel_id: return False
+    space = ch_mod.space_of_channel(channel_id)
+    return ch_mod.is_space_boss(space, session['id'])
+
+
+def can_moderate_space(session, space_id):
+    """То же, но когда речь про группу целиком (кик, состав участников)."""
+    if may(session, 'channels.moderate'): return True
+    if not space_id: return False
+    ch_mod = _loaded_modules.get('channels_api')
+    if not ch_mod: return False
+    space = next((sp for sp in ch_mod.load_spaces() if sp['id'] == space_id), None)
+    return ch_mod.is_space_boss(space, session['id'])
+
+
+async def _deny(websocket, action):
+    """Отказ по вебсокету в том же виде, что и по HTTP: с названием ступени,
+    чтобы интерфейсу было что показать человеку."""
+    try:
+        await websocket.send(json.dumps({
+            'type': 'denied', 'action': action,
+            'need_role': roles_mod.min_role(action),
+        }))
+    except Exception:
+        pass
+
+
+def _sync_module_grants():
+    """Порог подняли — выдача, которая перестала действовать, снимается.
+
+    Оставлять её висеть нельзя: в карточке пользователя тумблер был бы
+    включён, а раздел не работал бы — ровно то расхождение между «выдано» и
+    «можно», из-за которого лестницу и переделывали."""
+    dropped = []
+    users = load_users()
+    changed = False
+    for u in users:
+        if u.get('role') == 'arcana': continue
+        mods = u.get('modules') or []
+        keep = [m for m in mods if roles_mod.can_have_module(u.get('role', 'common'), m)]
+        if len(keep) != len(mods):
+            lost = [m for m in mods if m not in keep]
+            u['modules'] = keep
+            changed = True
+            dropped.append({'user': u['username'], 'modules': lost})
+    if changed:
+        save_users(users)
+        for u in users:
+            if any(d['user'] == u['username'] for d in dropped):
+                visible = [m['id'] for m in discover_modules()
+                           if m['id'] in (u.get('modules') or [])
+                           and roles_mod.can_have_module(u.get('role', 'common'), m['id'])]
+                _ws_broadcast_to_user(u['id'], {'type': 'modules_update', 'modules': visible})
+    return dropped
+
+
+def _module_gate(handler, session, prefix, method):
+    """Пускать ли в API раздела.
+
+    До этого здесь стояла только проверка сессии: выданные модули фильтровали
+    меню и больше нигде не спрашивались, поэтому любой вошедший дёргал API
+    чужого раздела напрямую. Теперь одно место решает за все модули — и за
+    те, о которых при добавлении никто не вспомнит."""
+    mod_id = prefix.rsplit('/', 1)[-1]
+    u = find_user(session['username'])
+    role = (u or {}).get('role', session['role'])
+    if role == 'arcana': return None
+    if not roles_mod.can_have_module(role, mod_id):
+        return {'error': 'Нет доступа', 'need_role': roles_mod.module_min_role(mod_id)}
+    granted = (u or {}).get('modules') or []
+    if mod_id not in granted:
+        return {'error': 'Раздел не выдан'}
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
@@ -1654,7 +2146,10 @@ class Handler(BaseHTTPRequestHandler):
             users = load_users()
             s = get_session(self)
             resp = {'setup_required': len(users) == 0}
-            if s: resp.update({'username': s['username'], 'role': s['role']})
+            if s:
+                role = live_role(s)
+                caps = [a for a in roles_mod.DEFAULTS if roles_mod.may(role, a)]
+                resp.update({'username': s['username'], 'role': role, 'caps': caps})
             return self._json(200, resp)
 
         if path == '/api/auth/sessions':
@@ -1677,11 +2172,9 @@ class Handler(BaseHTTPRequestHandler):
 
         # Version
         if path == '/api/version':
-            vf = CORE_DIR / 'version.json'
-            if vf.exists():
-                try: return self._json(200, json.loads(vf.read_text()))
-                except: pass
-            return self._json(200, {'version': '?'})
+            # ensure_version сам поднимет номер, если файлы изменились —
+            # выкладка без рестарта тоже будет замечена
+            return self._json(200, ensure_version())
 
         if path.startswith('/locale/'):
             return self._serve_file(LOCALE_DIR / path.split('/locale/')[1], base_dir=LOCALE_DIR)
@@ -1694,23 +2187,42 @@ class Handler(BaseHTTPRequestHandler):
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
             mods = discover_modules()
-            if s['role'] != 'arcana':
-                user = find_user(s['username'])
+            user = find_user(s['username'])
+            # Роль берём из записи, а не из сессии: сессия помнит её с момента
+            # входа, и после смены роли список не обновлялся до перелогина.
+            role = (user or {}).get('role', s['role'])
+            if role != 'arcana':
                 user_modules = user.get('modules', ['messenger']) if user else ['messenger']
-                mods = [m for m in mods if m['id'] in user_modules or m.get('min_role') == 'arcana']
+                # Модуль виден, если он выдан пользователю И его роль тянет
+                # min_role. Без второй половины модуль появлялся у того, кто им
+                # пользоваться не может. То же правило — в рассылке modules_update.
+                mods = [m for m in mods if m['id'] in user_modules
+                        and roles_mod.can_have_module(role, m['id'])]
             return self._json(200, mods)
+
+        # Лестница доступов: её должен видеть каждый — по ней интерфейс
+        # рисует подсказки «нужна роль X». Секрета в порогах нет.
+        if path == '/api/roles':
+            s = get_session(self)
+            if not s: return self._json(401, {'error': 'Unauthorized'})
+            d = roles_mod.describe()
+            d['my_role'] = live_role(s)
+            return self._json(200, d)
 
         # All modules (unfiltered, for admin)
         if path == '/api/modules/all':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             return self._json(200, discover_modules())
 
         if path == '/api/users':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             users = load_users()
-            safe = [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'modules':u.get('modules',['messenger']),'created':u['created'],'avatar':get_avatar_b64(u['id'])} for u in users]
+            def _last_seen(uid):
+                vals = [sess.get('last_seen', 0) for sess in sessions.values() if sess.get('id') == uid]
+                return max(vals) if vals else 0
+            safe = [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'modules':u.get('modules',['messenger']),'created':u['created'],'avatar':get_avatar_b64(u['id']),'status':get_user_status(u['id']),'last_seen':_last_seen(u['id'])} for u in users]
             return self._json(200, safe)
 
         if path == '/api/ws-port':
@@ -1726,14 +2238,14 @@ class Handler(BaseHTTPRequestHandler):
         # Default modules setting (god only)
         if path == '/api/settings/default-modules':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             st = load_settings()
             return self._json(200, {'modules': st.get('default_modules', ['messenger'])})
 
         # Push: test (god only)
         if path == '/api/push/test':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             send_push(s['id'], 'Horseoff', 'Тестовое уведомление')
             return self._json(200, {'status': 'ok', 'subs': len(get_push_subs(s['id']))})
 
@@ -1766,7 +2278,11 @@ class Handler(BaseHTTPRequestHandler):
             thumb = len(parts) > 1 and parts[1] == 'thumb'
             fp = get_attachment_path(att_id, thumb)
             if fp and fp.exists():
-                return self._serve_file(fp)
+                # Only known safe-to-render media types are served inline; anything else
+                # (arbitrary uploaded files, e.g. .html/.svg) is forced to download so the
+                # browser never executes attacker-controlled content from our own origin.
+                safe_inline = IMAGE_EXTS | AUDIO_EXTS | VIDEO_EXTS | {'.pdf'}
+                return self._serve_file(fp, force_download=fp.suffix.lower() not in safe_inline)
             return self._json(404, {'error': 'Not found'})
 
         # List chat attachments for side panel
@@ -1814,6 +2330,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith(prefix) and callable(handler_fn.get('GET')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'GET')
+                if denied: return self._json(403, denied)
                 return handler_fn['GET'](self, s, path)
 
         # SVG icons
@@ -1856,6 +2374,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ch/upload':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
+            # Маршрут лежит в ядре, а не под /api/mod/, поэтому общий
+            # привратник разделов его не покрывает — проверяем здесь
+            if not may(s, 'channels.attach'): return self._deny_action('channels.attach')
             fields, files = parse_multipart(self)
             channel_id = fields.get('channel_id', '')
             space_id = fields.get('space_id', '')
@@ -1868,6 +2389,8 @@ class Handler(BaseHTTPRequestHandler):
 
             attachments = []
             for f in files[:7]:
+                if len(f['data']) > 50 * 1024 * 1024:  # 50MB, same cap as /api/msg/upload
+                    return self._json(400, {'error': 'Файл слишком большой (макс 50 МБ)'})
                 att_id = secrets.token_hex(8)
                 fname = f['name']
                 ext = Path(fname).suffix.lower()
@@ -1923,6 +2446,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/msg/upload':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not may(s, 'msg.attach'): return self._deny_action('msg.attach')
             fields, files = parse_multipart(self)
             to_id = fields.get('to', '')
             text = fields.get('text', '').strip()
@@ -2019,20 +2543,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'token': create_session(user)})
 
         if path == '/api/auth/login':
-            # Rate limiting
+            # Rate limiting: per-IP first (cheap, catches single-source brute force)
             remaining = get_remaining_block(client_ip)
             if remaining > 0:
                 return self._json(429, {'error': f'Слишком много попыток. Подождите {remaining} сек.'})
             u, p = data.get('username','').strip(), data.get('password','')
+            # Per-account: catches distributed attempts against one username from many IPs
+            acc_remaining = get_account_remaining_block(u)
+            if acc_remaining > 0:
+                return self._json(429, {'error': f'Аккаунт временно заблокирован. Подождите {acc_remaining} сек.'})
             user = verify_pw(u, p)
             if user:
                 record_success_login(client_ip)
+                record_account_success(u, client_ip)
                 device_info = {k: data.get(k, '') for k in ('device_id', 'user_agent', 'platform')}
                 return self._json(200, {'token': create_session(user, device_info)})
             record_failed_login(client_ip)
+            record_account_failed(u, client_ip)
             remaining = get_remaining_block(client_ip)
             if remaining > 0:
                 return self._json(429, {'error': f'Слишком много попыток. Подождите {remaining} сек.'})
+            acc_remaining = get_account_remaining_block(u)
+            if acc_remaining > 0:
+                return self._json(429, {'error': f'Аккаунт временно заблокирован. Подождите {acc_remaining} сек.'})
             return self._json(401, {'error': 'Неверный логин или пароль'})
 
         if path == '/api/auth/logout':
@@ -2082,7 +2615,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/settings':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
-            if s['role'] not in ('arcana', 'immortal'): return self._json(403, {'error': 'Нет доступа'})
+            if not may(s, 'servers.interval'):
+                return self._json(403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role('servers.interval')})
             interval = int(data.get('poll_interval', 30))
             if interval in (15, 30, 45, 60):
                 with _settings_lock:
@@ -2124,10 +2658,22 @@ class Handler(BaseHTTPRequestHandler):
             if ep: remove_push_sub(s['id'], ep)
             return self._json(200, {'status': 'ok'})
 
+        # Пороги ступеней. Владелец и только он: редактор порогов закреплён
+        # за arcana намертво, иначе тот, кому его однажды открыли, поднимает
+        # себе любые права, включая управление пользователями.
+        if path == '/api/roles':
+            s = require_role(self, 'arcana')
+            if not s: return self._role_denied()
+            taken, refused = roles_mod.set_thresholds(data.get('actions'))
+            dropped = _sync_module_grants()
+            return self._json(200, {'status': 'ok', 'applied': taken,
+                                    'refused': refused, 'dropped': dropped,
+                                    'roles': roles_mod.describe()})
+
         # Default modules setting (god only)
         if path == '/api/settings/default-modules':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             mods = data.get('modules', [])
             st = load_settings()
             st['default_modules'] = mods
@@ -2138,12 +2684,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/messages/clear':
             s = get_session(self)
             if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not may(s, 'msg.clear'): return self._deny_action('msg.clear')
             chat_key = data.get('chat', '')
             if not chat_key: return self._json(400, {'error': 'No chat key'})
             parts = chat_key.split('_')
             if s['id'] not in parts: return self._json(403, {'error': 'Нет доступа'})
             f = MSG_DIR / f"{chat_key}.json"
-            if f.exists(): f.write_text('[]')
+            with get_file_lock(f):
+                if f.exists(): write_json_atomic(f, [])
             return self._json(200, {'status': 'ok'})
 
         if path == '/api/msg/send':
@@ -2169,13 +2717,14 @@ class Handler(BaseHTTPRequestHandler):
             f = MSG_DIR / f"{chat_key}.json"
             if not f.exists(): return self._json(404, {'error': 'Not found'})
             try:
-                msgs = json.loads(f.read_text())
-                for m in msgs:
-                    if m['id'] == msg_id:
-                        if m['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
-                        if time.time() - m['time'] > 172800: return self._json(400, {'error': '>2 дней'})
-                        m['text'] = new_text; m['edited'] = True; break
-                f.write_text(json.dumps(msgs, ensure_ascii=False))
+                with get_file_lock(f):
+                    msgs = json.loads(f.read_text())
+                    for m in msgs:
+                        if m['id'] == msg_id:
+                            if m['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
+                            if time.time() - m['time'] > 172800: return self._json(400, {'error': '>2 дней'})
+                            m['text'] = new_text; m['edited'] = True; break
+                    write_json_atomic(f, msgs, ensure_ascii=False)
                 return self._json(200, {'status': 'ok'})
             except: return self._json(500, {'error': 'Error'})
 
@@ -2188,13 +2737,14 @@ class Handler(BaseHTTPRequestHandler):
             f = MSG_DIR / f"{chat_key}.json"
             if not f.exists(): return self._json(404, {'error': 'Not found'})
             try:
-                msgs = json.loads(f.read_text())
-                mo = next((m for m in msgs if m['id'] == msg_id), None)
-                if not mo: return self._json(404, {'error': 'Not found'})
-                if mo['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
-                if time.time() - mo['time'] > 172800: return self._json(400, {'error': '>2 дней'})
-                msgs = [m for m in msgs if m['id'] != msg_id]
-                f.write_text(json.dumps(msgs, ensure_ascii=False))
+                with get_file_lock(f):
+                    msgs = json.loads(f.read_text())
+                    mo = next((m for m in msgs if m['id'] == msg_id), None)
+                    if not mo: return self._json(404, {'error': 'Not found'})
+                    if mo['from'] != s['id']: return self._json(403, {'error': 'Не ваше'})
+                    if time.time() - mo['time'] > 172800: return self._json(400, {'error': '>2 дней'})
+                    msgs = [m for m in msgs if m['id'] != msg_id]
+                    write_json_atomic(f, msgs, ensure_ascii=False)
                 return self._json(200, {'status': 'ok'})
             except: return self._json(500, {'error': 'Error'})
 
@@ -2208,18 +2758,19 @@ class Handler(BaseHTTPRequestHandler):
             f = MSG_DIR / f"{chat_key}.json"
             if not f.exists(): return self._json(404, {'error': 'Not found'})
             try:
-                msgs = json.loads(f.read_text())
-                updated_msg = None
-                for m in msgs:
-                    if m['id'] == msg_id:
-                        if 'reactions' not in m: m['reactions'] = {}
-                        if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
-                            del m['reactions'][s['id']]
-                        else:
-                            m['reactions'][s['id']] = emoji
-                        updated_msg = m
-                        break
-                f.write_text(json.dumps(msgs, ensure_ascii=False))
+                with get_file_lock(f):
+                    msgs = json.loads(f.read_text())
+                    updated_msg = None
+                    for m in msgs:
+                        if m['id'] == msg_id:
+                            if 'reactions' not in m: m['reactions'] = {}
+                            if s['id'] in m['reactions'] and m['reactions'][s['id']] == emoji:
+                                del m['reactions'][s['id']]
+                            else:
+                                m['reactions'][s['id']] = emoji
+                            updated_msg = m
+                            break
+                    write_json_atomic(f, msgs, ensure_ascii=False)
                 # Push reaction update to other user via WS
                 if updated_msg:
                     other_id = [p for p in parts if p != s['id']]
@@ -2230,7 +2781,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == '/api/users':
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             u, p, r = data.get('username','').strip(), data.get('password',''), data.get('role','user')
             ok, msg = validate_username(u)
             if not ok: return self._json(400, {'error': msg})
@@ -2249,6 +2800,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith(prefix) and callable(handler_fn.get('POST')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'POST')
+                if denied: return self._json(403, denied)
                 return handler_fn['POST'](self, s, path, data)
 
         self._json(404, {'error': 'Not found'})
@@ -2259,7 +2812,7 @@ class Handler(BaseHTTPRequestHandler):
         if data is None: return
         if path.startswith('/api/users/'):
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             uid = path.split('/api/users/')[1]
             ok, msg = update_user(uid, data)
             if ok: _ws_refresh_all_contacts()
@@ -2269,13 +2822,16 @@ class Handler(BaseHTTPRequestHandler):
                 if user:
                     user_mods = user.get('modules', ['messenger'])
                     all_mods = discover_modules()
-                    visible = [m for m in all_mods if m['id'] in user_mods and m.get('min_role') != 'arcana']
+                    visible = [m for m in all_mods if m['id'] in user_mods
+                               and roles_mod.can_have_module(user.get('role', 'common'), m['id'])]
                     _ws_broadcast_to_user(uid, {'type': 'modules_update', 'modules': [m['id'] for m in visible]})
             return self._json(200 if ok else 400, {'status':'ok'} if ok else {'error': msg})
         for prefix, handler_fn in module_apis.items():
             if path.startswith(prefix) and callable(handler_fn.get('PUT')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'PUT')
+                if denied: return self._json(403, denied)
                 return handler_fn['PUT'](self, s, path, data)
         self._json(404, {'error': 'Not found'})
 
@@ -2288,12 +2844,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'status': 'ok'})
         if path.startswith('/api/avatar/'):
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             delete_avatar(path.split('/api/avatar/')[1])
             return self._json(200, {'status': 'ok'})
         if path.startswith('/api/users/'):
             s = require_role(self, 'arcana')
-            if not s: return self._json(401, {'error': 'Unauthorized'})
+            if not s: return self._role_denied()
             uid = path.split('/api/users/')[1]
             if uid == s['id']: return self._json(400, {'error': 'Нельзя удалить себя'})
             ok = delete_user(uid)
@@ -2303,8 +2859,25 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith(prefix) and callable(handler_fn.get('DELETE')):
                 s = get_session(self)
                 if not s: return self._json(401, {'error': 'Unauthorized'})
+                denied = _module_gate(self, s, prefix, 'DELETE')
+                if denied: return self._json(403, denied)
                 return handler_fn['DELETE'](self, s, path)
         self._json(404, {'error': 'Not found'})
+
+    def _deny_action(self, action):
+        """Отказ с названием нужной ступени — интерфейсу есть что показать."""
+        return self._json(403, {'error': 'Нет доступа', 'action': action,
+                                'need_role': roles_mod.min_role(action)})
+
+    def _role_denied(self):
+        """401 — не представился, 403 — представился, но роль не та.
+
+        Разделять обязательно: клиент на 401 считает токен мёртвым и выходит
+        из приложения. Пока роль отвечала 401, один модуль не по роли
+        выбрасывал пользователя из Horseoff насовсем."""
+        if get_session(self):
+            return self._json(403, {'error': 'Недостаточно прав'})
+        return self._json(401, {'error': 'Unauthorized'})
 
     def _json(self, code, data):
         self.send_response(code)
@@ -2314,7 +2887,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
-    def _serve_file(self, filepath, base_dir=None):
+    def _serve_file(self, filepath, base_dir=None, force_download=False):
         filepath = Path(filepath).resolve()
         # Path traversal guard: ensure file stays within its base directory
         if base_dir is not None:
@@ -2323,7 +2896,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(403, {'error': 'Forbidden'})
         if not filepath.exists(): return self._json(404, {'error': 'Not found'})
         ext = filepath.suffix
-        mime = MIME.get(ext, 'application/octet-stream')
+        # Untrusted uploads (arbitrary extension) must never be served as text/html or
+        # image/svg+xml etc. — force a safe download instead of letting the browser render them.
+        if force_download:
+            mime = 'application/octet-stream'
+        else:
+            mime = MIME.get(ext, 'application/octet-stream')
         size = filepath.stat().st_size
         # Range requests for streaming
         rh = self.headers.get('Range')
@@ -2345,11 +2923,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except: pass
         self.send_response(200)
-        self.send_header('Content-Type', f'{mime}; charset=utf-8' if ext in ('.html','.css','.js','.json') else mime)
+        self.send_header('Content-Type', f'{mime}; charset=utf-8' if ext in ('.html','.css','.js','.json') and not force_download else mime)
         self.send_header('Content-Length', str(size))
         self.send_header('Accept-Ranges', 'bytes')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
+        if force_download:
+            self.send_header('Content-Disposition', 'attachment')
         self.end_headers()
         self.wfile.write(filepath.read_bytes())
 
@@ -2366,15 +2946,23 @@ class Handler(BaseHTTPRequestHandler):
 # ============================================================
 def main():
     print("=" * 50)
-    print("  HORSEOFF v2.187")
+    print(f"  HORSEOFF v{ensure_version()['version']}")
     print("=" * 50)
     migrate_user_roles()
+    migrate_module_ids()
+    migrate_vapid_keys()
+    roles_mod.init(DATA_DIR)
+    _sync_module_grants()
     users = load_users()
     modules = discover_modules()
     print(f"  Users:   {len(users)} ({'SETUP REQUIRED' if not users else ', '.join(u['username'] for u in users)})")
     print(f"  Modules: {', '.join(m['id'] for m in modules) or 'none'}")
     print(f"  Web UI:  http://0.0.0.0:{WEB_PORT}")
     print(f"  Session: {SESSION_TTL // 86400} days")
+    _rm = roles_mod.matrix()
+    _changed = sum(1 for k, v in _rm.items() if v != roles_mod.DEFAULTS.get(k))
+    print(f"  Roles:   {len(roles_mod.ACTIONS)} действий, порогов изменено: {_changed}")
+    print(f"  Push:    {push_status()}")
     print("=" * 50)
 
     load_module_apis()

@@ -1,13 +1,43 @@
 """Channels module API."""
-import json, time, secrets, threading, base64
+import json, time, secrets, threading, base64, os
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data' / 'channels'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SPACES_FILE = DATA_DIR / 'spaces.json'
-_lock = threading.Lock()
-ADMIN_ROLES = ('arcana', 'immortal', 'legendary')
+_lock = threading.Lock()  # guards spaces.json: callers wrap their own load+modify+save with it
+def _may(session, action):
+    """Ступень человека против порога действия — общая лестница на всё
+    приложение (core/roles.py). Раньше здесь был свой ADMIN_ROLES, в ботах
+    свой _OWNER_ROLES, а в серверах чёрный список — три разных ответа на
+    вопрос «кто тут главный»."""
+    from server import may
+    return may(session, action)
+
+
+def _moderates(session, space_id):
+    """Модератор ли человек в этой группе.
+
+    Внутри группы это единственный вопрос, который задаётся. Модератор
+    делает всё: участники, сообщения, каналы, сама группа. Ступень внутри не
+    спрашивается — она отвечает только за право заводить группы, а модератором
+    человек становится, создав группу или получив «МОД».
+
+    Глобальная модерация (channels.moderate) действует поверх, во всех
+    группах сразу."""
+    if _may(session, 'channels.moderate'):
+        return True
+    if not space_id:
+        return False
+    space = next((sp for sp in load_spaces() if sp['id'] == space_id), None)
+    return is_space_boss(space, session['id'])
+
+
+def _denied(handler, action):
+    import roles as roles_mod
+    return _json(handler, 403, {'error': 'Нет доступа', 'action': action,
+                                'need_role': roles_mod.min_role(action)})
 
 def _load(path, default=None):
     if default is None: default = []
@@ -17,7 +47,23 @@ def _load(path, default=None):
     return default
 
 def _save(path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    os.replace(tmp, path)
+
+# Per-path locks for anything keyed by space_id/channel_id (each key gets its
+# own lock so unrelated spaces/channels don't serialize behind one another).
+_file_locks = {}
+_file_locks_meta = threading.Lock()
+
+def _get_file_lock(path):
+    key = str(path)
+    with _file_locks_meta:
+        lock = _file_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _file_locks[key] = lock
+        return lock
 
 def _json(handler, code, data):
     handler.send_response(code)
@@ -26,8 +72,7 @@ def _json(handler, code, data):
     handler.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
 def load_spaces(): return _load(SPACES_FILE, [])
-def save_spaces(spaces):
-    with _lock: _save(SPACES_FILE, spaces)
+def save_spaces(spaces): _save(SPACES_FILE, spaces)  # caller must hold _lock
 
 def load_channels(space_id): return _load(DATA_DIR / f'space_{space_id}_channels.json', [])
 def save_channels(space_id, ch): _save(DATA_DIR / f'space_{space_id}_channels.json', ch)
@@ -41,10 +86,11 @@ def load_messages(channel_id, limit=50):
 
 def save_message(channel_id, msg):
     path = DATA_DIR / f'chan_{channel_id}.json'
-    msgs = _load(path, [])
-    msgs.append(msg)
-    if len(msgs) > 5000: msgs = msgs[-5000:]
-    _save(path, msgs)
+    with _get_file_lock(path):
+        msgs = _load(path, [])
+        msgs.append(msg)
+        if len(msgs) > 5000: msgs = msgs[-5000:]
+        _save(path, msgs)
 
 def get_space_photo_b64(space_id):
     p = DATA_DIR / f'space_{space_id}.jpg'
@@ -97,6 +143,33 @@ def save_pins(channel_id, pins):
 def is_member(space_id, user_id):
     return any(m['user_id'] == user_id for m in load_members(space_id))
 
+def space_of_channel(channel_id):
+    """К какой группе относится канал.
+
+    Идентификатор группы приходит и в запросе, но верить ему нельзя: клиент
+    подставит чужой, и проверка прав уедет не в ту группу. Ищем сами."""
+    for sp in load_spaces():
+        for ch in load_channels(sp['id']):
+            if ch['id'] == channel_id:
+                return sp
+    return None
+
+def space_role(space_id, user_id):
+    """owner | moderator | member | None — роль человека в этой группе."""
+    for m in load_members(space_id):
+        if m['user_id'] == user_id:
+            return m.get('role', 'member')
+    return None
+
+def is_space_boss(space, user_id):
+    """Модератор группы: её создатель или назначенный.
+
+    Создателя проверяем и по owner_id — на случай групп, заведённых до того,
+    как создатель стал записываться модератором в списке участников."""
+    if not space: return False
+    if space.get('owner_id') == user_id: return True
+    return space_role(space['id'], user_id) in ('owner', 'moderator')
+
 def _get_param(handler, key):
     from urllib.parse import urlparse, parse_qs
     return parse_qs(urlparse(handler.path).query).get(key, [None])[0]
@@ -117,6 +190,9 @@ def handle_get(handler, session, path):
                 continue
             s = dict(sp)
             s['photo'] = get_space_photo_b64(sp['id'])
+            # Роль в группе — чтобы интерфейс не показывал кнопки, которых
+            # сервер всё равно не выполнит, и не прятал те, что выполнит
+            s['my_space_role'] = space_role(sp['id'], session['id'])
             result_spaces.append(s)
             chs = load_channels(sp['id'])
             for ch in chs:
@@ -142,6 +218,7 @@ def handle_get(handler, session, path):
         for sp in spaces:
             if is_member(sp['id'], session['id']) or sp['owner_id'] == session['id']:
                 s = dict(sp)
+                s['my_space_role'] = space_role(sp['id'], session['id'])
                 s['photo'] = get_space_photo_b64(sp['id'])
                 result.append(s)
         return _json(handler, 200, result)
@@ -217,7 +294,11 @@ def handle_get(handler, session, path):
 
     # GET /api/mod/channels/users
     if p.endswith('/users'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+        # Список нужен затем, чтобы кого-то добавить: спрашиваем то же, что
+        # и на добавление — модератор хоть где-нибудь или глобальное право
+        if not (_may(session, 'channels.userlist')
+                or any(is_space_boss(sp, session['id']) for sp in load_spaces())):
+            return _denied(handler, 'channels.userlist')
         from server import load_users, get_avatar_b64
         users = load_users()
         return _json(handler, 200, [{'id':u['id'],'username':u['username'],'display_name':u.get('display_name',''),'role':u['role'],'avatar':get_avatar_b64(u['id'])} for u in users])
@@ -228,83 +309,104 @@ def handle_post(handler, session, path, data):
     p = path.split('?')[0]
     # POST /api/mod/channels/spaces (create or edit)
     if p.endswith('/spaces'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
+        # Завести новую группу — по ступени; править существующую — по статусу
+        # в ней: свою переименовывает хозяин, чужую только глобальный модератор
+        if data.get('edit_id'):
+            if not _moderates(session, data.get('edit_id')):
+                return _denied(handler, 'channels.moderate')
+        elif not _may(session, 'channels.create'):
+            return _denied(handler, 'channels.create')
         name = data.get('name', '').strip()
         if not name or len(name) > 40: return _json(handler, 400, {'error': 'Название группы 1-40 символов'})
         photo_b64 = data.get('photo')
         edit_id = data.get('edit_id')
-        spaces = load_spaces()
+        with _lock:
+            spaces = load_spaces()
+            if edit_id:
+                for sp in spaces:
+                    if sp['id'] == edit_id:
+                        sp['name'] = name
+                        break
+                save_spaces(spaces)
+            else:
+                sp_type = data.get('type', 'text')
+                if sp_type not in ('text', 'voice_group'): sp_type = 'text'
+                space = {'id': secrets.token_hex(6), 'name': name, 'type': sp_type, 'owner_id': session['id'], 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+                spaces.append(space)
+                save_spaces(spaces)
         if edit_id:
-            for sp in spaces:
-                if sp['id'] == edit_id:
-                    sp['name'] = name
-                    break
-            save_spaces(spaces)
             if photo_b64: save_space_photo(edit_id, photo_b64)
             elif data.get('remove_photo'): delete_space_photo(edit_id)
             return _json(handler, 200, {'status': 'ok'})
-        sp_type = data.get('type', 'text')
-        if sp_type not in ('text', 'voice_group'): sp_type = 'text'
-        space = {'id': secrets.token_hex(6), 'name': name, 'type': sp_type, 'owner_id': session['id'], 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
-        spaces.append(space)
-        save_spaces(spaces)
-        save_members(space['id'], [{'user_id': session['id'], 'role': 'owner', 'joined': space['created']}])
+        with _get_file_lock(DATA_DIR / f"space_{space['id']}_members.json"):
+            # Создатель сразу модератор: статус виден и ему, и остальным,
+            # и не зависит от того, помнит ли кто-то, что группу завёл он
+            save_members(space['id'], [{'user_id': session['id'], 'role': 'moderator',
+                                        'joined': space['created'], 'creator': True}])
         if photo_b64: save_space_photo(space['id'], photo_b64)
         return _json(handler, 200, {'status': 'ok', 'space': space})
 
     # POST /api/mod/channels/channels (create or edit)
     if p.endswith('/channels'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
         space_id = data.get('space_id', '')
+        # В своей группе распоряжается хозяин, в чужой — только глобальное право
+        if not _moderates(session, space_id):
+            return _denied(handler, 'channels.moderate')
         name = data.get('name', '').strip()
         icon = data.get('icon', 'channels')
         if not name or len(name) > 30: return _json(handler, 400, {'error': 'Название 1-30 символов'})
         edit_id = data.get('edit_id')
-        channels = load_channels(space_id)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
+            channels = load_channels(space_id)
+            if edit_id:
+                for ch in channels:
+                    if ch['id'] == edit_id:
+                        ch['name'] = name
+                        ch['icon'] = icon
+                        break
+                save_channels(space_id, channels)
+            else:
+                ch_type = data.get('type', 'text')
+                if ch_type not in ('text', 'voice'): ch_type = 'text'
+                channel = {'id': secrets.token_hex(6), 'name': name, 'icon': icon, 'type': ch_type, 'space_id': space_id, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+                channels.append(channel)
+                save_channels(space_id, channels)
         if edit_id:
-            for ch in channels:
-                if ch['id'] == edit_id:
-                    ch['name'] = name
-                    ch['icon'] = icon
-                    break
-            save_channels(space_id, channels)
             return _json(handler, 200, {'status': 'ok'})
-        ch_type = data.get('type', 'text')
-        if ch_type not in ('text', 'voice'): ch_type = 'text'
-        channel = {'id': secrets.token_hex(6), 'name': name, 'icon': icon, 'type': ch_type, 'space_id': space_id, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
-        channels.append(channel)
-        save_channels(space_id, channels)
         return _json(handler, 200, {'status': 'ok', 'channel': channel})
 
     # POST /api/mod/channels/members
     if p.endswith('/members'):
-        if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
         space_id = data.get('space_id', '')
+        if not _moderates(session, space_id):
+            return _denied(handler, 'channels.members')
         user_ids = data.get('user_ids', [])
         set_mod = data.get('set_moderator')  # {user_id, value}
-        members = load_members(space_id)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
+            members = load_members(space_id)
+            if set_mod:
+                uid = set_mod.get('user_id')
+                val = set_mod.get('value', False)
+                for m in members:
+                    if m['user_id'] == uid:
+                        m['role'] = 'moderator' if val else 'member'
+                        break
+                save_members(space_id, members)
+            else:
+                existing = set(m['user_id'] for m in members)
+                now = time.strftime('%Y-%m-%d %H:%M:%S')
+                for uid in user_ids:
+                    if uid not in existing:
+                        members.append({'user_id': uid, 'role': 'member', 'joined': now})
+                save_members(space_id, members)
         if set_mod:
-            uid = set_mod.get('user_id')
-            val = set_mod.get('value', False)
-            for m in members:
-                if m['user_id'] == uid:
-                    m['role'] = 'moderator' if val else 'member'
-                    break
-            save_members(space_id, members)
             return _json(handler, 200, {'status': 'ok'})
-        existing = set(m['user_id'] for m in members)
-        now = time.strftime('%Y-%m-%d %H:%M:%S')
-        for uid in user_ids:
-            if uid not in existing:
-                members.append({'user_id': uid, 'role': 'member', 'joined': now})
-        save_members(space_id, members)
         return _json(handler, 200, {'status': 'ok'})
 
     return _json(handler, 404, {'error': 'Not found'})
 
 def handle_delete(handler, session, path):
     p = path.split('?')[0]
-    if session['role'] not in ADMIN_ROLES: return _json(handler, 403, {'error': 'Нет доступа'})
     data = {}
     cl = int(handler.headers.get('Content-Length') or 0)
     if cl > 0:
@@ -320,30 +422,45 @@ def handle_delete(handler, session, path):
     # DELETE space
     if p.endswith('/spaces'):
         space_id = data.get('space_id', '')
-        spaces = load_spaces()
-        spaces = [sp for sp in spaces if sp['id'] != space_id]
-        save_spaces(spaces)
+        if not _moderates(session, space_id):
+            return _denied(handler, 'channels.moderate')
+        with _lock:
+            spaces = load_spaces()
+            spaces = [sp for sp in spaces if sp['id'] != space_id]
+            save_spaces(spaces)
         for f in DATA_DIR.glob(f'space_{space_id}_*'): f.unlink(missing_ok=True)
         delete_space_photo(space_id)
         return _json(handler, 200, {'status': 'ok'})
 
     # DELETE channel
     if p.endswith('/channels'):
-        space_id = data.get('space_id', '')
         channel_id = data.get('channel_id', '')
-        channels = load_channels(space_id)
-        channels = [ch for ch in channels if ch['id'] != channel_id]
-        save_channels(space_id, channels)
+        # Группу ищем по каналу, а не берём из запроса: клиент присылал один
+        # channel_id, space_id оставался пустым — и удаление читало
+        # несуществующий файл, «убирая» канал из пустоты. Канал при этом
+        # оставался на месте, а ответ приходил успешный.
+        space = space_of_channel(channel_id)
+        space_id = data.get('space_id') or (space['id'] if space else '')
+        if not space_id: return _json(handler, 404, {'error': 'Канал не найден'})
+        if not _moderates(session, space_id):
+            return _denied(handler, 'channels.moderate')
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_channels.json'):
+            channels = load_channels(space_id)
+            channels = [ch for ch in channels if ch['id'] != channel_id]
+            save_channels(space_id, channels)
         (DATA_DIR / f'chan_{channel_id}.json').unlink(missing_ok=True)
         return _json(handler, 200, {'status': 'ok'})
 
     # DELETE member
     if p.endswith('/members'):
         space_id = data.get('space_id', '')
+        if not _moderates(session, space_id):
+            return _denied(handler, 'channels.members')
         user_id = data.get('user_id', '')
-        members = load_members(space_id)
-        members = [m for m in members if m['user_id'] != user_id]
-        save_members(space_id, members)
+        with _get_file_lock(DATA_DIR / f'space_{space_id}_members.json'):
+            members = load_members(space_id)
+            members = [m for m in members if m['user_id'] != user_id]
+            save_members(space_id, members)
         return _json(handler, 200, {'status': 'ok'})
 
     return _json(handler, 404, {'error': 'Not found'})

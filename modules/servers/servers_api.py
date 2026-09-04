@@ -49,7 +49,9 @@ def _load_json(path, default=None):
     return default if default is not None else []
 
 def _save_json(path, data):
-    with open(path, 'w') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    tmp = path.with_name(path.name + f'.tmp{os.getpid()}')
+    with open(tmp, 'w') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
 
 def load_metrics_hist():
     global metrics_hist
@@ -138,6 +140,98 @@ def _ssh(server, cmd, timeout=10):
         p = subprocess.run(c, capture_output=True, text=True, timeout=timeout)
         return p.stdout.strip() if p.returncode == 0 else None
     except: return None
+
+# Как часто проверяем, жив ли сервер. Это не полный опрос: TCP-коннект к
+# SSH-порту, три секунды таймаута, никаких процессов. Дорог именно SSH —
+# отдельный ssh-процесс, рукопожатие и шелл-конвейер на каждую машину; вот он
+# и запускается только когда на раздел кто-то смотрит. А падение замечается
+# всегда за полминуты, независимо от того, открыт ли раздел.
+LIVE_INTERVAL = 30
+
+# ip → сколько опросов подряд машина не отвечает. Оповещаем со второго:
+# один пропущенный опрос — это чаще сетевая икота, чем упавший сервер.
+_down_streak = {}
+_down_notified = set()
+
+
+_poll_now = threading.Event()
+
+
+def poll_now():
+    """Просьба опросить немедленно.
+
+    Первый вход в раздел не должен ждать следующего круга: снимка может не
+    быть вовсе (без зрителей полный опрос не идёт), и человек смотрел бы на
+    пустой список до полуминуты."""
+    _poll_now.set()
+
+
+def _alive_pass(servers):
+    """Дешёвая проверка живости: жив ли SSH-порт.
+
+    Свой сервер (host) не проверяем: на нём всё это и крутится — если он
+    лежит, некому и уведомлять."""
+    out = []
+    for srv in servers:
+        if srv.get('role') == 'host':
+            out.append({'ip': srv['ip'], 'name': srv.get('name'), 'online': True})
+            continue
+        alive = _check_port(srv['ip'], int(srv.get('ssh_port', 22) or 22))
+        out.append({'ip': srv['ip'], 'name': srv.get('name'), 'online': alive})
+    return out
+
+
+def _apply_alive(alive):
+    """Отметку «жив» кладём и в снимок — тем, кто смотрит, красный кружок
+    должен загореться сразу, не дожидаясь следующего полного опроса."""
+    global cached_data
+    changed = False
+    with data_lock:
+        by_ip = {m['ip']: m for m in cached_data}
+        for a in alive:
+            m = by_ip.get(a['ip'])
+            if m is not None and m.get('online') != a['online']:
+                m['online'] = a['online']
+                changed = True
+        snapshot = list(cached_data)
+    if changed:
+        try:
+            from server import ws_push_servers
+            ws_push_servers(snapshot)
+        except Exception:
+            pass
+
+
+def _announce_down(results):
+    """Упал — сказать всем, у кого есть доступ к разделу. Поднялся — тоже.
+
+    Оповещение идёт не подписчикам, а всем с доступом: про упавший сервер
+    надо узнавать, не глядя на него. Тем, кто сейчас в приложении, приходит
+    карточка, остальным — push."""
+    try:
+        from server import notify_module_users
+    except Exception:
+        return
+    for m in results:
+        ip, name = m.get('ip'), m.get('name') or m.get('ip')
+        if not ip: continue
+        if m.get('online'):
+            _down_streak[ip] = 0
+            if ip in _down_notified:
+                _down_notified.discard(ip)
+                notify_module_users(
+                    'servers', 'servers.view',
+                    {'type': 'server_up', 'ip': ip, 'name': name},
+                    push=('Сервер поднялся', name + ' снова на связи'))
+            continue
+        _down_streak[ip] = _down_streak.get(ip, 0) + 1
+        if _down_streak[ip] >= 2 and ip not in _down_notified:
+            _down_notified.add(ip)
+            notify_module_users(
+                'servers', 'servers.view',
+                {'type': 'server_down', 'ip': ip, 'name': name},
+                push=('Сервер упал', name + ' не отвечает'))
+
 
 def get_metrics(server, do_speed=False):
     role = server.get('role', '')
@@ -232,17 +326,41 @@ def get_metrics(server, do_speed=False):
 def poll_loop():
     global cached_data
     count = 0
+    last_full = 0.0
     while True:
         with servers_lock: servers = load_servers()
-        count += 1
         # Get poll interval from global settings
         try:
             from server import get_poll_interval
             interval = get_poll_interval()
         except:
             interval = 30
+        try:
+            from server import has_metric_subs
+            watched = has_metric_subs()
+        except Exception:
+            watched = True
+
+        # Полный опрос — по SSH, и он дорогой: процесс на машину, рукопожатие,
+        # шелл-конвейер. Запускаем его только пока на раздел кто-то смотрит и
+        # не чаще выбранного интервала. Всё остальное время идёт дешёвая
+        # проверка живости — TCP-коннект к SSH-порту, — поэтому падение
+        # замечается за полминуты независимо от того, открыт ли раздел.
+        due_full = watched and ((time.time() - last_full) >= interval or _poll_now.is_set())
+        _poll_now.clear()
+        if servers and not due_full:
+            alive = _alive_pass(servers)
+            _announce_down(alive)
+            _apply_alive(alive)
+            # Ждём с оглядкой: просьба опросить немедленно (первый вход в
+            # раздел) будит нас сразу, а не через полный круг
+            _poll_now.wait(LIVE_INTERVAL)
+            continue
+
+        count += 1
         do_speed = (count % max(1, SPEED_TEST_INTERVAL // max(interval, 15))) == 1
         if servers:
+            last_full = time.time()
             results = []
             for s in servers:
                 m = get_metrics(s, do_speed)
@@ -258,14 +376,15 @@ def poll_loop():
                 results.append(m)
             save_metrics_hist()
             with data_lock: cached_data = results
-            # Push to all WS clients
+            _announce_down(results)
+            # Метрики уходят только тем, кто сейчас смотрит на раздел
             try:
                 from server import ws_push_servers
                 ws_push_servers(results)
             except: pass
         else:
             with data_lock: cached_data = []
-        time.sleep(interval)
+        _poll_now.wait(min(interval, LIVE_INTERVAL))
 
 def daily_ruvds():
     while True:
@@ -277,12 +396,18 @@ def daily_ruvds():
 
 # ---- SSH with password (for initial setup) ----
 def _ssh_pass(ip, port, user, password, cmd, timeout=120):
-    """SSH using sshpass for password auth."""
+    """SSH using sshpass for password auth.
+
+    Password goes via the SSHPASS env var + `-e`, not `-p <password>` — a
+    command-line argument is visible to any local user/process via `ps aux`
+    for the life of the subprocess; an env var set only for this child isn't.
+    """
     try:
-        c = ["sshpass", "-p", password, "ssh",
+        c = ["sshpass", "-e", "ssh",
              "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10",
              "-p", str(port), f"{user}@{ip}", cmd]
-        p = subprocess.run(c, capture_output=True, text=True, timeout=timeout)
+        env = {**os.environ, "SSHPASS": password}
+        p = subprocess.run(c, capture_output=True, text=True, timeout=timeout, env=env)
         return p.returncode == 0, p.stdout.strip(), p.stderr.strip()
     except subprocess.TimeoutExpired:
         return False, "", "Timeout"
@@ -523,6 +648,18 @@ def _h_json(handler, code, data):
     handler.end_headers()
     handler.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
+def _may(session, action):
+    """Общая лестница доступов — core/roles.py. Здесь стоял чёрный список
+    ролей: добавилась бы восьмая ступень — получила бы доступ молча."""
+    from server import may
+    return may(session, action)
+
+
+def _denied(handler, action):
+    import roles as roles_mod
+    return _h_json(handler, 403, {'error': 'Нет доступа', 'need_role': roles_mod.min_role(action)})
+
+
 def handle_get(handler, session, path):
     if path == '/api/mod/servers/status':
         with data_lock: return _h_json(handler, 200, cached_data)
@@ -546,7 +683,7 @@ def handle_get(handler, session, path):
 
 def handle_post(handler, session, path, data):
     if path == '/api/mod/servers/add':
-        if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+        if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
         for f in ('name','ip'):
             if not data.get(f): return _h_json(handler, 400, {'error':f'Поле {f} обязательно'})
         srv = {'name':data['name'],'ip':data['ip'],'ssh_port':int(data.get('ssh_port',22)),
@@ -575,7 +712,7 @@ def handle_post(handler, session, path, data):
 
     # Create server (full provision)
     if path == '/api/mod/servers/create':
-        if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+        if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
         required = ('name', 'ip', 'ssh_password', 'proxy_user', 'proxy_pass')
         for f in required:
             if not data.get(f): return _h_json(handler, 400, {'error': f'Поле {f} обязательно'})
@@ -600,7 +737,7 @@ def handle_post(handler, session, path, data):
         return _h_json(handler, 200, {'status': 'provisioning', 'ip': ip})
 
     if path == '/api/mod/servers/apikeys':
-        if session['role'] not in ('arcana','immortal'): return _h_json(handler, 403, {'error':'Нет доступа'})
+        if not _may(session, 'servers.keys'): return _denied(handler, 'servers.keys')
         prov, key = data.get('provider',''), data.get('key','')
         keys = load_api_keys(); keys[prov] = key; save_api_keys(keys)
         if key: threading.Thread(target=refresh_ruvds, daemon=True).start()
@@ -610,13 +747,14 @@ def handle_post(handler, session, path, data):
         return _h_json(handler, 200, {'status':'ok'})
 
 def handle_put(handler, session, path, data):
-    if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+    if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
     if path.startswith('/api/mod/servers/update/'):
         oip = path.split('/api/mod/servers/update/')[1]
         with servers_lock:
             sl = load_servers()
             idx = next((i for i,s in enumerate(sl) if s['ip']==oip), None)
             if idx is None: return _h_json(handler, 404, {'error':'Не найден'})
+            if sl[idx].get('role') == 'host': return _h_json(handler, 403, {'error':'Host сервер нельзя редактировать'})
             nip = data.get('ip', oip)
             if nip != oip and any(s['ip']==nip for i,s in enumerate(sl) if i!=idx):
                 return _h_json(handler, 400, {'error':'IP уже существует'})
@@ -627,13 +765,15 @@ def handle_put(handler, session, path, data):
         return _h_json(handler, 200, {'status':'ok'})
 
 def handle_delete(handler, session, path):
-    if session['role'] in ('common','uncommon','rare','mythical','legendary'): return _h_json(handler, 403, {'error':'Нет доступа'})
+    if not _may(session, 'servers.manage'): return _denied(handler, 'servers.manage')
     if path.startswith('/api/mod/servers/delete/'):
         ip = path.split('/api/mod/servers/delete/')[1]
         with servers_lock:
             sl = load_servers()
+            target = next((s for s in sl if s['ip'] == ip), None)
+            if target is None: return _h_json(handler, 404, {'error':'Не найден'})
+            if target.get('role') == 'host': return _h_json(handler, 403, {'error':'Host сервер нельзя удалить'})
             new = [s for s in sl if s['ip'] != ip]
-            if len(new) == len(sl): return _h_json(handler, 404, {'error':'Не найден'})
             save_servers(new)
         return _h_json(handler, 200, {'status':'ok'})
 

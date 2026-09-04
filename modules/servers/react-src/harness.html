@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>servers — harness</title>
+<style>
+  :root{
+    --critical:#dc2626; --critical-glow:rgba(220,38,38,0.12);
+    --warning:#ffaa22; --warning-glow:rgba(255,170,34,0.12);
+    --success:#22c55e; --success-glow:rgba(34,197,94,0.12);
+    --accent:#00d4aa; --accent-dark:#00a888; --accent-glow:rgba(0,212,170,0.15);
+    --danger:#ff4466; --danger-glow:rgba(255,68,102,0.15);
+    --pulse-speed:2s;
+    --bg:#1c1e2a; --surface:#252838; --surface2:#2e3146; --border:#3a3d55;
+    --text:#e2e4f0; --text-dim:#8890a8;
+    --scrollbar:rgba(255,255,255,0.05);
+  }
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:'Inter',sans-serif;min-height:100vh;overflow:hidden}
+  .app{display:flex;height:100vh}
+  .content{flex:1;overflow-y:auto;min-width:0}
+
+  /* Общие классы оболочки (core/shell.css) — модуль на них опирается, но не переопределяет */
+  .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:center}
+  .modal-overlay.active{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+  .modal-wide{max-width:640px}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .modal-title{font-size:16px;font-weight:700}
+  .modal-close{background:none;border:none;color:var(--text-dim);cursor:pointer}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+  .form-group{margin-bottom:14px}
+  .form-row{display:flex;gap:10px}
+  .form-row .form-group{flex:1}
+  .form-divider{height:1px;background:var(--border);margin:14px 0}
+  .form-label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px}
+  .form-input,.form-select{width:100%;box-sizing:border-box;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px}
+  .form-hint{font-size:10px;color:var(--text-dim);margin-top:4px}
+  .input-eye{position:relative}
+  .eye-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer}
+  .btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600}
+  .btn-primary{background:var(--accent);color:#04140f}
+  .btn-secondary{background:var(--surface2);color:var(--text)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-icon-only{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center}
+  .spinner{width:20px;height:20px;border:2px solid var(--surface2);border-top-color:var(--accent);border-radius:50%}
+  .loading{display:flex;align-items:center;justify-content:center;padding:30px}
+  .ico{display:inline-block;width:1em;height:1em;background:currentColor;opacity:.7}
+</style>
+</head>
+<body>
+<div class="app"><main class="content" id="moduleContent"></main></div>
+<script>
+/* Точная эмуляция контракта core/shell.js: три файла как ТЕКСТ, html+css
+   через innerHTML в контейнер, js — инлайновым <script>. Плюс минимальный
+   мок Shell (REST api + WS-примитивы) — servers слушает WS через
+   window.Servers.onServersUpdate/onSettingsUpdate (сама оболочка их дёргает
+   в проде), тесты дёргают их напрямую, эмулируя приход WS-пуша. */
+const params = new URLSearchParams(location.search);
+const ROLE = params.get('role') || 'arcana'; // arcana|immortal|legendary|common — для проверки видимости управляющих кнопок
+const WS_READY = params.get('wsready') !== '0'; // по умолчанию WS готов сразу
+
+window.__calls = [];
+window.__toasts = [];
+window.__wsSent = [];
+
+// ── Провижининг: маленький стейт-машин по ip, чтобы поллинг реально продвигался ──
+const provisionRuns = {}; // ip -> {poll: n}
+function stepStatus(runPoll, idx, total) {
+  if (runPoll > idx + 1) return 'done';
+  if (runPoll === idx + 1) return 'running';
+  return 'pending';
+}
+function provisionPoll(ip) {
+  const run = provisionRuns[ip];
+  if (!run) return null;
+  run.poll++;
+  const names = ['Подключение по SSH', 'Установка пакетов', 'Настройка 3proxy', 'Проверка'];
+  if (ip === 'ERR.PROVISION.TEST') {
+    if (run.poll < 2) return { steps: names.map((n, i) => ({ name: n, status: i === 0 ? 'running' : 'pending' })), done: false };
+    return { steps: names.map((n, i) => ({ name: n, status: i === 0 ? 'error' : 'pending' })), done: true, error: 'SSH недоступен' };
+  }
+  const steps = names.map((n, i) => ({ name: n, status: stepStatus(run.poll, i, names.length) }));
+  const done = run.poll > names.length;
+  const out = { steps, done: false };
+  if (done) {
+    out.done = true;
+    out.result = { ip, http_port: 10281, socks_port: 10842, proxy_user: 'pu', proxy_pass: 'pp', http_proxy: ip + ':10281:pu:pp', socks_proxy: ip + ':10842:pu:pp' };
+  }
+  return out;
+}
+
+const EMPTY = params.get('empty') === '1';
+let servers = EMPTY ? [] : [
+  {name:'Horseoff', ip:'10.0.0.1', role:'host', vds_provider:'', http_port:0, socks_port:0,
+   online:true, cpu:22, ram_used:1800, ram_total:4000, disk_used:20, disk_total:80, uptime:'5д 3ч', speed_mbps:820,
+   http_proxy:false, socks_proxy:false, proxy_running:false, cpu_hist:[10,12,15,14,18,20,22], ram_hist:[40,41,42,43,44,45,45]},
+  {name:'Proxy-01', ip:'5.5.5.5', role:'proxy', vds_provider:'ruvds', http_port:10281, socks_port:10842,
+   online:true, cpu:64, ram_used:900, ram_total:2000, uptime:'2д 1ч', speed_mbps:340,
+   http_proxy:true, socks_proxy:true, proxy_running:true, days_left:2,
+   vds_info:{virtual_server_id:'V1', cpu:2, ram:2, drive:40, paid_till:'01.09.2026', days_left:2, cost_rub:450},
+   cpu_hist:[30,40,55,60,64], ram_hist:[40,42,44,45,45]},
+  {name:'Proxy-02-noapi', ip:'6.6.6.6', role:'proxy', vds_provider:'ruvds', http_port:10281, socks_port:10842,
+   online:false, cpu:null, ram_used:null, ram_total:null, uptime:null, speed_mbps:null,
+   http_proxy:false, socks_proxy:false, proxy_running:false, days_left:15, vds_info:null},
+  {name:'Client-01', ip:'7.7.7.7', role:'client', vds_provider:'', http_port:0, socks_port:0,
+   online:true, cpu:12, ram_used:500, ram_total:1000, disk_used:10, disk_total:50, uptime:'10д', speed_mbps:120,
+   cpu_hist:[5,8,10,12], ram_hist:[45,48,50,50]},
+];
+
+const apiKeys = { ruvds: '' };
+let settings = { poll_interval: 30 };
+
+function findIdx(ip){ return servers.findIndex(s => s.ip === ip); }
+
+window.Shell = {
+  token: 'test-token',
+  user: { username: 'tester', id: 'u0', role: ROLE },
+  wsReady: WS_READY,
+  toast: (msg, type) => { window.__toasts.push({ msg, type: type || 'ok' }); },
+  closeModal: (id) => { const el = document.getElementById(id); if (el) el.classList.remove('active'); },
+  wsSend: (data) => {
+    window.__wsSent.push(data);
+    // Подписка и разовый запрос отвечают одинаково — сервер и там и там
+    // сразу отдаёт текущий снимок
+    if (data.type === 'servers_request' || data.type === 'servers_subscribe') {
+      setTimeout(() => window.Servers && window.Servers.onServersUpdate(servers), 20);
+    } else if (data.type === 'set_interval') {
+      settings.poll_interval = data.interval;
+      setTimeout(() => window.Servers && window.Servers.onSettingsUpdate(settings), 20);
+    }
+  },
+  api: async (path, opts) => {
+    if (path === '/api/roles') {
+      // Та же лестница, что в core/roles.py — стенду нужны только пороги
+      const ACT = {
+        'servers.view':'rare', 'servers.manage':'immortal',
+        'servers.keys':'immortal', 'servers.interval':'immortal',
+      };
+      return {
+        roles: ['common','uncommon','rare','mythical','legendary','immortal','arcana'],
+        my_role: ROLE,
+        modules: {servers: ACT['servers.view']},
+        actions: Object.entries(ACT).map(([id, role]) => ({id, role, title:id, section:'servers', default:role, locked:false})),
+      };
+    }
+    const method = (opts && opts.method) || 'GET';
+    await new Promise((r) => setTimeout(r, 20));
+    const body = opts && opts.body ? JSON.parse(opts.body) : undefined;
+    window.__calls.push({ path, method, body });
+
+    if (path === '/api/mod/servers/status') return servers;
+    if (path === '/api/mod/servers/list') return servers;
+
+    if (path === '/api/mod/servers/create' && method === 'POST') {
+      if (findIdx(body.ip) !== -1) return { error: 'IP уже существует' };
+      provisionRuns[body.ip] = { poll: 0 };
+      return { status: 'provisioning', ip: body.ip };
+    }
+    if (path === '/api/mod/servers/add' && method === 'POST') {
+      if (findIdx(body.ip) !== -1) return { error: 'IP уже существует' };
+      if (body.ssh_password) {
+        provisionRuns[body.ip] = { poll: 0 };
+        return { status: 'provisioning', ip: body.ip };
+      }
+      servers = [...servers, { name: body.name, ip: body.ip, role: body.role, vds_provider: body.vds_provider || '',
+        http_port: body.http_port, socks_port: body.socks_port, online: false, cpu: null, ram_used: null, ram_total: null,
+        uptime: null, speed_mbps: null, http_proxy: false, socks_proxy: false, proxy_running: false }];
+      return { status: 'ok' };
+    }
+    if (path.startsWith('/api/mod/servers/provision/')) {
+      const ip = decodeURIComponent(path.split('/api/mod/servers/provision/')[1]);
+      const d = provisionPoll(ip);
+      if (d && d.done && !d.error) {
+        servers = [...servers, { name: 'New-' + ip, ip, role: 'proxy', vds_provider: '', http_port: 10281, socks_port: 10842,
+          online: true, cpu: 5, ram_used: 100, ram_total: 1000, uptime: '0м', speed_mbps: 100,
+          http_proxy: true, socks_proxy: true, proxy_running: true }];
+      }
+      return d || null;
+    }
+    if (path.startsWith('/api/mod/servers/update/') && method === 'PUT') {
+      const oip = decodeURIComponent(path.split('/api/mod/servers/update/')[1]);
+      const idx = findIdx(oip);
+      if (idx === -1) return { error: 'Не найден' };
+      const nip = body.ip || oip;
+      if (nip !== oip && findIdx(nip) !== -1) return { error: 'IP уже существует' };
+      servers = servers.map((s, i) => (i === idx ? { ...s, ...body } : s));
+      return { status: 'ok' };
+    }
+    if (path.startsWith('/api/mod/servers/delete/') && method === 'DELETE') {
+      const ip = decodeURIComponent(path.split('/api/mod/servers/delete/')[1]);
+      const before = servers.length;
+      servers = servers.filter((s) => s.ip !== ip);
+      return servers.length === before ? { error: 'Не найден' } : { status: 'ok' };
+    }
+    if (path === '/api/mod/servers/apikeys' && method === 'GET') {
+      return { has_key: { ruvds: !!apiKeys.ruvds }, keys: apiKeys };
+    }
+    if (path === '/api/mod/servers/apikeys' && method === 'POST') {
+      apiKeys[body.provider] = body.key;
+      return { status: 'ok' };
+    }
+    if (path === '/api/settings' && method === 'POST') {
+      settings.poll_interval = body.poll_interval;
+      return { status: 'ok' };
+    }
+    return { status: 'ok' };
+  },
+};
+
+(async () => {
+  const [html, css, js] = await Promise.all([
+    fetch('/modules/servers/servers.html').then((r) => r.text()),
+    fetch('/modules/servers/servers.css').then((r) => r.text()),
+    fetch('/modules/servers/servers.js').then((r) => r.text()),
+  ]);
+  const content = document.getElementById('moduleContent');
+  const container = document.createElement('div');
+  container.className = 'module-container';
+  container.dataset.moduleId = 'servers';
+  container.innerHTML = '<style>' + css + '</style>' + html;
+  content.appendChild(container);
+  const s = document.createElement('script');
+  s.textContent = js;
+  container.appendChild(s);
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

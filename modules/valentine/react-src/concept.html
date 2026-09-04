@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Valentine — концепция</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Caveat:wght@400;500;600;700&display=swap&subset=cyrillic" rel="stylesheet">
+<style>
+:root{
+  /* Палитра выведена из самих наклеек: кремовая одежда, розовое платье,
+     приглушённый рубин сердец, зелень и золото полевых цветов. */
+  --paper:#FDF7F1;
+  --paper-deep:#F6EBE2;
+  --card:#FFFFFF;
+  --blush:#FADDE2;
+  --blush-soft:#FCEDF0;
+  --rose:#DD8395;
+  --rose-deep:#B45C71;
+  --ruby:#C4485F;
+  --sage:#CBDCC5;
+  --gold:#EFC777;
+  --ink:#3E2C31;
+  --ink-soft:#7A6167;
+  --ink-faint:#A8949A;
+  --line:#EFE2DA;
+
+  --shadow-card:0 18px 40px -18px rgba(180,92,113,.35), 0 4px 12px -6px rgba(62,44,49,.10);
+  --shadow-soft:0 8px 24px -14px rgba(180,92,113,.30);
+  --r-lg:24px; --r-md:18px; --r-sm:12px;
+
+  --ui:'Manrope',system-ui,sans-serif;
+  --hand:'Caveat',cursive;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#20222E;font-family:var(--ui);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+/* Каждый макет — «экран» приложения на тёмном фоне оболочки */
+.frame{margin:0 auto;background:var(--paper);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.frame::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(60% 40% at 15% 0%,rgba(250,221,226,.55),transparent 70%),
+             radial-gradient(50% 35% at 100% 15%,rgba(203,220,197,.30),transparent 70%);}
+.frame>*{position:relative;z-index:1}
+
+/* ───────── ШАПКА: без градиентной плашки, просто заголовок на бумаге ───────── */
+.head{padding:26px 28px 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.head h1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.head .sub{margin-top:5px;font-size:14px;font-weight:500;color:var(--ink-faint)}
+.mark{width:34px;height:34px;border-radius:12px;background:var(--blush);display:grid;place-items:center;color:var(--ruby);flex:none}
+.mark svg{width:18px;height:18px}
+
+/* ───────── ТАБЫ: сегмент по содержимому, НЕ растянут ───────── */
+.tabs{margin:0 28px 22px;display:inline-flex;align-self:flex-start;gap:4px;padding:4px;background:var(--paper-deep);border-radius:999px}
+.tab{border:0;background:none;font-family:var(--ui);font-size:14px;font-weight:600;color:var(--ink-soft);
+  padding:9px 18px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.tab.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow-soft)}
+.tab .cnt{font-size:11px;font-weight:700;background:var(--ruby);color:#fff;border-radius:999px;padding:2px 6px;min-width:18px;text-align:center}
+
+.label{margin:0 28px 12px;font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint)}
+
+/* ───────── ПОЛУЧАТЕЛИ ───────── */
+.people{padding:0 28px 28px;display:grid;gap:10px}
+.person{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--card);
+  border-radius:var(--r-md);box-shadow:var(--shadow-soft);cursor:pointer}
+.ava{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:linear-gradient(150deg,var(--blush),var(--rose));color:#fff;font-weight:700;font-size:17px}
+.person .nm{font-size:15px;font-weight:700}
+.person .un{font-size:13px;color:var(--ink-faint);margin-top:1px}
+.person .go{margin-left:auto;color:var(--rose);font-size:18px}
+
+/* ───────── КАРТОЧКА «Love is…» — герой ───────── */
+.card{background:var(--card);border-radius:var(--r-lg);box-shadow:var(--shadow-card);
+  padding:20px 20px 22px;display:flex;flex-direction:column;align-items:center;position:relative}
+.card .cap{font-family:var(--hand);font-size:22px;font-weight:600;color:var(--rose-deep);align-self:flex-start;line-height:1}
+/* min-height:0 + object-fit на самой картинке: у grid-элементов min-height:auto,
+   поэтому картинка не сжимается и вылезает за фиксированную высоту контейнера. */
+.card .art{flex:1;display:grid;place-items:center;width:100%;padding:14px 0 10px;min-height:0;overflow:hidden}
+.card .art img{width:100%;height:100%;object-fit:contain;min-height:0}
+.card .txt{font-family:var(--hand);font-size:30px;font-weight:600;color:var(--ink);text-align:center;line-height:1.15;letter-spacing:.01em}
+.card .num{position:absolute;top:16px;right:18px;font-size:12px;font-weight:700;color:var(--ink-faint);letter-spacing:.04em}
+
+/* ───────── КОНСТРУКТОР: две колонки, живое превью ───────── */
+.compose{flex:1;display:grid;grid-template-columns:1fr 380px;gap:28px;padding:0 28px 28px;min-height:0}
+.picker{background:var(--card);border-radius:var(--r-lg);box-shadow:var(--shadow-soft);padding:20px;display:flex;flex-direction:column;min-height:0}
+.picker .ttl{font-size:15px;font-weight:700;margin-bottom:2px}
+.picker .hint{font-size:13px;color:var(--ink-faint);margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;overflow:auto;padding-right:4px}
+.tile{aspect-ratio:1;border-radius:var(--r-sm);background:var(--paper);border:2px solid transparent;
+  display:grid;place-items:center;padding:8px;cursor:pointer;overflow:hidden}
+.tile img{width:100%;height:100%;object-fit:contain;min-height:0}
+.tile.sel{border-color:var(--rose);background:var(--blush-soft);box-shadow:0 0 0 4px rgba(221,131,149,.16)}
+
+.stage{display:flex;flex-direction:column;gap:16px;min-height:0}
+/* Мини-набор: слоты заполняются выбранными картинками — набор собирается на глазах */
+.slots{display:flex;gap:8px;justify-content:center}
+.slot{width:42px;height:54px;border-radius:9px;background:var(--paper-deep);display:grid;place-items:center;padding:4px;position:relative;overflow:hidden}
+.slot img{width:100%;height:100%;object-fit:contain;min-height:0}
+.slot.now{background:var(--card);box-shadow:0 0 0 2px var(--rose),var(--shadow-soft)}
+.stage .card{flex:1;min-height:0}
+/* Подпись пишется прямо НА карточке, а не в форме под ней */
+.write{width:100%;border:0;border-bottom:2px dashed var(--blush);background:none;text-align:center;
+  font-family:var(--hand);font-size:30px;font-weight:600;color:var(--ink);padding:4px 0 6px;outline:none}
+.write::placeholder{color:#D9C6CB}
+.nav{display:flex;gap:10px}
+.btn{border:0;font-family:var(--ui);font-size:15px;font-weight:700;padding:13px 22px;border-radius:14px;cursor:pointer}
+.btn.ghost{background:var(--paper-deep);color:var(--ink-soft)}
+.btn.main{flex:1;background:var(--ruby);color:#fff;box-shadow:0 10px 24px -12px rgba(196,72,95,.9)}
+
+/* ───────── АРХИВ: сетка миниатюр, как альбом наклеек ───────── */
+.album{padding:0 28px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;overflow:auto}
+.mini{background:var(--card);border-radius:var(--r-md);box-shadow:var(--shadow-soft);padding:14px 12px 12px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;cursor:pointer}
+.mini .art{height:132px;display:grid;place-items:center;width:100%;overflow:hidden}
+.mini .art img{width:100%;height:100%;object-fit:contain;min-height:0}
+.mini .cp{font-family:var(--hand);font-size:19px;color:var(--ink);text-align:center;line-height:1.15}
+.mini .who{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-faint);margin-top:2px}
+.mini .who .a{width:20px;height:20px;border-radius:50%;background:linear-gradient(150deg,var(--blush),var(--rose));
+  color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center}
+.mini.new{box-shadow:0 0 0 2px var(--gold),var(--shadow-card)}
+.mini.new::after{content:'новое';position:absolute;top:10px;right:10px;background:var(--gold);color:#5A4212;
+  font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;letter-spacing:.03em}
+
+/* ───────── ПРОСМОТР ПОЛУЧЕННОЙ ───────── */
+.viewer{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:28px}
+.deck{width:340px;height:430px;position:relative}
+/* Соседние карточки видны краями — набор читается как колода */
+.deck .card{position:absolute;inset:0}
+.deck .card.back1{transform:rotate(-4deg) translateY(8px) scale(.96);opacity:.5;box-shadow:var(--shadow-soft)}
+.deck .card.back2{transform:rotate(3.5deg) translateY(4px) scale(.98);opacity:.75;box-shadow:var(--shadow-soft)}
+.dots{display:flex;gap:7px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--blush)}
+.dot.on{width:24px;border-radius:99px;background:var(--rose)}
+.from{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--ink-soft)}
+.from .a{width:28px;height:28px;border-radius:50%;background:linear-gradient(150deg,var(--blush),var(--rose));
+  color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+
+.cap-note{color:#8891A8;font:600 13px var(--ui);text-align:center;padding:14px 0 6px;letter-spacing:.02em}
+</style>
+</head>
+<body>
+
+<!-- ════════ 1. КОНСТРУКТОР, ШИРОКИЙ ЭКРАН (две колонки) ════════ -->
+<div class="cap-note">1 — Конструктор, ПК/планшет: слева выбор, справа карточка собирается вживую</div>
+<div class="frame" id="s1" style="width:1180px;height:760px">
+  <div class="head">
+    <div>
+      <h1>Признание для Ани</h1>
+      <div class="sub">Собери пять карточек — по одной на каждое «любовь это…»</div>
+    </div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+  </div>
+
+  <div class="compose">
+    <div class="picker">
+      <div class="ttl">Выбери картинку</div>
+      <div class="hint">Страница 2 из 5</div>
+      <div class="grid">
+        <div class="tile"><img src="/stickers/sticker-01.png"></div>
+        <div class="tile sel"><img src="/stickers/sticker-09.png"></div>
+        <div class="tile"><img src="/stickers/sticker-17.png"></div>
+        <div class="tile"><img src="/stickers/sticker-04.png"></div>
+        <div class="tile"><img src="/stickers/sticker-05.png"></div>
+        <div class="tile"><img src="/stickers/sticker-06.png"></div>
+        <div class="tile"><img src="/stickers/sticker-07.png"></div>
+        <div class="tile"><img src="/stickers/sticker-08.png"></div>
+        <div class="tile"><img src="/stickers/sticker-02.png"></div>
+        <div class="tile"><img src="/stickers/sticker-10.png"></div>
+        <div class="tile"><img src="/stickers/sticker-11.png"></div>
+        <div class="tile"><img src="/stickers/sticker-12.png"></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="slots">
+        <div class="slot"><img src="/stickers/sticker-01.png"></div>
+        <div class="slot now"><img src="/stickers/sticker-09.png"></div>
+        <div class="slot"></div>
+        <div class="slot"></div>
+        <div class="slot"></div>
+      </div>
+      <div class="card">
+        <div class="cap">Любовь это…</div>
+        <div class="num">2 / 5</div>
+        <div class="art"><img src="/stickers/sticker-09.png"></div>
+        <input class="write" value="сидеть рядом и молчать" readonly>
+      </div>
+      <div class="nav">
+        <button class="btn ghost">Назад</button>
+        <button class="btn main">Далее</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ 2. АРХИВ — АЛЬБОМ НАКЛЕЕК ════════ -->
+<div class="cap-note">2 — «Мои признания»: сетка миниатюр вместо списка строк</div>
+<div class="frame" id="s2" style="width:1180px;height:760px">
+  <div class="head">
+    <div>
+      <h1>Мои признания</h1>
+      <div class="sub">Всё, что тебе присылали — как альбом наклеек</div>
+    </div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+  </div>
+  <div class="tabs">
+    <button class="tab">Создать</button>
+    <button class="tab on">Мои признания <span class="cnt">2</span></button>
+  </div>
+  <div class="album">
+    <div class="mini new">
+      <div class="art"><img src="/stickers/sticker-17.png"></div>
+      <div class="cp">пить один коктейль<br>на двоих</div>
+      <div class="who"><span class="a">А</span> Аня · 1 ч назад</div>
+    </div>
+    <div class="mini new">
+      <div class="art"><img src="/stickers/sticker-01.png"></div>
+      <div class="cp">строить что-то<br>вместе</div>
+      <div class="who"><span class="a">М</span> Миша · вчера</div>
+    </div>
+    <div class="mini">
+      <div class="art"><img src="/stickers/sticker-09.png"></div>
+      <div class="cp">сидеть рядом<br>и молчать</div>
+      <div class="who"><span class="a">А</span> Аня · 3 марта</div>
+    </div>
+    <div class="mini">
+      <div class="art"><img src="/stickers/sticker-05.png"></div>
+      <div class="cp">ждать и дождаться</div>
+      <div class="who"><span class="a">К</span> Катя · 1 марта</div>
+    </div>
+    <div class="mini">
+      <div class="art"><img src="/stickers/sticker-06.png"></div>
+      <div class="cp">смеяться над одним<br>и тем же</div>
+      <div class="who"><span class="a">М</span> Миша · 28 февраля</div>
+    </div>
+    <div class="mini">
+      <div class="art"><img src="/stickers/sticker-11.png"></div>
+      <div class="cp">просыпаться<br>не одному</div>
+      <div class="who"><span class="a">К</span> Катя · 20 февраля</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ 3. ПРОСМОТР ════════ -->
+<div class="cap-note">3 — Просмотр полученного: карточки лежат колодой, листаются свайпом</div>
+<div class="frame" id="s3" style="width:1180px;height:760px">
+  <div class="head">
+    <div>
+      <h1>От Ани</h1>
+      <div class="sub">Признание из пяти карточек · 1 час назад</div>
+    </div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+  </div>
+  <div class="viewer">
+    <div class="deck">
+      <div class="card back1"></div>
+      <div class="card back2"></div>
+      <div class="card">
+        <div class="cap">Любовь это…</div>
+        <div class="num">3 / 5</div>
+        <div class="art"><img src="/stickers/sticker-17.png"></div>
+        <div class="txt">пить один коктейль<br>на двоих</div>
+      </div>
+    </div>
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div class="from"><span class="a">А</span> от Ани, с любовью</div>
+  </div>
+</div>
+
+<!-- ════════ 4. ТЕЛЕФОН — ВЫБОР ПОЛУЧАТЕЛЯ ════════ -->
+<div class="cap-note">4 — Телефон: выбор получателя</div>
+<div class="frame" id="s4" style="width:420px;height:800px">
+  <div class="head">
+    <div>
+      <h1>Валентинки</h1>
+      <div class="sub">Кому сегодня признаемся?</div>
+    </div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+  </div>
+  <div class="tabs">
+    <button class="tab on">Создать</button>
+    <button class="tab">Признания <span class="cnt">2</span></button>
+  </div>
+  <div class="label">Недавние</div>
+  <div class="people">
+    <div class="person"><div class="ava">А</div><div><div class="nm">Аня</div><div class="un">@anya</div></div><div class="go">›</div></div>
+    <div class="person"><div class="ava">М</div><div><div class="nm">Миша</div><div class="un">@mikhail</div></div><div class="go">›</div></div>
+    <div class="person"><div class="ava">К</div><div><div class="nm">Катя</div><div class="un">@katya</div></div><div class="go">›</div></div>
+  </div>
+</div>
+
+<!-- ════════ 5. ТЕЛЕФОН — КОНСТРУКТОР ════════ -->
+<div class="cap-note">5 — Телефон: конструктор (карточка сверху, выбор снизу)</div>
+<div class="frame" id="s5" style="width:420px;height:800px">
+  <div class="head" style="padding-bottom:12px">
+    <div>
+      <h1 style="font-size:22px">Для Ани</h1>
+      <div class="sub">Страница 2 из 5</div>
+    </div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
+  </div>
+  <div style="padding:0 20px 14px"><div class="slots">
+    <div class="slot"><img src="/stickers/sticker-01.png"></div>
+    <div class="slot now"><img src="/stickers/sticker-09.png"></div>
+    <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+  </div></div>
+  <div style="padding:0 20px 16px">
+    <div class="card" style="height:330px">
+      <div class="cap">Любовь это…</div>
+      <div class="num">2 / 5</div>
+      <div class="art"><img src="/stickers/sticker-09.png"></div>
+      <input class="write" value="сидеть рядом и молчать" readonly>
+    </div>
+  </div>
+  <div style="flex:1;min-height:0;padding:0 20px;display:flex;flex-direction:column">
+    <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="tile"><img src="/stickers/sticker-01.png"></div>
+      <div class="tile sel"><img src="/stickers/sticker-09.png"></div>
+      <div class="tile"><img src="/stickers/sticker-17.png"></div>
+      <div class="tile"><img src="/stickers/sticker-04.png"></div>
+    </div>
+  </div>
+  <div style="padding:14px 20px 20px"><div class="nav">
+    <button class="btn ghost">Назад</button>
+    <button class="btn main">Далее</button>
+  </div></div>
+</div>
+
+</body>
+</html>

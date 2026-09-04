@@ -27,7 +27,10 @@ horseoff по WS.
 ### Протокол WS (типы сообщений бот → сервер)
 
 - `{"type":"auth","api_key":"hb_..."}` — авторизация (первое сообщение).
-- `{"type":"manifest","version":"1.0","sub":"...","controls":[...]}` —
+- `{"type":"manifest","version":"1.0","sub":"...","tabs":["stats","log"],"controls":[...]}` —
+  поле `tabs` (необязательно) объявляет, какие ОПЦИОНАЛЬНЫЕ вкладки показать
+  в horseoff: `stats`, `log`, `params`. Управление и Настройки — всегда.
+  Если `tabs` не передан — по умолчанию показываются `stats`+`log` (совместимость).
   описание интерфейса. **Сохраняется на диск сервера**, шлётся один раз.
 - `{"type":"ctrl_update","ctrl_id":"<id>","data":{...}}` — обновить значение
   одного контрола. **Сохраняется на диск** (чтобы при переключении модулей
@@ -93,20 +96,131 @@ horseoff по WS.
 Изначально цикл слал данные каждые **5 секунд**. Цикл вокруг блока 2 в
 ZennoPoster ставить на **5 сек** (можно меньше, но 5 норм).
 
-## Текущий рабочий код (для проекта «Склик конкурентов»)
+## Управление проектом из horseoff (кнопки Старт/Пауза/Стоп)
+
+### Состояния проекта
+
+Состояние берём **напрямую от ZennoPoster** по двум системным сигналам:
+- `enabled` — включена ли задача (`<IsEnable>` из `GetTaskInfo(taskName)`).
+  Запущенный проект, который ждёт задачу при 0 потоков → `enabled=true`.
+  Это и есть прямой системный ответ «проект запущен или нет».
+- `threads` — живое число потоков прямо сейчас (`GetThreadsCount(taskName)`).
+
+`enabled` НЕ различает «пауза» и «стоп» (обе команды выключают задачу) —
+для подписи используем `CmdState` (намерение пользователя).
+
+| Условие | Статус бота (dot) | Кнопки | Таблица |
+|---|---|---|---|
+| `enabled`, `threads >= 2` | N потоков активно (online/зел) | Пауза, Стоп | 🔒 |
+| `enabled`, `threads < 2` | Ожидает задачу (idle/жёлт) | Пауза, Стоп | 🔒 |
+| `!enabled`, `threads >= 2` | Завершает потоки… (idle/жёлт) | Старт, Стоп | 🔒 |
+| `!enabled`, `threads < 2`, CmdState==pause | На паузе (idle/жёлт) | Старт | ✏️ |
+| `!enabled`, `threads < 2`, иначе | Склик остановлен (offline/красн) | Старт | ✏️ |
+
+Статус (`dot` + текст + `lock`) шлётся в спец-контрол `__status__` → сервер
+кладёт его в шапку бота (`bt-bot-row-sub` + индикатор), а НЕ в карточку.
+`dot`: `online` (зел) | `idle` (жёлт) | `offline` (красн).
+`lock: true` — таблицу редактировать нельзя (проект активен или есть потоки).
+
+### Команды из horseoff → бот
+
+Кнопки и таблица шлют:
+```json
+{"type":"command","cmd":{"ctrl_id":"...","action":"...","value":...}}
+```
+- `start` / `pause` / `stop` — управление проектом (`value: null`).
+- `clear_table` — полностью очистить таблицу проекта (`value: null`).
+- `load_table` — загрузить задание; `value` = **base64** строки
+  `"запрос\tартикул\nзапрос\tартикул\n..."` (UTF-8). База64 без кавычек —
+  безопасно вынимается regex'ом из общего JSON.
+
+C# в фоновом recv-цикле кладёт `action` в `HoBridge.PendingCmd`, а `value` —
+в `HoBridge.PendingData`. Блок 2 их разбирает и выполняет. Кнопки
+редактирования таблицы доступны только когда проект НЕ запущен (`threads < 2`).
+
+---
+
+## Общий принцип управления проектами ZennoPoster (шаблон для новых модулей)
+
+С этого момента у нас НЕ один проект, а **семейство модулей управления**.
+Каждый модуль = отдельный проект ZennoPoster («мост»), который по одному и
+тому же принципу связывается с horseoff. Первым отработали на «Склике» —
+и он стал эталоном. Новые модули (другие боты/задачи) отталкиваются от него.
+
+**Что общее у ВСЕХ модулей (не переизобретаем):**
+- Класс `HoBridge` в «Своём коде»: WS-клиент, `Send/Esc/Num`, работа со
+  статистикой (`ReadDayStat/WriteDayStat/AddDayStat`), чтение событий-лога
+  (`ReadNewEvents`), поля состояния (`PendingCmd/PendingData/PendingCtrlId/
+  CmdState/StatsDir/LastDone/EvtDate/EvtOffset`).
+- **3 блока + фоновый recv-цикл:** Блок 1 (connect + auth + manifest + Recv),
+  Блок 2 (одна итерация: разбор команды → состояние → таблица/прогресс →
+  статистика → лог → ctrl_update), Блок 3 (закрытие сокета). Цикл вокруг
+  Блока 2 навешивает сам ZP — так штатно работает остановка.
+- **Протокол WS** (auth → manifest → ctrl_update/log/stats/ping) и формат
+  команд (`{action, ctrl_id, value(base64)}`).
+- **Универсальный лог-блок** проекта (пишет JSONL в `events_*.log`, мост
+  читает по смещению и шлёт в horseoff).
+- **Входные переменные-стандарт:** `horseoff_domain`, `project_name`
+  (папка для `System/logs`), `project_version` (версия в манифесте).
+
+**Что РАЗЛИЧАЕТСЯ между модулями:**
+- Состав `controls` в манифесте (какие секции/кнопки/таблицы/пикеры рисуем).
+- Набор вкладок `tabs` в манифесте: опциональные `stats`/`log`/`params`
+  включаются по потребности. Управление и Настройки есть у всех всегда.
+- Прикладная логика в Блоке 2 (какие данные шлём, какие команды обрабатываем).
+- Имена задач/таблиц ZP и специфичные переменные проекта.
+
+**Вкладка «Параметры» (`params`)** — задел на будущее: входящие настройки
+проекта, применяемые при запуске (сейчас задаются в самом ZennoPoster).
+Пока пустой плейсхолдер, логики нет. Скликам не нужна — не объявляем.
+
+**Как заводить новый модуль:** копируешь эталон (Склик Ozon), оставляешь
+общую часть без изменений, меняешь только манифест и прикладную логику
+Блока 2 под конкретный проект. Каждый вариант держим в этом файле отдельным
+разделом; когда правим общую часть — правим у всех, когда специфику —
+только в нужном разделе.
+
+Действующие модули:
+- **Склик Ozon** — полный эталон (есть расписание отчётов). Раздел ниже.
+- **Склик WB** — то же, но БЕЗ расписания отчётов. Раздел «Склик WB».
+
+---
+
+## Склик Ozon — эталонный рабочий код
 
 Переменные проекта ZennoPoster:
 - `horseoff_sklik_api` — API-ключ бота (`hb_...`).
 - `horseoff_sklik_task` — имя задачи для `ZennoPoster.GetThreadsCount(taskName)`.
-- Таблица: `"Процесс Склик"` (хардкод). Колонки: 0=Запрос, 1=Артикул,
+- `horseoff_domain`, `project_name`, `project_version` — стандартные (см. общий принцип).
+- Таблица заданий: `"Процесс Склик"` (хардкод). Колонки: 0=Запрос, 1=Артикул,
   2=Статус, 3=Кол-во(total), 4=Выполнено(done).
+- Таблица расписания: `"Процессы"` — D0=регулярный отчёт (HH:MM),
+  D1=финальный отчёт (DD.MM.YYYY H:MM:SS). **Только Ozon.**
 
 ### Свой код проекта (Project Settings → «Свой код»)
+
+Переменные проекта:
+- `horseoff_sklik_api` — API-ключ
+- `horseoff_sklik_task` — имя задачи ZP
+
+Папка статистики зашита в коде: `{project.Directory}\K4_WB\System\logs`.
 
 ```csharp
 public static class HoBridge {
     public static System.Net.WebSockets.ClientWebSocket Ws;
     public static System.Threading.Tasks.Task Recv;
+    public static string PendingCmd    = "";
+    public static string PendingData   = "";
+    public static string PendingCtrlId = "";
+    public static string CmdState      = "";
+    public static string StatsDir      = "";
+    // Базовая линия для дельт: сколько скликов у товара мы уже учли.
+    // Живёт, пока жив процесс ZennoPoster (static).
+    public static System.Collections.Generic.Dictionary<string,int> LastDone =
+        new System.Collections.Generic.Dictionary<string,int>();
+    // Чтение файла событий (лог Склика) по смещению.
+    public static string EvtDate   = "";
+    public static long   EvtOffset = -1;   // -1 = не инициализировано → прыгаем в конец
 
     public static void Send(string msg) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(msg);
@@ -121,10 +235,190 @@ public static class HoBridge {
                 .Replace("\n","\\n").Replace("\r","").Replace("\t"," ");
     }
 
+    // Персист команды (start/pause/stop) — переживает перезапуск ZennoPoster.
+    public static void SaveCmd() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return;
+            if (!System.IO.Directory.Exists(StatsDir)) System.IO.Directory.CreateDirectory(StatsDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(StatsDir, "_cmd_state.txt"),
+                CmdState ?? "", System.Text.Encoding.UTF8);
+        } catch {}
+    }
+    public static void LoadCmd() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return;
+            string f = System.IO.Path.Combine(StatsDir, "_cmd_state.txt");
+            if (System.IO.File.Exists(f))
+                CmdState = System.IO.File.ReadAllText(f, System.Text.Encoding.UTF8).Trim();
+        } catch {}
+    }
+
+    // Пульс: возраст последней отметки «модуль жив» в секундах (999999 если нет).
+    // Склик отмечает _alive.txt при каждой минутной проверке — пока он включён,
+    // возраст < 90 сек даже без активных потоков.
+    public static double AliveAgeSec() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return 999999;
+            string f = System.IO.Path.Combine(StatsDir, "_alive.txt");
+            if (!System.IO.File.Exists(f)) return 999999;
+            string s = System.IO.File.ReadAllText(f, System.Text.Encoding.UTF8).Trim();
+            System.DateTime ts;
+            if (System.DateTime.TryParse(s, out ts))
+                return (System.DateTime.Now - ts).TotalSeconds;
+            return (System.DateTime.Now - System.IO.File.GetLastWriteTime(f)).TotalSeconds;
+        } catch { return 999999; }
+    }
+    // Освежить пульс из моста (грейс сразу после Старта, пока склик не проснулся).
+    public static void TouchAlive() {
+        try {
+            if (string.IsNullOrEmpty(StatsDir)) return;
+            if (!System.IO.Directory.Exists(StatsDir)) System.IO.Directory.CreateDirectory(StatsDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(StatsDir, "_alive.txt"),
+                System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), System.Text.Encoding.UTF8);
+        } catch {}
+    }
+
     public static int Num(string s) {
         if (string.IsNullOrEmpty(s)) return 0;
         var m = System.Text.RegularExpressions.Regex.Match(s, "\\d+");
         return m.Success ? int.Parse(m.Value) : 0;
+    }
+
+    // Читает файл статистики за конкретный день
+    public static System.Collections.Generic.List<string[]> ReadDayStat(
+            string date, out int done, out int ic) {
+        done = 0; ic = 0;
+        var fi = new System.Collections.Generic.List<string[]>();
+        if (string.IsNullOrEmpty(StatsDir)) return fi;
+        try {
+            string f = System.IO.Path.Combine(StatsDir, "statistics_sklik_" + date + ".json");
+            if (!System.IO.File.Exists(f)) return fi;
+            string raw = System.IO.File.ReadAllText(f, System.Text.Encoding.UTF8);
+            var mD = System.Text.RegularExpressions.Regex.Match(raw, "\"done\":(\\d+)");
+            var mI = System.Text.RegularExpressions.Regex.Match(raw, "\"ic\":(\\d+)");
+            if (mD.Success) done = int.Parse(mD.Groups[1].Value);
+            if (mI.Success) ic   = int.Parse(mI.Groups[1].Value);
+            var ms = System.Text.RegularExpressions.Regex.Matches(raw,
+                "\\{\"q\":\"([^\"]*)\",\"art\":\"([^\"]*)\",\"done\":(\\d+)\\}");
+            foreach (System.Text.RegularExpressions.Match m in ms)
+                fi.Add(new string[] { m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value });
+        } catch {}
+        return fi;
+    }
+
+    // Записывает статистику сегодняшнего дня и удаляет файлы старше 7 дней
+    public static void WriteDayStat(string date, int done,
+            System.Collections.Generic.List<string[]> fi) {
+        if (string.IsNullOrEmpty(StatsDir)) return;
+        try {
+            if (!System.IO.Directory.Exists(StatsDir))
+                System.IO.Directory.CreateDirectory(StatsDir);
+            var sb = new System.Text.StringBuilder();
+            sb.Append("{\"done\":").Append(done)
+              .Append(",\"ic\":").Append(fi.Count)
+              .Append(",\"fi\":[");
+            for (int i = 0; i < fi.Count; i++) {
+                if (i > 0) sb.Append(",");
+                sb.Append("{\"q\":\"").Append(Esc(fi[i][0]))
+                  .Append("\",\"art\":\"").Append(Esc(fi[i][1]))
+                  .Append("\",\"done\":").Append(fi[i][2]).Append("}");
+            }
+            sb.Append("]}");
+            System.IO.File.WriteAllText(
+                System.IO.Path.Combine(StatsDir, "statistics_sklik_" + date + ".json"),
+                sb.ToString(), System.Text.Encoding.UTF8);
+            // Удаляем файлы старше 7 дней
+            string cutoff = System.DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd");
+            try {
+                foreach (string ff in System.IO.Directory.GetFiles(StatsDir, "statistics_sklik_*.json")) {
+                    string fn = System.IO.Path.GetFileNameWithoutExtension(ff);
+                    string prefix = "statistics_sklik_";
+                    if (fn.Length == prefix.Length + 10) {
+                        string fdate = fn.Substring(prefix.Length);
+                        if (string.Compare(fdate, cutoff) < 0)
+                            try { System.IO.File.Delete(ff); } catch {}
+                    }
+                }
+            } catch {}
+        } catch {}
+    }
+
+    // НАКОПИТЕЛЬНО добавляет дельты скликов в файл дня.
+    // Файл дня никогда не уменьшается — только растёт. Ключ = "запрос\x01артикул".
+    public static void AddDayStat(string date,
+            System.Collections.Generic.Dictionary<string,int> itemDeltas) {
+        if (string.IsNullOrEmpty(StatsDir)) return;
+        try {
+            int done; int ic;
+            var fi = ReadDayStat(date, out done, out ic);
+            // существующие данные дня → словарь
+            var map = new System.Collections.Generic.Dictionary<string,int>();
+            foreach (string[] row in fi) {
+                string k = row[0] + "\x01" + row[1];
+                int v = 0; int.TryParse(row[2], out v);
+                if (map.ContainsKey(k)) map[k] += v; else map[k] = v;
+            }
+            // прибавляем дельты
+            int deltaSum = 0;
+            foreach (var kv in itemDeltas) {
+                deltaSum += kv.Value;
+                if (map.ContainsKey(kv.Key)) map[kv.Key] += kv.Value;
+                else map[kv.Key] = kv.Value;
+            }
+            done += deltaSum;
+            // словарь → список и запись
+            var outFi = new System.Collections.Generic.List<string[]>();
+            foreach (var kv in map) {
+                string[] parts = kv.Key.Split('\x01');
+                outFi.Add(new string[] {
+                    parts.Length > 0 ? parts[0] : "",
+                    parts.Length > 1 ? parts[1] : "",
+                    kv.Value.ToString() });
+            }
+            WriteDayStat(date, done, outFi);
+        } catch {}
+    }
+
+    // Читает НОВЫЕ строки events-файла текущего дня. Возвращает список {level, msg}.
+    // Потокобезопасно к писателю (FileShare.ReadWrite), читает только целые строки.
+    public static System.Collections.Generic.List<string[]> ReadNewEvents() {
+        var outList = new System.Collections.Generic.List<string[]>();
+        if (string.IsNullOrEmpty(StatsDir)) return outList;
+        try {
+            string today = System.DateTime.Now.ToString("yyyy-MM-dd");
+            string file = System.IO.Path.Combine(StatsDir, "events_sklik_" + today + ".log");
+            // смена суток → новый файл, читаем с конца
+            if (EvtDate != today) { EvtDate = today; EvtOffset = -1; }
+            if (!System.IO.File.Exists(file)) return outList;
+            long len = new System.IO.FileInfo(file).Length;
+            // первая инициализация после коннекта → прыгаем в конец (без бэкфилла)
+            if (EvtOffset < 0) { EvtOffset = len; return outList; }
+            if (len < EvtOffset) EvtOffset = 0; // файл усечён/пересоздан
+            if (len == EvtOffset) return outList;
+            string content;
+            using (var fs = new System.IO.FileStream(file, System.IO.FileMode.Open,
+                    System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite)) {
+                fs.Seek(EvtOffset, System.IO.SeekOrigin.Begin);
+                using (var sr = new System.IO.StreamReader(fs, System.Text.Encoding.UTF8))
+                    content = sr.ReadToEnd();
+            }
+            // читаем только до последнего перевода строки (незавершённую строку не трогаем)
+            int lastNl = content.LastIndexOf('\n');
+            if (lastNl < 0) return outList;
+            string consumed = content.Substring(0, lastNl + 1);
+            EvtOffset += System.Text.Encoding.UTF8.GetByteCount(consumed);
+            foreach (string raw in consumed.Split('\n')) {
+                string ln = raw.Trim();
+                if (ln.Length == 0) continue;
+                var mL = System.Text.RegularExpressions.Regex.Match(ln, "\"level\"\\s*:\\s*\"([^\"]*)\"");
+                var mM = System.Text.RegularExpressions.Regex.Match(ln, "\"msg\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+                string lvl = mL.Success ? mL.Groups[1].Value : "INFO";
+                string m   = mM.Success ? mM.Groups[1].Value : "";
+                m = m.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\\\", "\\");
+                outList.Add(new string[] { lvl, m });
+            }
+        } catch {}
+        return outList;
     }
 }
 ```
@@ -132,8 +426,22 @@ public static class HoBridge {
 ### Блок 1 — подключение + манифест (ОДИН раз в начале)
 
 ```csharp
+string apiDomain = project.Variables["horseoff_domain"].Value;
 string apiKey = project.Variables["horseoff_sklik_api"].Value;
-string wsUrl  = "wss://ТВОЙ_ДОМЕН/ws/bots";
+string wsUrl  = "wss://" + apiDomain + "/ws/bots";
+string taskName = project.Variables["horseoff_sklik_task"].Value;
+string projectDirectoryName = project.Variables["project_name"].Value;
+string versionProject = project.Variables["project_version"].Value;
+
+// Сброс состояния при новом подключении
+HoBridge.PendingCmd    = "";
+HoBridge.PendingData   = "";
+HoBridge.PendingCtrlId = "";
+HoBridge.CmdState      = "";
+HoBridge.EvtDate       = "";   // events-файл читаем с конца после реконнекта
+HoBridge.EvtOffset     = -1;
+// Папка статистики/логов — {-Project.Directory-}\{project_name}\System\logs
+HoBridge.StatsDir    = System.IO.Path.Combine(project.Directory, projectDirectoryName, "System", "logs");
 
 HoBridge.Ws = new System.Net.WebSockets.ClientWebSocket();
 HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
@@ -142,14 +450,23 @@ HoBridge.Ws.ConnectAsync(new System.Uri(wsUrl),
 // auth
 HoBridge.Send("{\"type\":\"auth\",\"api_key\":\"" + HoBridge.Esc(apiKey) + "\"}");
 
-// manifest (вёрстка) — сохранится на сервере, шлём один раз
+// manifest — сохранится на сервере, шлём один раз
 string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"label\":\"Артикул\"},{\"key\":\"status\",\"label\":\"Статус\"},{\"key\":\"total\",\"label\":\"Кол-во\"},{\"key\":\"done\",\"label\":\"Выполнено\"}]";
-HoBridge.Send("{\"type\":\"manifest\",\"version\":\"1.0\",\"sub\":\"Склик конкурентов\",\"controls\":["
+HoBridge.Send("{\"type\":\"manifest\",\"version\":\"" + versionProject + "\",\"sub\":\"Склик конкурентов\",\"tabs\":[\"stats\",\"log\"],\"controls\":["
+    + "{\"type\":\"section\",\"label\":\"Управление\"},"
+    + "{\"type\":\"buttons\",\"id\":\"ctrl\",\"buttons\":["
+    +   "{\"label\":\"Запустить\",\"action\":\"start\",\"style\":\"primary\"},"
+    +   "{\"label\":\"Пауза\",\"action\":\"pause\",\"style\":\"secondary\"},"
+    +   "{\"label\":\"Стоп\",\"action\":\"stop\",\"style\":\"danger\"}"
+    + "]},"
+    + "{\"type\":\"section\",\"label\":\"Расписание отчётов\"},"
+    + "{\"type\":\"schedule_time\",\"id\":\"regular_report\",\"label\":\"Регулярный отчёт\",\"value\":\"\"},"
+    + "{\"type\":\"schedule_datetime\",\"id\":\"final_report\",\"label\":\"Финальный отчёт\",\"value\":\"\"},"
     + "{\"type\":\"section\",\"label\":\"Состояние\"},"
-    + "{\"type\":\"label\",\"id\":\"threads\",\"label\":\"Активных потоков\",\"text\":\"0\",\"style\":\"accent\"},"
+    + "{\"type\":\"stat\",\"id\":\"threads\",\"label\":\"Активных потоков\",\"value\":\"0\"},"
     + "{\"type\":\"progress\",\"id\":\"progress\",\"label\":\"Общий прогресс\",\"value\":0,\"total\":\"0 из 0\"},"
     + "{\"type\":\"section\",\"label\":\"Задания\"},"
-    + "{\"type\":\"table\",\"id\":\"tasks\",\"label\":\"Процесс склика\",\"columns\":" + cols + ",\"rows\":[]}"
+    + "{\"type\":\"table\",\"id\":\"tasks\",\"label\":\"Процесс склика\",\"edit_cols\":[\"q\",\"art\"],\"columns\":" + cols + ",\"rows\":[]}"
     + "]}");
 
 // ФОНОВЫЙ ПРИЁМ — держит соединение живым (авто-PONG) + принимает команды
@@ -158,11 +475,30 @@ HoBridge.Recv = System.Threading.Tasks.Task.Run(() => {
     try {
         while (HoBridge.Ws != null &&
                HoBridge.Ws.State == System.Net.WebSockets.WebSocketState.Open) {
-            var r = HoBridge.Ws.ReceiveAsync(new System.ArraySegment<byte>(buf),
-                System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+            // Накопление фрейма до EndOfMessage (load_table может быть > 16 КБ)
+            var ms = new System.IO.MemoryStream();
+            System.Net.WebSockets.WebSocketReceiveResult r;
+            do {
+                r = HoBridge.Ws.ReceiveAsync(new System.ArraySegment<byte>(buf),
+                    System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+                if (r.MessageType == System.Net.WebSockets.WebSocketMessageType.Close) break;
+                ms.Write(buf, 0, r.Count);
+            } while (!r.EndOfMessage);
             if (r.MessageType == System.Net.WebSockets.WebSocketMessageType.Close) break;
-            // при желании: разбор команд
-            // string txt = System.Text.Encoding.UTF8.GetString(buf, 0, r.Count);
+
+            // Разбор команды: {"type":"command","cmd":{"ctrl_id":"...","action":"...","value":"<base64>"}}
+            string txt = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+            try {
+                var ma = System.Text.RegularExpressions.Regex.Match(txt, "\"action\"\\s*:\\s*\"(\\w+)\"");
+                if (ma.Success) {
+                    // value = base64 (только [A-Za-z0-9+/=], кавычек нет — безопасно)
+                    var mv  = System.Text.RegularExpressions.Regex.Match(txt, "\"value\"\\s*:\\s*\"([A-Za-z0-9+/=]*)\"");
+                    var mci = System.Text.RegularExpressions.Regex.Match(txt, "\"ctrl_id\"\\s*:\\s*\"([^\"]+)\"");
+                    HoBridge.PendingData   = mv.Success  ? mv.Groups[1].Value  : "";
+                    HoBridge.PendingCtrlId = mci.Success ? mci.Groups[1].Value : "";
+                    HoBridge.PendingCmd    = ma.Groups[1].Value;  // cmd ставим последним — данные уже готовы
+                }
+            } catch {}
         }
     } catch {}
 });
@@ -171,30 +507,157 @@ HoBridge.Recv = System.Threading.Tasks.Task.Run(() => {
 ### Блок 2 — отправка данных (ОДНА итерация; цикл навешивает ZP, ~5 сек)
 
 ```csharp
-string tableName = "Процесс Склик";
-string taskName  = project.Variables["horseoff_sklik_task"].Value;
+string tableName  = "Процесс Склик";
+string schedTable = "Процессы";
+string taskName   = project.Variables["horseoff_sklik_task"].Value;
 string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"label\":\"Артикул\"},{\"key\":\"status\",\"label\":\"Статус\"},{\"key\":\"total\",\"label\":\"Кол-во\"},{\"key\":\"done\",\"label\":\"Выполнено\"}]";
 
 // если соединение закрылось — выходим (return null, не return! ZP ждёт object)
 if (HoBridge.Ws == null || HoBridge.Ws.State != System.Net.WebSockets.WebSocketState.Open)
     return null;
 
+// ── Обработка команды из horseoff ──────────────────────────────
+if (!string.IsNullOrEmpty(HoBridge.PendingCmd)) {
+    string cmd    = HoBridge.PendingCmd;
+    string ctrlId = HoBridge.PendingCtrlId;
+    HoBridge.PendingCmd    = "";
+    HoBridge.PendingCtrlId = "";
+    try {
+        if (cmd == "start") { ZennoPoster.StartTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); HoBridge.TouchAlive(); }
+        else if (cmd == "pause") { ZennoPoster.StopTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
+        else if (cmd == "stop")  { ZennoPoster.InterruptTask(taskName); HoBridge.CmdState = cmd; HoBridge.SaveCmd(); }
+        else if (cmd == "clear_table") {
+            project.Tables[tableName].Clear();
+        }
+        else if (cmd == "load_table") {
+            string decoded = System.Text.Encoding.UTF8.GetString(
+                System.Convert.FromBase64String(HoBridge.PendingData));
+            HoBridge.PendingData = "";
+            var tbl = project.Tables[tableName];
+            tbl.Clear();
+            foreach (var line in decoded.Split('\n')) {
+                if (string.IsNullOrEmpty(line)) continue;
+                var p = line.Split('\t');
+                string q   = p.Length > 0 ? p[0] : "";
+                string art = p.Length > 1 ? p[1] : "";
+                int rowIdx = tbl.RowCount;
+                tbl.AddRow(q);
+                tbl.SetCell(1, rowIdx, art);
+            }
+        }
+        else if (cmd == "set") {
+            // Значение приходит base64-кодированным (может содержать : . пробелы)
+            string val = "";
+            try { val = System.Text.Encoding.UTF8.GetString(System.Convert.FromBase64String(HoBridge.PendingData)); }
+            catch { val = HoBridge.PendingData; }
+            HoBridge.PendingData = "";
+            var sTbl = project.Tables[schedTable];
+            if (sTbl != null) {
+                if (ctrlId == "regular_report") sTbl.SetCell(3, 0, val);  // D0
+                else if (ctrlId == "final_report") sTbl.SetCell(3, 1, val); // D1
+            }
+        }
+    } catch {}
+}
+
+// ── Состояние ZennoPoster ──────────────────────────────────────
+// Признак «модуль включён»: пульс склика (_alive.txt, обновляется при каждой
+// минутной проверке) ЛИБО активные потоки. Стоп из horseoff = красное сразу.
+// GetTaskInfo не используем — отдаёт пусто/NullReference.
 int threads = 0;
 try { threads = ZennoPoster.GetThreadsCount(taskName); } catch {}
 
+// после перезапуска ZP static сбрасывается — восстанавливаем команду из файла
+if (string.IsNullOrEmpty(HoBridge.CmdState)) HoBridge.LoadCmd();
+
+// «жив» = есть потоки ИЛИ пульс свежий (< 90 сек; проверки раз в минуту)
+bool alive = threads > 0 || HoBridge.AliveAgeSec() < 90;
+
+string stateText; string dotClass;
+string[] disabledBtns;
+bool locked;
+if (HoBridge.CmdState == "stop") {
+    // явный стоп из horseoff
+    stateText = "Склик остановлен"; dotClass = "offline";
+    disabledBtns = new string[] {"pause", "stop"};
+    locked = false;
+} else if (HoBridge.CmdState == "pause") {
+    if (threads > 0) {
+        stateText = "Завершает потоки... (" + threads + ")"; dotClass = "idle";
+        disabledBtns = new string[] {"pause"};
+        locked = true;
+    } else {
+        stateText = "На паузе"; dotClass = "idle";
+        disabledBtns = new string[] {"pause", "stop"};
+        locked = false;
+    }
+} else {
+    // start или пусто — решаем по пульсу
+    if (threads > 0) {
+        stateText = threads + " потоков активно"; dotClass = "online";
+        disabledBtns = new string[] {"start"};
+        locked = true;
+    } else if (alive) {
+        // включён, но потоков нет (ждёт план, минутные проверки идут)
+        stateText = "Ожидает потоки"; dotClass = "idle";
+        disabledBtns = new string[] {"start"};
+        locked = true;
+    } else {
+        // пульса нет > 90 сек: реально выключен / отключили в ZP / ZP перезапустился
+        stateText = "Склик остановлен"; dotClass = "offline";
+        disabledBtns = new string[] {"pause", "stop"};
+        locked = false;
+    }
+}
+
+var dis = new System.Text.StringBuilder("[");
+for (int i = 0; i < disabledBtns.Length; i++) {
+    if (i > 0) dis.Append(",");
+    dis.Append("\"").Append(disabledBtns[i]).Append("\"");
+}
+dis.Append("]");
+
+// ── Таблица + прогресс + ДЕЛЬТЫ скликов ───────────────────────
+// Если у строки статус "Артикул пропал из выдачи" — товар скликан:
+// за максимум берём done (уже выполненные), а не total (пороговое значение).
+// Статистика ведётся НАКОПИТЕЛЬНО: считаем приращение done между итерациями
+// и прибавляем его в файл ТЕКУЩЕГО дня. Файл дня никогда не уменьшается.
+// Сброс таблицы / новый запуск / новый день ничего не затирают.
 var rows = new System.Text.StringBuilder("[");
 var t = project.Tables[tableName];
 int rc = t.RowCount;
 int sumDone = 0, sumTotal = 0;
+var itemDeltas = new System.Collections.Generic.Dictionary<string,int>();
 for (int i = 0; i < rc; i++) {
+    string rowQ      = t.GetCell(0, i) ?? "";
+    string rowArt    = t.GetCell(1, i) ?? "";
+    string rowStatus = t.GetCell(2, i) ?? "";
     int total = HoBridge.Num(t.GetCell(3, i));
     int done  = HoBridge.Num(t.GetCell(4, i));
-    sumTotal += total; sumDone += done;
+    bool isPropan = rowStatus.IndexOf("пропал из выдачи",
+        System.StringComparison.OrdinalIgnoreCase) >= 0;
+    // Скликанный товар: его максимум = done (больше не вырастет)
+    sumTotal += isPropan ? done : total;
+    sumDone  += done;
+    // Дельта скликов с прошлой итерации (по ключу запрос+артикул)
+    string dKey = rowQ + "\x01" + rowArt;
+    int prev;
+    if (HoBridge.LastDone.TryGetValue(dKey, out prev)) {
+        if (done > prev) {
+            int dd2 = done - prev;
+            if (itemDeltas.ContainsKey(dKey)) itemDeltas[dKey] += dd2;
+            else itemDeltas[dKey] = dd2;
+        }
+        // done < prev — таблицу перезалили/сбросили: просто обновляем базу, ничего не вычитаем
+    }
+    // Первое наблюдение товара — только фиксируем базу (не считаем дельту,
+    // чтобы после перезапуска ZP не задвоить уже учтённые склики)
+    HoBridge.LastDone[dKey] = done;
     if (i > 0) rows.Append(",");
     rows.Append("{")
-        .Append("\"q\":\"").Append(HoBridge.Esc(t.GetCell(0, i))).Append("\",")
-        .Append("\"art\":\"").Append(HoBridge.Esc(t.GetCell(1, i))).Append("\",")
-        .Append("\"status\":\"").Append(HoBridge.Esc(t.GetCell(2, i))).Append("\",")
+        .Append("\"q\":\"").Append(HoBridge.Esc(rowQ)).Append("\",")
+        .Append("\"art\":\"").Append(HoBridge.Esc(rowArt)).Append("\",")
+        .Append("\"status\":\"").Append(HoBridge.Esc(rowStatus)).Append("\",")
         .Append("\"total\":\"").Append(HoBridge.Esc(t.GetCell(3, i))).Append("\",")
         .Append("\"done\":\"").Append(HoBridge.Esc(t.GetCell(4, i))).Append("\"")
         .Append("}");
@@ -202,8 +665,126 @@ for (int i = 0; i < rc; i++) {
 rows.Append("]");
 int pct = sumTotal > 0 ? (int)(sumDone * 100L / sumTotal) : 0;
 
+// ── Статистика (накопление в файл дня + отправка) ─────────────
+try {
+    string today = System.DateTime.Now.ToString("yyyy-MM-dd");
+    string yesterday = System.DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
+    // Прибавляем дельты в файл СЕГОДНЯШНЕГО дня (создаст файл, если его нет).
+    // На границе суток дельты автоматически пойдут в файл нового дня.
+    HoBridge.AddDayStat(today, itemDeltas);
+
+    // Сбор данных за 7 дней (от старого к новому)
+    var wDates = new System.Collections.Generic.List<string>();
+    var wDones = new System.Collections.Generic.List<int>();
+    var wFis   = new System.Collections.Generic.List<System.Collections.Generic.List<string[]>>();
+    for (int d = 6; d >= 0; d--) {
+        string dt = System.DateTime.Now.AddDays(-d).ToString("yyyy-MM-dd");
+        int dd = 0, dic = 0;
+        var fi = HoBridge.ReadDayStat(dt, out dd, out dic);
+        if (dd == 0 && fi.Count == 0 && dt != today) continue; // пропуск если нет данных
+        wDates.Add(dt);
+        wDones.Add(dd);
+        wFis.Add(fi);
+    }
+
+    // Сегодня / вчера / неделя
+    int todayDone = 0; int todayIc = 0;
+    int prevDone  = 0; int prevIc  = 0;
+    int weekDone  = 0;
+    for (int i = 0; i < wDates.Count; i++) {
+        weekDone += wDones[i];
+        if (wDates[i] == today)     { todayDone = wDones[i]; todayIc = wFis[i].Count; }
+        if (wDates[i] == yesterday) { prevDone  = wDones[i]; prevIc  = wFis[i].Count; }
+    }
+    int deltaDone  = todayDone - prevDone;
+    int deltaItems = todayIc   - prevIc;
+
+    // Товары за неделю: СУММА скликов по дням (файлы теперь хранят дневные приросты)
+    var seenWeek = new System.Collections.Generic.Dictionary<string, int>();
+    for (int i = 0; i < wFis.Count; i++) {
+        foreach (string[] fi in wFis[i]) {
+            string key = fi[0] + "\x01" + fi[1];
+            int dv = 0; int.TryParse(fi[2], out dv);
+            if (seenWeek.ContainsKey(key)) seenWeek[key] += dv;
+            else seenWeek[key] = dv;
+        }
+    }
+    int weekTotalItems = seenWeek.Count;
+
+    // KPI
+    string[] ruDow = new string[] {"вс","пн","вт","ср","чт","пт","сб"};
+    var kpi = new System.Text.StringBuilder("[");
+    kpi.Append("{\"label\":\"Скликов сегодня\",\"value\":\"").Append(todayDone)
+       .Append("\",\"delta\":\"").Append(deltaDone >= 0 ? "+" : "").Append(deltaDone)
+       .Append("\",\"trend\":\"").Append(deltaDone >= 0 ? "up" : "down").Append("\"},");
+    kpi.Append("{\"label\":\"Скликов за неделю\",\"value\":\"").Append(weekDone).Append("\"},");
+    kpi.Append("{\"label\":\"Товаров за неделю\",\"value\":\"").Append(weekTotalItems).Append("\"}]");
+
+    // Линейный график — склики по дням недели (дневные приросты, не снапшоты)
+    var line = new System.Text.StringBuilder("[");
+    bool fh = true;
+    for (int i = 0; i < wDates.Count; i++) {
+        System.DateTime dtp = System.DateTime.Parse(wDates[i]);
+        string lbl = ruDow[(int)dtp.DayOfWeek] + " " + dtp.ToString("dd.MM");
+        if (!fh) line.Append(","); fh = false;
+        line.Append("{\"label\":\"").Append(lbl).Append("\",\"v\":").Append(wDones[i]).Append("}");
+    }
+    line.Append("]");
+
+    // Топ-10 — список товаров (title=запрос, sub=артикул, value=сумма скликов за неделю)
+    var topList = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string,int>>();
+    foreach (var kv in seenWeek)
+        topList.Add(new System.Collections.Generic.KeyValuePair<string,int>(kv.Key, kv.Value));
+    topList.Sort((a2, b2) => b2.Value.CompareTo(a2.Value));
+    if (topList.Count > 10) topList.RemoveRange(10, topList.Count - 10);
+    var rank = new System.Text.StringBuilder("[");
+    for (int i = 0; i < topList.Count; i++) {
+        string[] parts = topList[i].Key.Split('\x01');
+        string q2   = parts.Length > 0 ? parts[0] : "";
+        string art2 = parts.Length > 1 ? parts[1] : "";
+        if (i > 0) rank.Append(",");
+        rank.Append("{\"title\":\"").Append(HoBridge.Esc(q2))
+            .Append("\",\"sub\":\"").Append(HoBridge.Esc(art2))
+            .Append("\",\"value\":").Append(topList[i].Value).Append("}");
+    }
+    rank.Append("]");
+
+    // Блочный формат: бот сам объявляет, какие компоненты статистики ему нужны
+    var blocks = new System.Text.StringBuilder("[");
+    blocks.Append("{\"type\":\"kpi\",\"items\":").Append(kpi).Append("},");
+    blocks.Append("{\"type\":\"linechart\",\"title\":\"Склики по дням (неделя)\",\"data\":").Append(line).Append("},");
+    blocks.Append("{\"type\":\"ranklist\",\"title\":\"Топ-10 товаров за неделю\",\"items\":").Append(rank).Append("}");
+    blocks.Append("]");
+
+    HoBridge.Send("{\"type\":\"stats\",\"blocks\":" + blocks + "}");
+} catch {}
+
+// ── Расписание отчётов из таблицы "Процессы" ──────────────────
+string regularReport = "";
+string finalReport   = "";
+try {
+    var sTbl = project.Tables[schedTable];
+    if (sTbl != null) {
+        regularReport = sTbl.GetCell(3, 0) ?? ""; // D0 — регулярный отчёт (HH:MM)
+        finalReport   = sTbl.GetCell(3, 1) ?? ""; // D1 — финальный отчёт (DD.MM.YYYY H:MM:SS)
+    }
+} catch {}
+
+// ── Новые события из файла лога Склика → в horseoff ───────────
+try {
+    foreach (string[] ev in HoBridge.ReadNewEvents()) {
+        HoBridge.Send("{\"type\":\"log\",\"level\":\"" + HoBridge.Esc(ev[0])
+            + "\",\"msg\":\"" + HoBridge.Esc(ev[1]) + "\"}");
+    }
+} catch {}
+
+// ── Отправка обновлений контролов ─────────────────────────────
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"__status__\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"dot\":\"" + dotClass + "\",\"lock\":" + (locked ? "true" : "false") + "}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"ctrl\",\"data\":{\"disabled\":" + dis.ToString() + "}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"regular_report\",\"data\":{\"value\":\"" + HoBridge.Esc(regularReport) + "\"}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"final_report\",\"data\":{\"value\":\"" + HoBridge.Esc(finalReport) + "\"}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"tasks\",\"data\":{\"columns\":" + cols + ",\"rows\":" + rows.ToString() + "}}");
-HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"text\":\"" + threads + "\"}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"value\":" + threads + "}}");
 HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"progress\",\"data\":{\"value\":" + pct + ",\"total\":\"" + sumDone + " из " + sumTotal + "\"}}");
 HoBridge.Send("{\"type\":\"ping\"}");
 ```
@@ -220,6 +801,321 @@ try {
 } catch {}
 ```
 
+### Универсальный лог-блок (в проекте «Склик», вместо обычных SendToLog)
+
+Один C#-блок, который заменяет обычные `SendToLog`: пишет событие в
+JSON-файл дня (его читает мост) И дублирует в родной лог ZennoPoster
+с правильным цветом. Многопоточно-безопасен (именованный Mutex).
+
+Файл: `{project.Directory}\{project_name}\System\logs\events_sklik_YYYY-MM-DD.log`
+(тот же каталог, что `HoBridge.StatsDir` в мосте — мост читает отсюда).
+
+Формат строки (JSONL, одна строка = событие):
+```json
+{"ts":"2026-07-02 10:08:01","level":"SUCCESS","msg":"Все задачи выполнены","proc":"4389831804"}
+```
+
+`msg` и `level` правишь руками прямо в блоке под каждое уведомление.
+`proc` берётся из переменной проекта `system_log_number` (id процесса).
+
+```csharp
+// ─── Лог-блок проекта «Склик» ─────────────────────────────────
+// msg и level правишь руками под каждое уведомление.
+string msg   = "Все задачи выполнены";
+string level = "SUCCESS";   // INFO | WARN | ERROR | SUCCESS
+
+string proc = "";
+try { proc = project.Variables["system_log_number"].Value; } catch {}
+
+if (msg == null) msg = "";
+level = (level ?? "").Trim().ToUpper();
+if (level != "WARN" && level != "ERROR" && level != "SUCCESS") level = "INFO";
+
+// JSON-экранирование
+System.Func<string,string> esc = (s) => {
+    if (s == null) return "";
+    return s.Replace("\\","\\\\").Replace("\"","\\\"")
+            .Replace("\n","\\n").Replace("\r","").Replace("\t"," ");
+};
+
+string ts = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+var sb = new System.Text.StringBuilder();
+sb.Append("{\"ts\":\"").Append(ts)
+  .Append("\",\"level\":\"").Append(level)
+  .Append("\",\"msg\":\"").Append(esc(msg)).Append("\"");
+if (!string.IsNullOrEmpty(proc)) sb.Append(",\"proc\":\"").Append(esc(proc)).Append("\"");
+sb.Append("}");
+string line = sb.ToString();
+
+// ── Запись в JSON-файл дня (потокобезопасно через Mutex) ──────
+try {
+    string dir = System.IO.Path.Combine(project.Directory,
+        project.Variables["project_name"].Value, "System", "logs");
+    if (!System.IO.Directory.Exists(dir))
+        System.IO.Directory.CreateDirectory(dir);
+    string file = System.IO.Path.Combine(dir,
+        "events_sklik_" + System.DateTime.Now.ToString("yyyy-MM-dd") + ".log");
+
+    using (var mtx = new System.Threading.Mutex(false, "HorseoffSklikLogWrite")) {
+        bool owned = false;
+        try {
+            try { owned = mtx.WaitOne(5000); }
+            catch (System.Threading.AbandonedMutexException) { owned = true; }
+            System.IO.File.AppendAllText(file, line + "\n", System.Text.Encoding.UTF8);
+        } finally {
+            if (owned) mtx.ReleaseMutex();
+        }
+    }
+} catch {}
+
+// ── Дублируем в родной лог ZennoPoster с цветом ───────────────
+try {
+    var lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Info;
+    var lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Default;
+    if (level == "SUCCESS")    { lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Info;    lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Green; }
+    else if (level == "WARN")  { lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Warning; lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Orange; }
+    else if (level == "ERROR") { lt = ZennoLab.InterfacesLibrary.Enums.Log.LogType.Error;   lc = ZennoLab.InterfacesLibrary.Enums.Log.LogColor.Red; }
+
+    string logText = msg;
+    if (!string.IsNullOrEmpty(proc)) logText += "\nПроцесс: " + proc;
+
+    project.SendToLog(logText, lt, false, lc);
+} catch {}
+```
+
+**Про `return null;`:** если тип блока у тебя object-возвращающий (как Блок 2)
+и ZP ругается «An object of a type convertible to object is required» —
+добавь `return null;` в самый конец. Если это простой C#-action — не нужен.
+
+### Heartbeat-блок склика (пульс «модуль жив»)
+
+Нужен, чтобы horseoff отличал «включён, но ждёт план» (потоков 0, но задача
+активна) от «полностью выключен». Склик раз в минуту поднимает потоки-проверки —
+в них и ставим пульс. Блок отмечает `_alive.txt`; мост считает возраст отметки:
+свежая (< 90 сек) → «Ожидает потоки», старая → «Остановлен».
+
+**Куда ставить:** в цикл минутной проверки задач (тот, что раз в минуту смотрит,
+есть ли работа) — в самое начало, чтобы отмечался каждый проход. Больше нигде
+не нужно: пока идут потоки, мост и так видит «работает».
+
+```csharp
+try {
+    string dir = System.IO.Path.Combine(project.Directory,
+        project.Variables["project_name"].Value, "System", "logs");
+    if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
+    System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "_alive.txt"),
+        System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), System.Text.Encoding.UTF8);
+} catch {}
+```
+
+## Склик WB — вариант без расписания отчётов
+
+То же самое, что Склик Ozon, но у проекта WB **нет логики отчётов по
+расписанию**, поэтому убираем всё, что связано с таблицей `"Процессы"` и
+пикерами времени/даты. Когда работаем «со Скликом ВБ» — правим этот раздел.
+
+**Идентично Ozon (не дублируем, берём один в один):**
+- Весь `HoBridge` («Свой код»).
+- Блок 1: переменные + auth + фоновый recv-цикл (кроме манифеста — см. ниже).
+- Блок 2: всё тело (разбор команды, состояние ZP, таблица/прогресс,
+  статистика, форвардинг событий-лога) — **кроме** трёх мест, отмеченных ниже.
+- Блок 3 (закрытие) и универсальный лог-блок.
+
+**Отличие 1 — манифест (Блок 1): без секции «Расписание отчётов».**
+Тот же `HoBridge.Send("{\"type\":\"manifest\"...` но без двух schedule-контролов:
+
+```csharp
+HoBridge.Send("{\"type\":\"manifest\",\"version\":\"" + versionProject + "\",\"sub\":\"Склик WB\",\"tabs\":[\"stats\",\"log\"],\"controls\":["
+    + "{\"type\":\"section\",\"label\":\"Управление\"},"
+    + "{\"type\":\"buttons\",\"id\":\"ctrl\",\"buttons\":["
+    +   "{\"label\":\"Запустить\",\"action\":\"start\",\"style\":\"primary\"},"
+    +   "{\"label\":\"Пауза\",\"action\":\"pause\",\"style\":\"secondary\"},"
+    +   "{\"label\":\"Стоп\",\"action\":\"stop\",\"style\":\"danger\"}"
+    + "]},"
+    + "{\"type\":\"section\",\"label\":\"Состояние\"},"
+    + "{\"type\":\"stat\",\"id\":\"threads\",\"label\":\"Активных потоков\",\"value\":\"0\"},"
+    + "{\"type\":\"progress\",\"id\":\"progress\",\"label\":\"Общий прогресс\",\"value\":0,\"total\":\"0 из 0\"},"
+    + "{\"type\":\"section\",\"label\":\"Задания\"},"
+    + "{\"type\":\"table\",\"id\":\"tasks\",\"label\":\"Процесс склика\",\"edit_cols\":[\"q\",\"art\"],\"columns\":" + cols + ",\"rows\":[]}"
+    + "]}");
+```
+
+**Отличие 2 — Блок 2, начало: нет `schedTable`.**
+```csharp
+string tableName  = "Процесс Склик";
+string taskName   = project.Variables["horseoff_sklik_task"].Value;
+string cols = "[{\"key\":\"q\",\"label\":\"Запрос\"},{\"key\":\"art\",\"label\":\"Артикул\"},{\"key\":\"status\",\"label\":\"Статус\"},{\"key\":\"total\",\"label\":\"Кол-во\"},{\"key\":\"done\",\"label\":\"Выполнено\"}]";
+```
+
+**Отличие 3 — Блок 2, разбор команды: убрать ветку `cmd == "set"`.**
+В WB нет отчётов, записывать в таблицу `"Процессы"` нечего — блок
+`else if (cmd == "set") { ... }` удаляем целиком. Остальные ветки
+(`start/pause/stop/clear_table/load_table`) без изменений.
+
+**Отличие 4 — Блок 2, хвост: без чтения расписания и двух ctrl_update.**
+Удаляем секцию `// ── Расписание отчётов из таблицы "Процессы"` и строки
+`ctrl_update` для `regular_report` и `final_report`. Хвост Блока 2 в WB:
+
+```csharp
+// ── Новые события из файла лога Склика → в horseoff ───────────
+try {
+    foreach (string[] ev in HoBridge.ReadNewEvents()) {
+        HoBridge.Send("{\"type\":\"log\",\"level\":\"" + HoBridge.Esc(ev[0])
+            + "\",\"msg\":\"" + HoBridge.Esc(ev[1]) + "\"}");
+    }
+} catch {}
+
+// ── Отправка обновлений контролов ─────────────────────────────
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"__status__\",\"data\":{\"text\":\"" + HoBridge.Esc(stateText) + "\",\"dot\":\"" + dotClass + "\",\"lock\":" + (locked ? "true" : "false") + "}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"ctrl\",\"data\":{\"disabled\":" + dis.ToString() + "}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"tasks\",\"data\":{\"columns\":" + cols + ",\"rows\":" + rows.ToString() + "}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"threads\",\"data\":{\"value\":" + threads + "}}");
+HoBridge.Send("{\"type\":\"ctrl_update\",\"ctrl_id\":\"progress\",\"data\":{\"value\":" + pct + ",\"total\":\"" + sumDone + " из " + sumTotal + "\"}}");
+HoBridge.Send("{\"type\":\"ping\"}");
+```
+
+Больше отличий нет — вся статистика, дельты скликов, прогресс и логи у WB
+работают ровно как у Ozon.
+
+## SEO WB — модуль (в разработке)
+
+Отдельный мост, управляет проектом проверки SEO-позиций на Wildberries.
+Строится по «Общему принципу». Статистику проектируем позже.
+
+**Что делает бот в ZennoPoster:**
+- По расписанию проверяет позиции товаров каждого магазина в поиске.
+- По понедельникам дополнительно проверяет частотность ключевых запросов.
+- Запускается САМ по расписанию. Наша задача — контролировать состояние,
+  править расписание, видеть процесс проверки магазинов, вести статистику.
+
+**Вкладки (manifest.tabs):** `stats`, `log`, `params` (+ Управление и Настройки
+всегда). То есть `"tabs":["stats","log","params"]`.
+
+**Состояние (`__status__`)** — набор состояний, как у склика:
+- `Остановлен`
+- `Ожидает расписание`
+- `Проверяю позиции: [Название магазина]`
+- `Проверяю частотность: [Название магазина]`
+
+**Управление:** кнопки Старт / Пауза / Стоп (как у склика) — чтобы можно было
+полностью остановить проект.
+
+**Расписание — главный элемент управления.** Хранится в ДВУХ таблицах ZP:
+- `Расписание` — будни (Пн–Пт).
+- `Расписание_выходные` — выходные (Сб–Вс).
+Мост сам выбирает, какую таблицу показывать/редактировать, по текущему дню
+недели. Работаем с расписанием ТЕКУЩЕГО дня. Структура таблицы (см. скрин):
+- Колонка A (индекс 0) — тип: `Частотность` / `Позиции`.
+- Колонка B (индекс 1) — время `HH:MM`.
+Пример (будни): `Частотность 05:00`, `Позиции 09:00`, `Позиции 13:00`,
+`Позиции 16:10`, `Позиции 20:00`.
+
+**Редактор расписания (новый элемент управления):**
+- Строк и выборов — без ограничений: сколько нужно, столько добавляем/удаляем.
+- Столбец 1 — выпадающая плашка: `Частотность` / `Позиции`.
+- Столбец 2 — выбор времени с шагом 5 минут (как в schedule_time).
+- Нужен НОВЫЙ тип контрола (мини-редактируемая таблица: dropdown + time-picker
+  на строку, добавление/удаление строк). При сохранении мост записывает строки
+  обратно в таблицу текущего дня (`Расписание` или `Расписание_выходные`).
+
+**Частотность — только по понедельникам.** Во входящих настройках SEO-проекта
+задано, что частотность работает ТОЛЬКО в понедельник; в остальные дни строка
+`Частотность` в расписании игнорируется самим проектом. Мост в это не лезет —
+он просто показывает/редактирует таблицу текущего дня, логика «только Пн»
+живёт внутри SEO-проекта.
+
+**Управление:** Старт / Пауза / Стоп — ровно та же логика, что у склика
+(`StartTask` / `StopTask` / `InterruptTask`).
+
+**Магазины.** Таблица `Магазины`, колонка A (индекс 0) = имя магазина,
+остальные колонки не нужны. Сейчас ~10 магазинов, будет расти.
+
+**Процесс проверки** = линия прогресса. Проверил один магазин → берёт
+следующий. Прогресс двухуровневый:
+- по магазинам (проверено N из всего);
+- внутри текущего магазина (осталось товаров/ключей).
+В статус пишется, какой магазин сейчас проверяется и на каком этапе.
+
+**Данные проверок (переделываем сам SEO-проект).** Сейчас результаты пишутся
+в Google Sheets — на них НЕ опираемся. Проект SEO будет дополнительно
+заполнять **многоуровневый JSON**:
+- **отдельный файл на каждый магазин**, путь:
+  `{project.Directory}\{project_name}\System\logs\SEO\`;
+- один файл = скользящий **месяц** данных этого магазина; записи старше месяца
+  чистятся ВНУТРИ файла;
+- содержит позицию по каждому ключу каждого товара + кол-во товаров и кол-во
+  ключей по каждому товару (многоуровневый);
+- по этому JSON процесс понимает, на каком он этапе, и из него же считаем
+  прогресс. Данные отдаём в статистику (позже).
+
+**Переменные проекта (стандарт):** `horseoff_domain`, `project_name`,
+`project_version`, `horseoff_seo_api` (ключ бота), `horseoff_seo_task` (имя
+задачи для Старт/Стоп). Таблицы: `Расписание`, `Расписание_выходные`,
+`Магазины` (имена хардкодим в Блоке 2).
+
+**Вкладка «Параметры»** — делаем в самую последнюю очередь (пока плейсхолдер).
+
+### Живое состояние SEO (как мост узнаёт статус и прогресс)
+
+Комбинация **файла состояния + числа потоков**:
+- SEO-проект пишет глобальный `_state.json` (этап, текущий магазин, счётчики).
+- Мост читает его каждые 5 сек И берёт `GetThreadsCount(seo_task)` (поток всегда
+  один). Если поток упал посреди проверки — `_state.json` останется в состоянии
+  «проверяю», а `threads == 0` → мост понимает, что **процесс завершился
+  ошибкой** (JSON не доведён до конца).
+
+**Файл состояния** `{...}\System\logs\SEO\_state.json`:
+```json
+{
+  "stage": "positions",          // positions | frequency | idle
+  "store": "Диана",              // текущий магазин
+  "store_index": 3,              // 0-based
+  "stores_total": 10,
+  "products_total": 120,         // на текущий магазин, пишется ПЕРЕД проверкой
+  "products_done": 45,
+  "keys_total": 960,
+  "keys_done": 380,
+  "updated": "2026-07-03 13:40:05",
+  "run_started": "2026-07-03 13:00:00"
+}
+```
+Чистый финиш прогона: SEO ставит `stage = "idle"`. Тогда `threads == 0` +
+`stage == "idle"` = «Ожидает расписание». `threads == 0` + `stage` ещё
+«positions/frequency» = «Процесс завершился ошибкой».
+
+**Логика статуса (Блок 2):**
+- `threads >= 1`: `positions` → `Проверяю позиции: {store}`; `frequency` →
+  `Проверяю частотность: {store}`; иначе `Запускается…`. dot=online, lock.
+- `threads == 0` и `CmdState == "stop"` → `Остановлен` (приоритет). dot=offline.
+- `threads == 0` и `stage` ∈ (positions/frequency) → `Процесс завершился
+  ошибкой`. dot=offline (красный).
+- `threads == 0` иначе → `Ожидает расписание`. dot=idle.
+
+**Прогресс (два бара):**
+- по магазинам: `store_index / stores_total` (`stores_total` можно сверять с
+  числом строк таблицы `Магазины`);
+- внутри магазина: `products_done / products_total` (и/или ключи).
+
+**Данные позиций (per-store JSON, для статистики)** — отдельный файл на магазин,
+скользящий месяц, примерная схема:
+```json
+{
+  "store": "Диана",
+  "updated": "2026-07-03 13:40",
+  "products": {
+    "843071833": {
+      "keys": {
+        "платье летнее": { "2026-07-03": 12, "2026-07-02": 15 },
+        "сарафан":       { "2026-07-03": 4 }
+      },
+      "freq": { "платье летнее": { "2026-06-30": 45000 } }
+    }
+  }
+}
+```
+Записи старше месяца SEO-проект чистит внутри файла. Имя файла — по магазину
+(имя санитизируем под файловую систему; конвенцию финализируем при кодинге).
+
 ## Грабли C# в ZennoPoster (важно помнить)
 
 - C#-блок ожидает `return object`. **`return;` не компилируется** — ошибка
@@ -229,6 +1125,8 @@ try {
   строки) — использовать статический класс в «Своём коде».
 - `ZennoPoster.GetThreadsCount("имя задачи")` — число активных потоков по
   имени задачи, Guid не нужен.
+- `ZennoPoster.StartTask("имя")` / `StopTask("имя")` / `InterruptTask("имя")` —
+  старт/мягкая остановка/жёсткая остановка проекта по имени.
 - `ClientWebSocket` отвечает на PING только пока вызывается `ReceiveAsync` —
   обязателен фоновый приёмный цикл, иначе сервер отвалит по ping_timeout.
 - Бесконечный цикл внутри C#-блока = ZP не может остановить поток. Цикл
@@ -243,8 +1141,12 @@ try {
   `rows`, `total`, `src`) **сбрасываются**, чтобы не показывать протухшее.
 - ERROR-логи → push (rate-limit 20 сек на бота).
 - Манифест (`controls`, `name`, `version`, `sub`) сохраняется на диск.
+- Команды из UI → очередь `command_queue`, флушится при подключении бота.
+  В реальном времени шлётся по WS: `{"type":"command","cmd":{...}}`.
 
 `modules/bots/bots.js`:
+- `buttons`-карточка получает `id="btCtrlCard_<id>"` и кнопки — `data-action`.
+  `ctrl_update` с `{"disabled":["pause","stop"]}` включает/выключает кнопки.
 - `progress`-карточка получает `id` (`btCtrlCard_<id>`), иначе живые
   обновления не доходят.
 - `label` при `ctrl_update` без `style` сохраняет текущий класс (цвет).
@@ -253,6 +1155,5 @@ try {
 
 ## TODO / возможные следующие шаги
 
-- Приём и обработка команд из horseoff в фоновом цикле (кнопки «Стоп»/«Старт»).
 - Отправка `stats` (KPI/графики) из ZennoPoster.
 - Скриншоты (тип контрола `image`).

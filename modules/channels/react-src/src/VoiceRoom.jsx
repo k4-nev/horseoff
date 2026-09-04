@@ -1,0 +1,332 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { plural } from './lib.js';
+import * as voice from './voice.js';
+import Avatar from '../../../../core/react-src/src/shared/Avatar.jsx';
+import { useAccess } from '../../../../core/react-src/src/shared/access.jsx';
+
+/* Голосовая комната: экран перед входом и сама комната.
+
+   Потоки к <video> цепляются через ref — srcObject нельзя выразить атрибутом,
+   а держать MediaStream в состоянии React незачем: он живёт в движке
+   (voice.js) и переживает перерисовки. */
+
+function Video({ userId, version, muted, hidden, vref }) {
+  const own = useRef(null);
+  const ref = vref || own;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const s = voice.streamOf(userId);
+    if (el.srcObject !== s) {
+      el.srcObject = s || null;
+      if (s) el.play().catch(() => {});
+    }
+    voice.attachSink(el);
+  }, [userId, version, hidden]);
+  return <video className="ch-va-video" ref={ref} autoPlay playsInline muted={muted} style={{ display: hidden ? 'none' : 'block' }} />;
+}
+
+export function PreJoin({ name, room, onJoin, onSettings, joining }) {
+  /* Кнопку не прячем: комната видна, и молча неработающая кнопка хуже
+     объяснения. */
+  const access = useAccess();
+  const canJoin = access.may('voice.join');
+  const speakers = room.speakers || [];
+  const total = room.total || 0;
+  return (
+    <div className="ch-vpj-wrap" style={{ display: 'flex' }}>
+      <div className="ch-vpj-icon">🔊</div>
+      <div className="ch-vpj-room-name">{name}</div>
+      <div className="ch-vpj-participants">
+        {speakers.slice(0, 6).map((p) => (
+          <div className="ch-vpj-participant" key={p.user_id}>
+            <Avatar bare cls="ch-vpj-av" mime="png" src={p.avatar} name={p.username} />
+            <span className="ch-vpj-pname">{p.username}</span>
+          </div>
+        ))}
+      </div>
+      <div className="ch-vpj-status">
+        {total === 0 ? 'В комнате никого нет' : total + ' ' + plural(total, 'участник', 'участника', 'участников') + ' сейчас'}
+      </div>
+      <div className="ch-vpj-preview">
+        <div className="ch-vpj-device-row">
+          <span className="ch-vpj-device-ico"><span className="ico ico-20 ico-mic-off" style={{ backgroundColor: '#6b7585' }} /></span>
+          <span>Микрофон выключен при входе</span>
+        </div>
+        <div className="ch-vpj-device-row">
+          <span className="ch-vpj-device-ico"><span className="ico ico-20 ico-video-off" style={{ backgroundColor: '#6b7585' }} /></span>
+          <span>Камера выключена при входе</span>
+        </div>
+      </div>
+      <div className="ch-vpj-actions">
+        <button className="btn-icon-only srv-settings-btn" title="Настройки" onClick={onSettings}>
+          <span className="ico ico-16 ico-settings" />
+        </button>
+        {/* Причина — в самой кнопке: подпись под ней читается хуже, а
+            серая кнопка без объяснения не читается вовсе. */}
+        <button
+          className={'btn btn-primary ch-vpj-join-btn' + (canJoin ? '' : ' locked')}
+          disabled={joining || !canJoin}
+          onClick={onJoin}
+        >
+          {!canJoin
+            ? 'Нужна роль ' + (access.need('voice.join') || 'uncommon').toUpperCase()
+            : (joining ? 'Подключение...' : 'Войти в комнату')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Полноэкранный режим устройства, а не «во весь чат». Развёрнутая плитка
+   раньше просто рисовалась div-ом внутри колонки канала — без единого стиля,
+   поэтому и разворачивалась в пределах чата. Теперь слой выносится в body и
+   просит у браузера настоящий полный экран; iOS элементы разворачивать не
+   умеет, там остаётся встроенный полноэкранный режим самого видео. */
+function goFullscreen(el, video) {
+  const req = el && (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen);
+  if (req) return req.call(el, { navigationUI: 'hide' }) || Promise.resolve();
+  if (video && video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen(); } catch (e) { /* нельзя до старта */ } }
+  return Promise.resolve();
+}
+
+function exitFullscreen() {
+  const d = document;
+  if (!(d.fullscreenElement || d.webkitFullscreenElement)) return;
+  const exit = d.exitFullscreen || d.webkitExitFullscreen || d.msExitFullscreen;
+  if (exit) { try { exit.call(d); } catch (e) { /* уже вышли */ } }
+}
+
+/** Развёрнутая плитка: один участник во весь экран устройства. */
+function Expanded({ p, isMe, st, onClose, onMic, onCam, onScreen, onLeave, hasDisplayMedia }) {
+  const box = useRef(null);
+  const vid = useRef(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+
+  useEffect(() => {
+    goFullscreen(box.current, vid.current).catch(() => {});
+    /* Выход из полного экрана системной кнопкой или Esc — это и есть закрытие:
+       иначе слой остаётся висеть поверх приложения. */
+    const onFs = () => {
+      if (!(document.fullscreenElement || document.webkitFullscreenElement)) close.current();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close.current(); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+      document.removeEventListener('keydown', onKey);
+      exitFullscreen();
+    };
+  }, []);
+
+  return createPortal(
+    <div className="ch-va-overlay" ref={box}>
+      <Video userId={p.user_id} version={st.streamsVersion} muted={isMe} hidden={p.video_muted} vref={vid} />
+      {p.video_muted && (
+        <div className="ch-va-ov-av">
+          <Avatar bare cls="ch-va-ov-avimg" mime="png" src={p.avatar} name={p.username} />
+          <div className="ch-va-ov-name">{p.username}</div>
+        </div>
+      )}
+      <button className="ch-va-ov-close" onClick={onClose}>✕</button>
+      <div className="ch-va-ov-bar">
+        <div className="ch-va-ov-capsule">
+          <div className="ch-va-ov-who"><Avatar bare cls="ch-va-ov-mini" mime="png" src={p.avatar} name={p.username} /><span>{p.username}</span></div>
+          <button className="ch-va-ov-btn" onClick={onMic}>
+            <span className={'ico ico-20 ' + (st.muted ? 'ico-mic-off' : 'ico-mic')} />
+          </button>
+          <button className="ch-va-ov-btn" onClick={onCam}>
+            <span className={'ico ico-20 ' + (st.videoMuted ? 'ico-video-off' : 'ico-video')} />
+          </button>
+          {hasDisplayMedia && (
+            <button className="ch-va-ov-btn" style={st.screenSharing ? { color: 'var(--accent)' } : undefined} onClick={onScreen}>
+              <span className="ico ico-20 ico-screen" />
+            </button>
+          )}
+          <button className="ch-va-ov-btn ch-va-ov-leave" onClick={onLeave}>
+            <span className="ico ico-20 ico-phone-off" />
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/* ── Раскладка плиток ───────────────────────────────────────────────────
+   Раньше число колонок было прибито к числу участников: на телефоне те же
+   две-три колонки, что и на мониторе, и плитка выходила в палец шириной —
+   разглядеть в ней было нечего. Считаем колонки от реального размера
+   контейнера: перебираем все разбиения и берём то, при котором кадр внутри
+   ячейки выходит самым крупным. Ниже MIN_H плитку не ужимаем — вместо этого
+   сетка начинает прокручиваться. */
+const GAP = 6;
+const MIN_H = 104;    // ниже лица уже не читаются
+const MIN_W = 148;
+
+function pickGrid(n, w, h) {
+  if (!n || w < 40 || h < 40) return { cols: 1, rows: n || 1, rowH: 0, scroll: false, av: 72 };
+  // На узком экране кадр ближе к квадрату — так он занимает всю ширину
+  const ar = w >= 560 ? 16 / 9 : 4 / 3;
+  let best = null;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const cw = (w - GAP * (cols - 1)) / cols;
+    if (cols > 1 && cw < MIN_W) continue;
+    const ch = Math.max(MIN_H, (h - GAP * (rows - 1)) / rows);
+    /* Картинка растянута по ячейке (object-fit:cover), поэтому в зачёт идёт
+       вся её площадь, но с поправкой на обрезку: чем сильнее ячейка вытянута
+       относительно кадра, тем больше от него срезано по краям. Плюс лёгкий
+       штраф за дыры в последнем ряду — при равном счёте ровная сетка
+       приятнее. */
+    const cellAr = cw / ch;
+    const fit = Math.min(cellAr, ar) / Math.max(cellAr, ar);
+    const score = cw * ch * Math.sqrt(fit) * Math.pow(n / (cols * rows), 0.25);
+    if (!best || score > best.score * 1.02) best = { cols, rows, score };
+  }
+  if (!best) best = { cols: 1, rows: n, score: 0 };
+  const free = (h - GAP * (best.rows - 1)) / best.rows;
+  const rowH = Math.max(MIN_H, Math.floor(free));
+  return {
+    cols: best.cols,
+    rows: best.rows,
+    rowH,
+    scroll: rowH * best.rows + GAP * (best.rows - 1) > h + 1,
+    av: Math.max(34, Math.min(84, Math.round(rowH * 0.42))),
+  };
+}
+
+function useVoiceGrid(n) {
+  const ref = useRef(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = () => {
+      const r = el.getBoundingClientRect();
+      // округляем и держим порог: иначе появление полосы прокрутки
+      // переключало бы раскладку туда-сюда каждый кадр
+      setBox((b) => (Math.abs(b.w - r.width) > 3 || Math.abs(b.h - r.height) > 3
+        ? { w: Math.round(r.width), h: Math.round(r.height) } : b));
+    };
+    read();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', read);
+      return () => window.removeEventListener('resize', read);
+    }
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const layout = useMemo(() => pickGrid(n, box.w, box.h), [n, box.w, box.h]);
+  return [ref, layout];
+}
+
+export function ActiveRoom({ st, admin, onSettings, onLeave, onCam, onScreen }) {
+  const [expanded, setExpanded] = useState(null);
+  const speakers = (st.room && st.room.speakers) || [];
+  const listeners = (st.room && st.room.listeners) || [];
+  const hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  const exp = expanded ? speakers.find((p) => p.user_id === expanded) : null;
+  const [gridRef, grid] = useVoiceGrid(speakers.length);
+
+  return (
+    <div className="ch-va-wrap" style={{ display: 'flex' }}>
+      <div
+        className="ch-va-grid"
+        ref={gridRef}
+        data-count={speakers.length}
+        data-cols={grid.cols}
+        data-scroll={grid.scroll ? '1' : '0'}
+        style={{
+          '--va-cols': grid.cols,
+          '--va-row': grid.rowH ? grid.rowH + 'px' : '1fr',
+          '--va-av': grid.av + 'px',
+        }}
+      >
+        {speakers.map((p) => {
+          const isMe = p.user_id === st.myId;
+          return (
+            <div
+              className={'ch-va-tile' + (p.muted ? ' ch-va-muted' : '') + (st.speaking[p.user_id] ? ' ch-va-speaking' : '')}
+              key={p.user_id}
+              onClick={() => setExpanded(p.user_id)}
+            >
+              <Video userId={p.user_id} version={st.streamsVersion} muted={isMe} hidden={p.video_muted} />
+              {p.video_muted && <div className="ch-va-av-wrap"><Avatar bare cls="ch-va-av" mime="png" src={p.avatar} name={p.username} /></div>}
+              <div className="ch-va-tile-name">
+                {p.username}
+                {p.muted && <span className="ch-va-tile-mico"><span className="ico ico-14 ico-mic-off" /></span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {listeners.length > 0 && (
+        <div className="ch-va-listeners" style={{ display: 'flex' }}>
+          <span className="ch-va-lst-title">Слушатели ({listeners.length})</span>
+          {listeners.map((p) => (
+            <div className="ch-va-listener" key={p.user_id}>
+              <Avatar bare cls="ch-va-lst-av" mime="png" src={p.avatar} name={p.username} />
+              <span>{p.username}{p.raised_hand ? ' ✋' : ''}</span>
+              {admin && p.raised_hand && speakers.length < 6 && (
+                <button className="ch-vp-promote-btn" onClick={() => voice.allowSpeak(p.user_id)}>Дать слово</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="ch-va-controls">
+        <button
+          className={'ch-va-ctrl ' + (st.muted ? 'ch-va-ctrl-off' : 'ch-va-ctrl-on')}
+          title="Микрофон" onClick={() => voice.toggleMic()}
+        >
+          <span className={'ico ico-20 ' + (st.muted ? 'ico-mic-off' : 'ico-mic')} />
+        </button>
+        <button
+          className={'ch-va-ctrl ' + (st.videoMuted ? 'ch-va-ctrl-off' : 'ch-va-ctrl-on')}
+          title="Камера" onClick={onCam}
+        >
+          <span className={'ico ico-20 ' + (st.videoMuted ? 'ico-video-off' : 'ico-video')} />
+        </button>
+        {hasDisplayMedia && (
+          <button
+            className={'ch-va-ctrl ' + (st.screenSharing ? 'ch-va-ctrl-on' : 'ch-va-ctrl-off')}
+            title="Показать экран" onClick={onScreen}
+          >
+            <span className="ico ico-20 ico-screen" />
+          </button>
+        )}
+        {!st.isSpeaker && (
+          <button
+            className={'ch-va-ctrl' + (st.handRaised ? ' ch-va-ctrl-on' : '')}
+            title="Поднять руку" onClick={() => voice.toggleHand()}
+          >
+            <span className="ico ico-20 ico-hand" />
+          </button>
+        )}
+        <button className="ch-va-ctrl ch-va-ctrl-leave" title="Выйти" onClick={onLeave}>
+          <span className="ico ico-20 ico-phone-off" />
+        </button>
+      </div>
+
+      {exp && (
+        <Expanded
+          p={exp} isMe={exp.user_id === st.myId} st={st} hasDisplayMedia={hasDisplayMedia}
+          onClose={() => setExpanded(null)}
+          onMic={() => voice.toggleMic()}
+          onCam={onCam}
+          onScreen={onScreen}
+          onLeave={() => { setExpanded(null); onLeave(); }}
+        />
+      )}
+    </div>
+  );
+}
